@@ -14,7 +14,7 @@ import {
   updateLiveStatus,
 } from "./state.js";
 import { connectLive, loadData } from "./loader.js";
-import { initPsdView } from "./views/psd-view.js";
+import { initPsdView } from "./views/psd-view.js?v=psd-axis-20260606";
 import { initCentroidView } from "./views/centroid-view.js";
 import { initGeometryView } from "./views/geometry-view.js";
 import { initChannelGrid } from "./views/channel-grid.js";
