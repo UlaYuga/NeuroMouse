@@ -13,7 +13,9 @@ import {
 import {
   ACTIVE_COLOR,
   AXIS_COLOR,
+  MONO_FONT,
   MUTED_COLOR,
+  PLOT_BORDER_COLOR,
   clear,
   colorScale,
   drawBottomAxis,
@@ -76,7 +78,7 @@ export function initPsdView(data, tooltip) {
       }
     }
 
-    ctx.font = "10px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+    ctx.font = `10px ${MONO_FONT}`;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     visibleChannels.forEach((channel, index) => {
@@ -85,7 +87,7 @@ export function initPsdView(data, tooltip) {
     });
 
     if (heatHover) {
-      ctx.fillStyle = "rgba(241,235,217,0.08)";
+      ctx.fillStyle = "rgba(255,255,255,0.05)";
       ctx.fillRect(plotX, plotY + heatHover.channelIndex * channelH, plotW, channelH);
     }
 
@@ -95,7 +97,7 @@ export function initPsdView(data, tooltip) {
       ctx.strokeRect(plotX, plotY + selectedVisibleIndex * channelH + 1, plotW, Math.max(1, channelH - 2));
     }
 
-    ctx.strokeStyle = "rgba(241,235,217,0.28)";
+    ctx.strokeStyle = PLOT_BORDER_COLOR;
     ctx.strokeRect(plotX, plotY, plotW, plotH);
     drawBottomAxis(ctx, [1, 10, 20, 30, 40, 50, 55], xScale, plotY + plotH, "Hz");
   }
@@ -122,17 +124,17 @@ export function initPsdView(data, tooltip) {
     const yScale = scaleLinear(minY, maxY, plotY + plotH, plotY);
 
     ctx.fillStyle = AXIS_COLOR;
-    ctx.font = "700 13px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+    ctx.font = `600 11px ${MONO_FONT}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     const sourceLabel = Array.isArray(livePsd) ? "Live PSD" : "Static PSD";
     ctx.fillText(`${sourceLabel} · ${channel}`, plotX, 14);
 
     drawFrequencyBands(ctx, xScale, plotY, plotH, { labels: false });
-    ctx.strokeStyle = "rgba(241,235,217,0.22)";
+    ctx.strokeStyle = PLOT_BORDER_COLOR;
     ctx.strokeRect(plotX, plotY, plotW, plotH);
     ctx.fillStyle = MUTED_COLOR;
-    ctx.font = "10px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+    ctx.font = `10px ${MONO_FONT}`;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     ctx.fillText(formatNumber(maxY, 1), plotX - 6, plotY);

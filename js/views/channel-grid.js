@@ -9,7 +9,7 @@ import {
   onFrameChange,
   setChannel,
 } from "../state.js";
-import { ACTIVE_COLOR, SECONDARY_COLOR, colorScale, extent, formatNumber } from "./chart-utils.js";
+import { ACTIVE_COLOR, CHART_BACKGROUND, MUTED_COLOR, colorScale, extent, formatNumber } from "./chart-utils.js";
 
 const EEG_10_20 = {
   Fp1: [0.35, 0.05], Fpz: [0.5, 0.04], Fp2: [0.65, 0.05],
@@ -55,6 +55,7 @@ export function initChannelGrid(data, tooltip) {
       role: "group",
       "aria-label": "10-20 EEG channel map",
       overflow: "hidden",
+      style: `background:${CHART_BACKGROUND}`,
     });
 
     svg.append(
@@ -64,27 +65,27 @@ export function initChannelGrid(data, tooltip) {
         rx: 165,
         ry: 185,
         fill: "none",
-        stroke: "rgba(241,235,217,0.58)",
-        "stroke-width": 2,
+        stroke: "rgba(255,255,255,0.12)",
+        "stroke-width": 1,
       }),
       element("path", {
         d: "M196 25 L210 6 L224 25",
         fill: "none",
-        stroke: "rgba(241,235,217,0.58)",
-        "stroke-width": 2,
+        stroke: "rgba(255,255,255,0.12)",
+        "stroke-width": 1,
         "stroke-linejoin": "round",
       }),
       element("path", {
         d: "M46 185 C12 204 12 252 46 272",
         fill: "none",
-        stroke: "rgba(241,235,217,0.46)",
-        "stroke-width": 2,
+        stroke: "rgba(255,255,255,0.12)",
+        "stroke-width": 1,
       }),
       element("path", {
         d: "M374 185 C408 204 408 252 374 272",
         fill: "none",
-        stroke: "rgba(241,235,217,0.46)",
-        "stroke-width": 2,
+        stroke: "rgba(255,255,255,0.12)",
+        "stroke-width": 1,
       }),
     );
 
@@ -111,22 +112,11 @@ export function initChannelGrid(data, tooltip) {
           cy: y,
           r: 14,
           fill: colorScale(power, rangeMin, rangeMax),
-          stroke: active ? "#ffffff" : "rgba(12,15,18,0.72)",
-          "stroke-width": active ? 3 : 1.2,
+          stroke: active ? ACTIVE_COLOR : "rgba(255,255,255,0.16)",
+          "stroke-width": active ? 2 : 0.5,
           opacity: isVisible ? 1 : 0.22,
+          style: item?.has_clear_alpha_peak && isVisible ? "filter:drop-shadow(0 0 4px rgba(0,212,160,0.6))" : "",
         }),
-        ...(item?.has_clear_alpha_peak ? [
-          element("circle", {
-            cx: x,
-            cy: y,
-            r: 18,
-            fill: "none",
-            stroke: SECONDARY_COLOR,
-            "stroke-width": 1.5,
-            "stroke-dasharray": "2 3",
-            opacity: isVisible ? 0.9 : 0.22,
-          }),
-        ] : []),
         element("text", { x, y: y + 0.5 }, channel),
       );
       group.addEventListener("click", () => setChannel(channel));
@@ -153,32 +143,37 @@ export function initChannelGrid(data, tooltip) {
 
   function colorbar(minPower, maxPower) {
     const parts = [
+      element("defs", {}, [
+        element("linearGradient", { id: "alpha-power-gradient", x1: "0%", x2: "100%", y1: "0%", y2: "0%" }, [
+          element("stop", { offset: "0%", "stop-color": "#0a0a1a" }),
+          element("stop", { offset: "55%", "stop-color": "#005e56" }),
+          element("stop", { offset: "100%", "stop-color": ACTIVE_COLOR }),
+        ]),
+      ]),
       element("text", {
         x: 44,
         y: 425,
-        fill: "rgba(205,199,181,0.86)",
+        fill: MUTED_COLOR,
         "font-size": 11,
-        "font-weight": 700,
-        "font-family": "SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace",
+        "font-weight": 600,
+        "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace",
       }, "alpha rel. power"),
-    ];
-    for (let i = 0; i < 36; i += 1) {
-      const value = minPower + ((maxPower - minPower) * i) / 35;
-      parts.push(element("rect", {
-        x: 154 + i * 5,
+      element("rect", {
+        x: 154,
         y: 416,
-        width: 5,
+        width: 180,
         height: 12,
-        fill: colorScale(value, minPower, maxPower),
-      }));
-    }
+        rx: 6,
+        fill: "url(#alpha-power-gradient)",
+      }),
+    ];
     parts.push(
-      element("text", { x: 154, y: 444, fill: "rgba(205,199,181,0.86)", "font-size": 10, "font-family": "SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace", "text-anchor": "middle" }, formatNumber(minPower, 2)),
-      element("text", { x: 334, y: 444, fill: "rgba(205,199,181,0.86)", "font-size": 10, "font-family": "SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace", "text-anchor": "middle" }, formatNumber(maxPower, 2)),
+      element("text", { x: 154, y: 444, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace", "text-anchor": "middle" }, formatNumber(minPower, 2)),
+      element("text", { x: 334, y: 444, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace", "text-anchor": "middle" }, formatNumber(maxPower, 2)),
       element("circle", { cx: 346, cy: 422, r: 6, fill: "none", stroke: ACTIVE_COLOR, "stroke-width": 2 }),
-      element("text", { x: 358, y: 426, fill: "rgba(205,199,181,0.86)", "font-size": 10, "font-family": "SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace" }, "selected"),
-      element("circle", { cx: 346, cy: 444, r: 7, fill: "none", stroke: SECONDARY_COLOR, "stroke-width": 1.5, "stroke-dasharray": "2 3" }),
-      element("text", { x: 358, y: 448, fill: "rgba(205,199,181,0.86)", "font-size": 10, "font-family": "SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace" }, "alpha peak"),
+      element("text", { x: 358, y: 426, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace" }, "selected"),
+      element("circle", { cx: 346, cy: 444, r: 7, fill: ACTIVE_COLOR, opacity: 0.62, style: "filter:drop-shadow(0 0 4px rgba(0,212,160,0.6))" }),
+      element("text", { x: 358, y: 448, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace" }, "alpha peak"),
     );
     return parts;
   }
@@ -192,6 +187,7 @@ export function initChannelGrid(data, tooltip) {
 function element(name, attrs = {}, text = "") {
   const node = document.createElementNS("http://www.w3.org/2000/svg", name);
   Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
-  if (text) node.textContent = text;
+  if (Array.isArray(text)) node.append(...text);
+  else if (text) node.textContent = text;
   return node;
 }

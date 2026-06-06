@@ -1,22 +1,27 @@
-export const ACTIVE_COLOR = "#33dec0";
-export const SECONDARY_COLOR = "#e5aa2f";
-export const GRID_COLOR = "rgba(241,235,217,0.10)";
-export const AXIS_COLOR = "rgba(241,235,217,0.76)";
-export const MUTED_COLOR = "rgba(205,199,181,0.78)";
+export const ACTIVE_COLOR = "#00D4A0";
+export const SECONDARY_COLOR = "#00D4A0";
+export const GRID_COLOR = "rgba(255,255,255,0.04)";
+export const AXIS_COLOR = "#8A9BA8";
+export const MUTED_COLOR = "#56565A";
+export const CHART_BACKGROUND = "#1C1C1E";
+export const PLOT_BORDER_COLOR = "rgba(255,255,255,0.08)";
+export const PLAYBACK_CURSOR_COLOR = "rgba(0,212,160,0.6)";
+export const ACTIVE_GLOW_COLOR = "rgba(0,212,160,0.4)";
+export const MONO_FONT = "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace";
 export const FREQUENCY_BANDS = [
-  { label: "delta", min: 1, max: 4, color: "rgba(49,95,143,0.12)" },
-  { label: "theta", min: 4, max: 8, color: "rgba(0,159,132,0.10)" },
-  { label: "alpha", min: 8, max: 13, color: "rgba(229,170,47,0.16)" },
-  { label: "beta", min: 13, max: 30, color: "rgba(51,222,192,0.09)" },
-  { label: "gamma", min: 30, max: 55, color: "rgba(212,111,31,0.10)" },
+  { label: "delta", min: 1, max: 4, color: "rgba(10,132,255,0.08)" },
+  { label: "theta", min: 4, max: 8, color: "rgba(0,212,160,0.07)" },
+  { label: "alpha", min: 8, max: 13, color: "rgba(0,212,160,0.14)" },
+  { label: "beta", min: 13, max: 30, color: "rgba(0,255,191,0.06)" },
+  { label: "gamma", min: 30, max: 55, color: "rgba(10,132,255,0.06)" },
 ];
 
 const VIRIDIS = [
-  [68, 1, 84],
-  [59, 82, 139],
-  [33, 145, 140],
-  [94, 201, 98],
-  [253, 231, 37],
+  [10, 10, 26],
+  [18, 45, 62],
+  [0, 94, 86],
+  [0, 170, 124],
+  [0, 212, 160],
 ];
 
 export function resizeCanvas(canvas) {
@@ -62,7 +67,7 @@ export function canvasPoint(event, canvas) {
   };
 }
 
-export function clear(ctx, width, height, color = "#111614") {
+export function clear(ctx, width, height, color = CHART_BACKGROUND) {
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, width, height);
 }
@@ -131,7 +136,7 @@ export function drawBottomAxis(ctx, ticks, xScale, y, label) {
   ctx.strokeStyle = GRID_COLOR;
   ctx.fillStyle = AXIS_COLOR;
   ctx.lineWidth = 1;
-  ctx.font = "11px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+  ctx.font = `10px ${MONO_FONT}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
@@ -159,8 +164,8 @@ export function drawFrequencyBands(ctx, xScale, y, height, options = {}) {
     ctx.fillStyle = band.color;
     ctx.fillRect(x0, y, Math.max(1, x1 - x0), height);
     if (labels) {
-      ctx.fillStyle = "rgba(241,235,217,0.52)";
-      ctx.font = "9px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+      ctx.fillStyle = MUTED_COLOR;
+      ctx.font = `9px ${MONO_FONT}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillText(band.label, x0 + (x1 - x0) / 2, y + 5);
@@ -176,6 +181,10 @@ export function drawLine(ctx, points, color, width = 1.5, alpha = 1) {
   ctx.lineWidth = width;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
+  if (color === ACTIVE_COLOR) {
+    ctx.shadowColor = ACTIVE_GLOW_COLOR;
+    ctx.shadowBlur = 6;
+  }
   ctx.beginPath();
   let hasPoint = false;
   points.forEach((point, index) => {

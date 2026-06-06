@@ -13,8 +13,10 @@ import {
   ACTIVE_COLOR,
   AXIS_COLOR,
   GRID_COLOR,
+  MONO_FONT,
   MUTED_COLOR,
-  SECONDARY_COLOR,
+  PLAYBACK_CURSOR_COLOR,
+  PLOT_BORDER_COLOR,
   canvasPoint,
   clear,
   drawLine,
@@ -95,19 +97,19 @@ export function initGeometryView(data, tooltip) {
       const [minY, maxY] = paddedExtent([values], 0.1);
       const yScale = scaleLinear(minY, maxY, panelBottom, panelTop);
 
-      ctx.strokeStyle = metricIndex === METRICS.length - 1 ? "rgba(241,235,217,0.22)" : GRID_COLOR;
+      ctx.strokeStyle = metricIndex === METRICS.length - 1 ? PLOT_BORDER_COLOR : GRID_COLOR;
       ctx.beginPath();
       ctx.moveTo(g.plotX, y0 + g.panelH);
       ctx.lineTo(g.plotX + g.plotW, y0 + g.panelH);
       ctx.stroke();
 
       ctx.fillStyle = AXIS_COLOR;
-      ctx.font = "700 11px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+      ctx.font = `600 10px ${MONO_FONT}`;
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
       ctx.fillText(label, 14, panelTop - 1);
       ctx.fillStyle = MUTED_COLOR;
-      ctx.font = "10px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+      ctx.font = `10px ${MONO_FONT}`;
       ctx.fillText(unit || "—", 14, panelTop + 15);
       ctx.textAlign = "right";
       ctx.fillText(formatNumber(maxY, key.includes("alpha") || key === "flatness" || key === "entropy" ? 2 : 1), g.plotX - 8, panelTop - 2);
@@ -119,21 +121,20 @@ export function initGeometryView(data, tooltip) {
           x: g.xScale(time),
           y: yScale(values[index]),
         })),
-        metricIndex === 5 ? SECONDARY_COLOR : ACTIVE_COLOR,
+        ACTIVE_COLOR,
         1.8,
       );
     });
 
-    ctx.strokeStyle = "rgba(241,235,217,0.22)";
+    ctx.strokeStyle = PLOT_BORDER_COLOR;
     ctx.strokeRect(g.plotX, g.plotY, g.plotW, g.plotH);
 
     if (series.mode === "static") {
       const frameIndex = Math.min(series.times.length - 1, getFrame());
       const x = g.xScale(series.times[frameIndex]);
       ctx.save();
-      ctx.strokeStyle = SECONDARY_COLOR;
-      ctx.globalAlpha = 0.72;
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = PLAYBACK_CURSOR_COLOR;
+      ctx.lineWidth = 1;
       ctx.setLineDash([4, 5]);
       ctx.beginPath();
       ctx.moveTo(x, g.plotY);
@@ -143,7 +144,7 @@ export function initGeometryView(data, tooltip) {
     }
 
     ctx.fillStyle = MUTED_COLOR;
-    ctx.font = "10px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+    ctx.font = `10px ${MONO_FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     const ticks = series.mode === "live"
@@ -151,7 +152,7 @@ export function initGeometryView(data, tooltip) {
       : [0, 20, 40, 60, 80, 100];
     ticks.forEach((tick) => {
       const x = g.xScale(tick);
-      ctx.strokeStyle = "rgba(241,235,217,0.12)";
+      ctx.strokeStyle = PLOT_BORDER_COLOR;
       ctx.beginPath();
       ctx.moveTo(x, g.plotY + g.plotH - 6);
       ctx.lineTo(x, g.plotY + g.plotH);
@@ -164,7 +165,7 @@ export function initGeometryView(data, tooltip) {
     if (hover || sharedHover) {
       const hoverPoint = hover || sharedHover;
       const x = g.xScale(hoverPoint.time);
-      ctx.strokeStyle = "rgba(229,170,47,0.78)";
+      ctx.strokeStyle = PLAYBACK_CURSOR_COLOR;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x, g.plotY);

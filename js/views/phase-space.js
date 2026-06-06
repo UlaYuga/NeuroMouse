@@ -8,7 +8,9 @@ import {
 import {
   ACTIVE_COLOR,
   AXIS_COLOR,
+  CHART_BACKGROUND,
   GRID_COLOR,
+  MONO_FONT,
   MUTED_COLOR,
   SECONDARY_COLOR,
   clamp,
@@ -16,6 +18,7 @@ import {
   formatNumber,
   observeCanvas,
   paddedExtent,
+  PLOT_BORDER_COLOR,
   resizeCanvas,
   scaleLinear,
 } from "./chart-utils.js";
@@ -130,6 +133,7 @@ export function initPhaseSpace(root, data) {
   function draw() {
     const { ctx, width, height } = resizeCanvas(canvas);
     clear(ctx, width, height);
+    drawDotGrid(ctx, width, height);
 
     const channel = getChannel();
     const channelIndex = getChannelIndex();
@@ -156,7 +160,7 @@ export function initPhaseSpace(root, data) {
 
     if (points.length < 2) {
       ctx.fillStyle = MUTED_COLOR;
-      ctx.font = "12px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+      ctx.font = `12px ${MONO_FONT}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("Not enough finite points", width / 2, height / 2);
@@ -207,7 +211,7 @@ function phasePoints(xValues, yValues, tau) {
 }
 
 function drawGrid(ctx, plotX, plotY, plotW, plotH) {
-  ctx.strokeStyle = "rgba(241,235,217,0.22)";
+  ctx.strokeStyle = PLOT_BORDER_COLOR;
   ctx.lineWidth = 1;
   ctx.strokeRect(plotX, plotY, plotW, plotH);
 
@@ -224,6 +228,17 @@ function drawGrid(ctx, plotX, plotY, plotW, plotH) {
   }
 }
 
+function drawDotGrid(ctx, width, height) {
+  ctx.save();
+  ctx.fillStyle = "rgba(255,255,255,0.03)";
+  for (let x = 0; x < width; x += 20) {
+    for (let y = 0; y < height; y += 20) {
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  ctx.restore();
+}
+
 function drawTrajectory(ctx, points, xScale, yScale) {
   ctx.save();
   ctx.lineWidth = 1.8;
@@ -233,7 +248,7 @@ function drawTrajectory(ctx, points, xScale, yScale) {
     const previous = points[index - 1];
     const current = points[index];
     const t = index / (points.length - 1);
-    ctx.strokeStyle = gradientColor(t, 0.72);
+    ctx.strokeStyle = gradientColor(t, 0.95);
     ctx.beginPath();
     ctx.moveTo(xScale(previous.xValue), yScale(previous.yValue));
     ctx.lineTo(xScale(current.xValue), yScale(current.yValue));
@@ -247,14 +262,14 @@ function drawEndpoint(ctx, point, xScale, yScale, color, label) {
   const y = yScale(point.yValue);
   ctx.save();
   ctx.fillStyle = color;
-  ctx.strokeStyle = "#f9f5e8";
+  ctx.strokeStyle = CHART_BACKGROUND;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(x, y, 4.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = AXIS_COLOR;
-  ctx.font = "10px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+  ctx.font = `10px ${MONO_FONT}`;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(label, x + 8, y);
@@ -276,9 +291,11 @@ function drawPlaybackDot(ctx, points, xScale, yScale) {
   const x = xScale(nearest.xValue);
   const y = yScale(nearest.yValue);
   ctx.save();
-  ctx.fillStyle = "#f9f5e8";
-  ctx.strokeStyle = SECONDARY_COLOR;
-  ctx.lineWidth = 3;
+  ctx.fillStyle = ACTIVE_COLOR;
+  ctx.strokeStyle = CHART_BACKGROUND;
+  ctx.shadowColor = "rgba(0,212,160,0.8)";
+  ctx.shadowBlur = 12;
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(x, y, 7, 0, Math.PI * 2);
   ctx.fill();
@@ -289,14 +306,14 @@ function drawPlaybackDot(ctx, points, xScale, yScale) {
 function drawAxes(ctx, g) {
   ctx.save();
   ctx.fillStyle = MUTED_COLOR;
-  ctx.font = "10px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+  ctx.font = `10px ${MONO_FONT}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
   const xTicks = [g.minX, (g.minX + g.maxX) / 2, g.maxX];
   xTicks.forEach((tick) => {
     const x = scaleLinear(g.minX, g.maxX, g.plotX, g.plotX + g.plotW)(tick);
-    ctx.strokeStyle = "rgba(241,235,217,0.12)";
+    ctx.strokeStyle = PLOT_BORDER_COLOR;
     ctx.beginPath();
     ctx.moveTo(x, g.plotY + g.plotH);
     ctx.lineTo(x, g.plotY + g.plotH + 5);
@@ -310,7 +327,7 @@ function drawAxes(ctx, g) {
   const yTicks = [g.minY, (g.minY + g.maxY) / 2, g.maxY];
   yTicks.forEach((tick) => {
     const y = scaleLinear(g.minY, g.maxY, g.plotY + g.plotH, g.plotY)(tick);
-    ctx.strokeStyle = "rgba(241,235,217,0.12)";
+    ctx.strokeStyle = PLOT_BORDER_COLOR;
     ctx.beginPath();
     ctx.moveTo(g.plotX - 5, y);
     ctx.lineTo(g.plotX, y);
@@ -328,10 +345,11 @@ function drawAxes(ctx, g) {
 }
 
 function gradientColor(t, alpha) {
-  const start = [51, 222, 192];
-  const end = [229, 170, 47];
+  const start = [0, 180, 130];
+  const end = [0, 212, 160];
+  const nextAlpha = 0.5 + t * (alpha - 0.5);
   const rgb = start.map((value, index) => Math.round(value + (end[index] - value) * t));
-  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${nextAlpha})`;
 }
 
 function metricLabel(key) {

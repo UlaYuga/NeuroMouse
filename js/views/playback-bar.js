@@ -134,6 +134,7 @@ export function initPlaybackBar(root, data) {
     const time = times[Math.min(frame, times.length - 1)] ?? 0;
     scrubber.max = String(getTotalFrames() - 1);
     scrubber.value = String(frame);
+    scrubber.style.setProperty("--progress", `${(frame / Math.max(1, getTotalFrames() - 1)) * 100}%`);
     const label = `t = ${formatNumber(time, 2)} s`;
     timeLabel.value = label;
     timeLabel.textContent = label;
