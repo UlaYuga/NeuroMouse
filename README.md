@@ -2,7 +2,7 @@
 
 SpeedMouse is a zero-build browser dashboard for EEG spectral analysis exports and optional live raw EEG WebSocket frames. It translates exported Welch PSD, spectral centroid, sliding spectral geometry, channel summary arrays, and browser-computed live DSP into interactive canvas/SVG views.
 
-The dashboard stays browser-native: no Python in the browser, no framework, no CDN, and no required runtime service for static replay.
+The dashboard stays browser-native: no Python in the browser, no framework, and no required runtime service for static replay. ZIP session import uses JSZip from CDN.
 
 ## Views
 
@@ -23,6 +23,7 @@ Click a channel row, line, or electrode to update every view.
 - Centroid and geometry hover crosshairs are synchronized.
 - Centroid hover shows top and bottom channel rankings at that timestamp.
 - Channel grid marks channels with a clear alpha peak.
+- Session comparison imports up to six ZIP datasets and supports overlay, split, and delta views.
 
 ## Run Locally
 

@@ -7,7 +7,9 @@
     <meta name="theme-color" content="#111113">
     <title>SpeedMouse</title>
     <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <link rel="stylesheet" href="./style.css?v=psd-axis-20260606">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
@@ -70,6 +72,36 @@
 
       </section>
 
+      <div class="app-body">
+        <aside class="session-sidebar" aria-label="Session comparison">
+          <div class="session-sidebar-head">
+            <h2>Sessions</h2>
+            <span id="session-count">0/6</span>
+          </div>
+          <button id="session-drop-zone" class="drop-zone" type="button" aria-label="Add SpeedMouse ZIP sessions">
+            <strong>Drop ZIP here</strong>
+            <span>or click to add</span>
+          </button>
+          <input id="session-file-input" name="session-files" type="file" accept=".zip" multiple aria-label="SpeedMouse ZIP session files" hidden>
+          <p id="session-message" class="session-message" aria-live="polite">Add sessions to compare</p>
+          <div id="session-list" class="session-list"></div>
+
+          <div class="session-controls">
+            <div class="session-control-block">
+              <span class="session-control-label">View mode</span>
+              <div class="segmented session-mode" data-control="view-mode" role="group" aria-label="View mode">
+                <button type="button" class="is-active" data-view-mode="overlay">Overlay</button>
+                <button type="button" data-view-mode="split">Split</button>
+                <button type="button" data-view-mode="delta">Delta</button>
+              </div>
+            </div>
+            <label class="session-control-block" for="baseline-select">
+              <span class="session-control-label">Baseline</span>
+              <select id="baseline-select"></select>
+            </label>
+          </div>
+        </aside>
+
       <main id="dashboard" class="dashboard" aria-busy="true" tabindex="-1">
         <section class="panel panel-psd" aria-labelledby="psd-title">
           <div class="panel-head">
@@ -78,6 +110,7 @@
               <p>Welch PSD — 4 s window, 50% overlap | units: a.u.</p>
             </div>
           </div>
+          <div id="psd-legend" class="session-legend" hidden></div>
           <div class="psd-layout">
             <canvas id="psd-heatmap" class="chart chart-heatmap" width="760" height="420" role="img" aria-label="Welch PSD heatmap by frequency and channel"></canvas>
             <canvas id="psd-overlay" class="chart chart-overlay" width="320" height="420" role="img" aria-label="PSD line for the selected channel"></canvas>
@@ -91,6 +124,7 @@
               <p>Spectral centroid over time | 2 s window, 0.25 s step</p>
             </div>
           </div>
+          <div id="centroid-legend" class="session-legend" hidden></div>
           <canvas id="centroid-chart" class="chart chart-wide" width="1120" height="300" role="img" aria-label="Spectral centroid lines over time"></canvas>
         </section>
 
@@ -113,6 +147,7 @@
               <p id="geometry-caption">Sliding spectral geometry | channel: Cz</p>
             </div>
           </div>
+          <div id="geometry-legend" class="session-legend" hidden></div>
           <canvas id="geometry-chart" class="chart chart-stack" width="820" height="520" role="img" aria-label="Sliding spectral geometry for the selected channel"></canvas>
         </section>
 
@@ -136,6 +171,7 @@
           <div id="phase-space" class="phase-space"></div>
         </section>
       </main>
+      </div>
 
       <footer class="app-footer">
         EEG data:

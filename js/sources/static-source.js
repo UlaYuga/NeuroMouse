@@ -27,7 +27,7 @@ export async function loadStaticData() {
   return dataCache;
 }
 
-function validateData(data) {
+export function validateData(data) {
   const channels = data?.meta?.channels;
   if (!Array.isArray(channels) || channels.length !== 32) {
     throw new Error("data.json must contain 32 meta.channels entries");

@@ -13,7 +13,20 @@ import {
   setPsdScale,
   updateLiveStatus,
 } from "./state.js";
-import { createLiveSource, createStaticSource, loadData, setSource } from "./loader.js";
+import { createLiveSource, createStaticSource, loadData, loadZipFiles, setSource } from "./loader.js";
+import {
+  MAX_SESSIONS,
+  addSession,
+  getBaselineId,
+  getBaselineSession,
+  getSessions,
+  getViewMode,
+  onSessionsChange,
+  removeSession,
+  setBaseline,
+  setViewMode,
+  toggleSession,
+} from "./sessions.js";
 import { initPsdView } from "./views/psd-view.js?v=psd-axis-20260606";
 import { initCentroidView } from "./views/centroid-view.js";
 import { initGeometryView } from "./views/geometry-view.js";
@@ -34,6 +47,12 @@ const liveFrames = document.querySelector("#live-frames");
 const liveTime = document.querySelector("#live-time");
 const liveCompute = document.querySelector("#live-compute");
 const liveAlpha = document.querySelector("#live-alpha");
+const sessionDropZone = document.querySelector("#session-drop-zone");
+const sessionFileInput = document.querySelector("#session-file-input");
+const sessionList = document.querySelector("#session-list");
+const sessionMessage = document.querySelector("#session-message");
+const sessionCount = document.querySelector("#session-count");
+const baselineSelect = document.querySelector("#baseline-select");
 let liveConnection = null;
 let activeData = null;
 let monitorView = null;
@@ -50,6 +69,8 @@ async function init() {
     if (loadStatus) loadStatus.textContent = "Ready";
     dashboard.setAttribute("aria-busy", "false");
 
+    bindSessionControls();
+    renderSessionSidebar();
     initPsdView(data, tooltip);
     initCentroidView(data, tooltip);
     initPlaybackBar(document.querySelector("#playback-bar"), data);
@@ -66,6 +87,11 @@ async function init() {
     onLiveChange((state) => {
       updateLiveMetrics(state);
       monitorView?.setLiveState(state);
+    });
+    onSessionsChange(() => {
+      syncSessionState();
+      renderSessionSidebar();
+      updateLiveMetrics(getLiveState());
     });
   } catch (error) {
     dashboard.setAttribute("aria-busy", "false");
@@ -200,6 +226,126 @@ function setActiveButton(selector, active) {
   });
 }
 
+function bindSessionControls() {
+  sessionDropZone?.addEventListener("click", () => sessionFileInput?.click());
+  sessionDropZone?.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    sessionDropZone.classList.add("drag-over");
+  });
+  sessionDropZone?.addEventListener("dragleave", () => {
+    sessionDropZone.classList.remove("drag-over");
+  });
+  sessionDropZone?.addEventListener("drop", async (event) => {
+    event.preventDefault();
+    sessionDropZone.classList.remove("drag-over");
+    await handleSessionFiles(Array.from(event.dataTransfer.files));
+  });
+  sessionFileInput?.addEventListener("change", async () => {
+    await handleSessionFiles(Array.from(sessionFileInput.files ?? []));
+    sessionFileInput.value = "";
+  });
+  document.querySelectorAll("[data-control='view-mode'] button").forEach((button) => {
+    button.addEventListener("click", () => {
+      setViewMode(button.dataset.viewMode);
+    });
+  });
+  baselineSelect?.addEventListener("change", () => {
+    setBaseline(baselineSelect.value);
+  });
+}
+
+async function handleSessionFiles(files) {
+  const zipFiles = files.filter((file) => file.name.toLowerCase().endsWith(".zip"));
+  if (!zipFiles.length) {
+    setSessionMessage("Drop ZIP files only", true);
+    return;
+  }
+
+  setSessionMessage("Loading ZIP…");
+  const { datasets, errors } = await loadZipFiles(zipFiles);
+  let added = 0;
+  for (const dataset of datasets) {
+    try {
+      addSession(dataset.name, dataset.data);
+      added += 1;
+    } catch (error) {
+      errors.push(error.message);
+      break;
+    }
+  }
+
+  if (added > 0 && errors.length) {
+    setSessionMessage(`Added ${added}; ${errors[0]}`, true);
+  } else if (added > 0) {
+    setSessionMessage(`Added ${added} session${added === 1 ? "" : "s"}`);
+  } else {
+    setSessionMessage(errors[0] ?? "No datasets found", true);
+  }
+}
+
+function syncSessionState() {
+  const primary = getBaselineSession(activeData);
+  if (!primary?.data) return;
+  configureChannels(primary.data.meta.channels);
+  configurePlayback(primary.data.geometry.time.length);
+  if (selectedChannel) selectedChannel.textContent = getChannel();
+}
+
+function renderSessionSidebar() {
+  const sessions = getSessions();
+  const mode = getViewMode();
+  if (sessionCount) sessionCount.textContent = `${sessions.length}/${MAX_SESSIONS}`;
+
+  document.querySelectorAll("[data-control='view-mode'] button").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.viewMode === mode);
+  });
+
+  if (sessionList) {
+    sessionList.innerHTML = "";
+    sessions.forEach((session) => {
+      const row = element("div", {
+        className: `session-item${session.active ? "" : " is-inactive"}`,
+        style: `--session-color:${session.color}`,
+      });
+      const toggle = element("button", {
+        type: "button",
+        className: "session-toggle",
+        title: session.active ? "Hide session" : "Show session",
+        "aria-pressed": String(session.active),
+      }, element("span", { className: "session-dot" }), element("span", { className: "session-name" }, session.name));
+      const remove = element("button", {
+        type: "button",
+        className: "session-remove",
+        "aria-label": `Remove ${session.name}`,
+      }, "×");
+      toggle.addEventListener("click", () => toggleSession(session.id));
+      remove.addEventListener("click", () => removeSession(session.id));
+      row.append(toggle, remove);
+      sessionList.append(row);
+    });
+  }
+
+  if (baselineSelect) {
+    baselineSelect.innerHTML = "";
+    const baselineId = getBaselineId();
+    sessions.forEach((session) => {
+      baselineSelect.append(element("option", {
+        value: session.id,
+        selected: session.id === baselineId,
+      }, session.name));
+    });
+    baselineSelect.disabled = sessions.length === 0;
+  }
+
+  if (!sessions.length) setSessionMessage("Add sessions to compare");
+}
+
+function setSessionMessage(message, isError = false) {
+  if (!sessionMessage) return;
+  sessionMessage.textContent = message;
+  sessionMessage.classList.toggle("is-error", isError);
+}
+
 function createTooltip(node) {
   return {
     show(x, y, html) {
@@ -215,4 +361,19 @@ function createTooltip(node) {
       node.hidden = true;
     },
   };
+}
+
+function element(name, attrs = {}, ...children) {
+  const node = document.createElement(name);
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (key === "className") node.className = value;
+    else if (key === "htmlFor") node.htmlFor = value;
+    else if (value === true) node.setAttribute(key, "");
+    else if (value !== false && value != null) node.setAttribute(key, value);
+  });
+  children.flat().forEach((child) => {
+    if (child == null) return;
+    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+  });
+  return node;
 }

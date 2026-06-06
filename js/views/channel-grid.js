@@ -11,7 +11,14 @@ import {
   onLiveChange,
   setChannel,
 } from "../state.js";
-import { ACTIVE_COLOR, CHART_BACKGROUND, MUTED_COLOR, colorScale, extent, formatNumber } from "./chart-utils.js";
+import {
+  getBaselineSession,
+  getComparisonSessions,
+  getRenderSessions,
+  getViewMode,
+  onSessionsChange,
+} from "../sessions.js";
+import { ACTIVE_COLOR, CHART_BACKGROUND, MUTED_COLOR, colorScale, deltaColorScale, extent, formatNumber } from "./chart-utils.js";
 
 const EEG_10_20 = {
   Fp1: [0.35, 0.05], Fpz: [0.5, 0.04], Fp2: [0.65, 0.05],
@@ -27,33 +34,39 @@ const EEG_10_20 = {
 export function initChannelGrid(data, tooltip) {
   const root = document.querySelector("#channel-grid");
   const caption = document.querySelector("#grid-caption");
-  const summary = data.channel_summary;
-  const byChannel = new Map(summary.map((item) => [item.channel, item]));
-  const channelIndexByName = new Map(data.meta.channels.map((channel, index) => [channel, index]));
-  const frameTimes = data.geometry.time;
-  const frameAlpha = data.geometry.alpha_relative_power;
-  const [minPower, maxPower] = extent(summary.map((item) => item.alpha_relative_power));
-  const [minFramePower, maxFramePower] = extent(frameAlpha);
 
   function render() {
+    const mode = getViewMode();
+    const sourceSession = gridSession();
+    const sourceData = sourceSession?.data ?? data;
+    const isDelta = mode === "delta";
+    const summary = sourceData.channel_summary;
+    const byChannel = new Map(summary.map((item) => [item.channel, item]));
+    const channelIndexByName = new Map(sourceData.meta.channels.map((channel, index) => [channel, index]));
+    const frameTimes = sourceData.geometry.time;
+    const frameAlpha = sourceData.geometry.alpha_relative_power;
+    const [minPower, maxPower] = extent(summary.map((item) => item.alpha_relative_power));
+    const [minFramePower, maxFramePower] = extent(frameAlpha);
     const selected = getChannel();
-    const visible = new Set(getVisibleChannels(data));
+    const visible = new Set(getVisibleChannels(sourceData));
     const filter = getChannelFilter();
     const frame = getFrame();
     const live = getLiveState();
     const liveFrame = live.history.at(-1);
-    const useLive = live.connected && liveFrame?.metrics;
+    const useLive = !isDelta && live.connected && liveFrame?.metrics;
     const livePowers = useLive
       ? data.meta.channels.map((channel) => liveFrame.metrics[channel]?.alpha_relative_power).filter((value) => Number.isFinite(Number(value)))
       : [];
-    const useFrame = !useLive && (getIsPlaying() || frame > 0);
+    const useFrame = !useLive && (isDelta || getIsPlaying() || frame > 0);
     const [minLivePower, maxLivePower] = extent(livePowers);
     const rangeMin = useLive ? minLivePower : (useFrame ? minFramePower : minPower);
     const rangeMax = useLive ? maxLivePower : (useFrame ? maxFramePower : maxPower);
     const time = frameTimes[Math.min(frame, frameTimes.length - 1)] ?? 0;
 
     if (caption) {
-      caption.textContent = useLive
+      caption.textContent = isDelta
+        ? `alpha power Δ vs ${sourceSession?.baselineName ?? getBaselineSession(data)?.name ?? "baseline"} @ t=${formatNumber(time, 2)}s`
+        : useLive
         ? `live alpha power @ t=${formatNumber(liveFrame.time, 2)}s`
         : useFrame
         ? `alpha power @ t=${formatNumber(time, 2)}s`
@@ -115,7 +128,7 @@ export function initChannelGrid(data, tooltip) {
         class: `electrode${isVisible ? "" : " is-muted"}`,
         tabindex: "0",
         role: "button",
-        "aria-label": `${channel}, alpha rel. power ${formatNumber(power, 3)}${filter === "all" || isVisible ? "" : ", filtered out"}`,
+        "aria-label": `${channel}, ${isDelta ? "alpha power delta" : "alpha rel. power"} ${formatNumber(power, 3)}${filter === "all" || isVisible ? "" : ", filtered out"}`,
       });
       const x = 28 + nx * 364;
       const y = 22 + ny * 360;
@@ -125,7 +138,7 @@ export function initChannelGrid(data, tooltip) {
           cx: x,
           cy: y,
           r: 14,
-          fill: colorScale(power, rangeMin, rangeMax),
+          fill: isDelta ? deltaColorScale(power, rangeMin, rangeMax) : colorScale(power, rangeMin, rangeMax),
           stroke: active ? ACTIVE_COLOR : "rgba(255,255,255,0.16)",
           "stroke-width": active ? 2 : 0.5,
           opacity: isVisible ? 1 : 0.22,
@@ -144,21 +157,25 @@ export function initChannelGrid(data, tooltip) {
         tooltip.show(
           event.clientX,
           event.clientY,
-          `<strong>${channel}</strong><br>alpha rel. power ${formatNumber(power, 3)}<br>${useLive ? `live t=${formatNumber(liveFrame.time, 2)} sec<br>` : useFrame ? `t=${formatNumber(time, 2)} sec<br>` : ""}${item?.region ?? ""} · ${item?.hemisphere ?? ""}<br>${item?.has_clear_alpha_peak ? "alpha peak marker" : "no alpha peak marker"}`,
+          `<strong>${channel}</strong><br>${isDelta ? "alpha power Δ" : "alpha rel. power"} ${formatNumber(power, 3)}<br>${useLive ? `live t=${formatNumber(liveFrame.time, 2)} sec<br>` : useFrame || isDelta ? `t=${formatNumber(time, 2)} sec<br>` : ""}${item?.region ?? ""} · ${item?.hemisphere ?? ""}<br>${item?.has_clear_alpha_peak ? "alpha peak marker" : "no alpha peak marker"}`,
         );
       });
       group.addEventListener("mouseleave", tooltip.hide);
       svg.append(group);
     }
 
-    svg.append(...colorbar(rangeMin, rangeMax));
+    svg.append(...colorbar(rangeMin, rangeMax, isDelta));
     root.append(svg);
   }
 
-  function colorbar(minPower, maxPower) {
+  function colorbar(minPower, maxPower, isDelta = false) {
     const parts = [
       element("defs", {}, [
-        element("linearGradient", { id: "alpha-power-gradient", x1: "0%", x2: "100%", y1: "0%", y2: "0%" }, [
+        element("linearGradient", { id: "alpha-power-gradient", x1: "0%", x2: "100%", y1: "0%", y2: "0%" }, isDelta ? [
+          element("stop", { offset: "0%", "stop-color": "rgb(220,50,50)" }),
+          element("stop", { offset: "50%", "stop-color": "rgb(20,20,24)" }),
+          element("stop", { offset: "100%", "stop-color": ACTIVE_COLOR }),
+        ] : [
           element("stop", { offset: "0%", "stop-color": "#0a0a1a" }),
           element("stop", { offset: "55%", "stop-color": "#005e56" }),
           element("stop", { offset: "100%", "stop-color": ACTIVE_COLOR }),
@@ -171,7 +188,7 @@ export function initChannelGrid(data, tooltip) {
         "font-size": 11,
         "font-weight": 600,
         "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace",
-      }, "alpha rel. power"),
+      }, isDelta ? "alpha power Δ" : "alpha rel. power"),
       element("rect", {
         x: 154,
         y: 416,
@@ -196,7 +213,16 @@ export function initChannelGrid(data, tooltip) {
   onDisplayChange(render);
   onFrameChange(render);
   onLiveChange(render);
+  onSessionsChange(render);
   render();
+
+  function gridSession() {
+    if (getViewMode() === "delta") {
+      const baseline = getBaselineSession(data);
+      return getRenderSessions(data).find((session) => session.deltaSource?.id !== baseline?.id) ?? getRenderSessions(data)[0];
+    }
+    return getBaselineSession(data) ?? getComparisonSessions(data)[0];
+  }
 }
 
 function element(name, attrs = {}, text = "") {

@@ -392,6 +392,218 @@ input[type="number"]:focus-visible {
   color: var(--text-secondary);
 }
 
+.app-body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+
+.session-sidebar {
+  position: sticky;
+  top: 118px;
+  display: grid;
+  align-content: start;
+  gap: var(--s3);
+  height: calc(100vh - 118px);
+  min-height: 360px;
+  overflow-y: auto;
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-1);
+  padding: var(--s4);
+  box-shadow: var(--shadow-sm);
+}
+
+.session-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.session-sidebar-head span,
+.session-message,
+.session-control-label {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.drop-zone {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 96px;
+  padding: var(--s4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-card);
+  background: rgba(17, 17, 19, 0.4);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.drop-zone strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.drop-zone span {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.drop-zone.drag-over {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+  box-shadow: var(--accent-glow);
+}
+
+.session-message {
+  min-height: 16px;
+}
+
+.session-message.is-error {
+  color: var(--danger);
+}
+
+.session-list {
+  display: grid;
+  gap: var(--s1);
+}
+
+.session-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  gap: var(--s1);
+  align-items: center;
+  min-height: 30px;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.session-toggle {
+  display: flex;
+  min-width: 0;
+  height: 28px;
+  min-height: 28px;
+  align-items: center;
+  gap: var(--s2);
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0;
+  text-align: left;
+}
+
+.session-toggle:hover {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.session-dot,
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--session-color, var(--accent));
+}
+
+.session-item.is-inactive .session-dot {
+  border: 1px solid var(--session-color, var(--accent));
+  background: transparent;
+}
+
+.session-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-remove {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.session-remove:hover {
+  background: rgba(255, 69, 58, 0.12);
+  color: var(--danger);
+}
+
+.session-controls {
+  display: grid;
+  gap: var(--s3);
+  padding-top: var(--s2);
+  border-top: 0.5px solid var(--border);
+}
+
+.session-control-block {
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.session-mode {
+  width: 100%;
+}
+
+.session-mode button {
+  flex: 1 1 auto;
+  min-width: 54px;
+  font-size: 11px;
+}
+
+.session-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s3);
+  align-items: center;
+  padding: var(--s1) var(--s4);
+  border-bottom: 0.5px solid var(--border);
+  background: rgba(17, 17, 19, 0.28);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.session-legend[hidden] {
+  display: none;
+}
+
+.legend-item {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 180px;
+  align-items: center;
+}
+
+.legend-dot {
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.legend-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dashboard {
   display: grid;
   grid-template-columns: minmax(0, 1.16fr) minmax(340px, 0.84fr);
@@ -1081,6 +1293,17 @@ input[type="number"]:focus-visible {
     grid-column: 1 / -1;
   }
 
+  .app-body {
+    grid-template-columns: 1fr;
+  }
+
+  .session-sidebar {
+    position: relative;
+    top: auto;
+    height: auto;
+    min-height: 0;
+  }
+
   .dashboard {
     grid-template-columns: 1fr;
   }
@@ -1159,6 +1382,10 @@ input[type="number"]:focus-visible {
 
   input {
     width: 100%;
+  }
+
+  .session-mode {
+    width: fit-content;
   }
 
   .live-row input {

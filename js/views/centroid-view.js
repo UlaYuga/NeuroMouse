@@ -14,6 +14,12 @@ import {
   setTimeHover,
 } from "../state.js";
 import {
+  getComparisonSessions,
+  getRenderSessions,
+  getViewMode,
+  onSessionsChange,
+} from "../sessions.js";
+import {
   ACTIVE_COLOR,
   AXIS_COLOR,
   GRID_COLOR,
@@ -35,34 +41,41 @@ import {
   resizeCanvas,
   scaleLinear,
 } from "./chart-utils.js";
+import { renderSessionLegend } from "./session-legend.js";
 
 export function initCentroidView(data, tooltip) {
   const canvas = document.querySelector("#centroid-chart");
-  const channels = data.meta.channels;
-  const times = data.centroid.time_relative;
-  const values = data.centroid.values;
-  const channelIndexByName = new Map(channels.map((channel, index) => [channel, index]));
+  const legend = document.querySelector("#centroid-legend");
   const margins = { left: 50, right: 18, top: 18, bottom: 42 };
-  const [minY, maxY] = paddedExtent(values, 0.08);
   let hover = null;
 
   function activeSeries() {
+    const sourceData = singleSourceData();
+    const channels = sourceData.meta.channels;
     const live = getLiveState();
-    if (live.history.length > 1) {
+    const allowLive = getComparisonSessions(data)[0]?.isDefault && getViewMode() === "overlay";
+    if (allowLive && live.history.length > 1) {
       const liveTimes = live.history.map((frame) => frame.time);
       const liveValues = channels.map((channel) => live.history.map((frame) => frame.metrics[channel]?.centroid));
       return {
         mode: "live",
+        data: sourceData,
+        channels,
+        channelIndexByName: new Map(channels.map((channel, index) => [channel, index])),
         times: liveTimes,
         values: liveValues,
         yExtent: paddedExtent(liveValues, 0.08),
       };
     }
+    const values = sourceData.centroid.values;
     return {
       mode: "static",
-      times,
+      data: sourceData,
+      channels,
+      channelIndexByName: new Map(channels.map((channel, index) => [channel, index])),
+      times: sourceData.centroid.time_relative,
       values,
-      yExtent: [minY, maxY],
+      yExtent: paddedExtent(values, 0.08),
     };
   }
 
@@ -92,12 +105,24 @@ export function initCentroidView(data, tooltip) {
   }
 
   function draw() {
+    renderSessionLegend(legend, data);
+    const mode = getViewMode();
+    const sessions = getRenderSessions(data);
+    if (mode === "split" && sessions.length > 1) {
+      drawSplit(sessions);
+      return;
+    }
+    if ((mode === "overlay" && sessions.length > 1) || mode === "delta") {
+      drawSessionOverlay(sessions, mode);
+      return;
+    }
+
     const { ctx, width, height } = resizeCanvas(canvas);
     clear(ctx, width, height);
     const series = activeSeries();
     const g = geometry(width, height, series);
-    const selectedIndex = getChannelIndex();
-    const visibleChannels = getVisibleChannels(data);
+    const selectedIndex = Math.max(0, series.channels.indexOf(getChannel()));
+    const visibleChannels = getVisibleChannels(series.data);
 
     ctx.strokeStyle = PLOT_BORDER_COLOR;
     ctx.strokeRect(g.plotX, g.plotY, g.plotW, g.plotH);
@@ -112,7 +137,7 @@ export function initCentroidView(data, tooltip) {
     }
 
     visibleChannels.forEach((channel) => {
-      const index = channelIndexByName.get(channel);
+      const index = series.channelIndexByName.get(channel);
       if (index !== selectedIndex) {
         drawLine(ctx, pointsForChannel(index, g, series), "rgba(255,255,255,0.12)", 1, 1);
       }
@@ -172,7 +197,7 @@ export function initCentroidView(data, tooltip) {
     }
     const time = invertLinear(series.times[0], series.times.at(-1), g.plotX, g.plotX + g.plotW)(point.x);
     const timeIndex = nearestIndex(series.times, time);
-    const channelIndex = getChannelIndex();
+    const channelIndex = Math.max(0, series.channels.indexOf(getChannel()));
     return {
       mode: series.mode,
       time: series.times[timeIndex],
@@ -183,8 +208,8 @@ export function initCentroidView(data, tooltip) {
   }
 
   function rankingsFor(series, timeIndex) {
-    const visibleChannels = getVisibleChannels(data);
-    const visibleValues = visibleChannels.map((channel) => series.values[channelIndexByName.get(channel)]);
+    const visibleChannels = getVisibleChannels(series.data);
+    const visibleValues = visibleChannels.map((channel) => series.values[series.channelIndexByName.get(channel)]);
     return rankAt(visibleValues, visibleChannels, timeIndex, 3);
   }
 
@@ -194,8 +219,8 @@ export function initCentroidView(data, tooltip) {
     const series = activeSeries();
     const g = geometry(rect.width, rect.height, series);
     let best = null;
-    for (const channel of getVisibleChannels(data)) {
-      const channelIndex = channelIndexByName.get(channel);
+    for (const channel of getVisibleChannels(series.data)) {
+      const channelIndex = series.channelIndexByName.get(channel);
       const points = pointsForChannel(channelIndex, g, series);
       for (let i = 1; i < points.length; i += 1) {
         const distance = distanceToSegment(point, points[i - 1], points[i]);
@@ -231,7 +256,7 @@ export function initCentroidView(data, tooltip) {
 
   canvas.addEventListener("click", (event) => {
     const channelIndex = nearestLine(event);
-    if (channelIndex !== null) setChannel(channels[channelIndex]);
+    if (channelIndex !== null) setChannel(activeSeries().channels[channelIndex]);
   });
 
   onChannelChange(draw);
@@ -239,5 +264,174 @@ export function initCentroidView(data, tooltip) {
   onFrameChange(draw);
   onLiveChange(draw);
   onTimeHoverChange(draw);
+  onSessionsChange(draw);
   observeCanvas(canvas, draw);
+
+  function drawSessionOverlay(sessions, mode) {
+    const { ctx, width, height } = resizeCanvas(canvas);
+    clear(ctx, width, height);
+    if (!sessions.length) {
+      drawEmpty(ctx, width, height);
+      return;
+    }
+
+    const channel = getChannel();
+    const series = sessions
+      .map((session) => {
+        const channelIndex = session.data.meta.channels.indexOf(channel);
+        if (channelIndex < 0) return null;
+        return {
+          session,
+          times: session.data.centroid.time_relative,
+          values: session.data.centroid.values[channelIndex],
+        };
+      })
+      .filter(Boolean);
+    const g = overlayGeometry(width, height, series, mode);
+
+    drawPlotShell(ctx, g, mode);
+    series.forEach((item) => {
+      drawLine(
+        ctx,
+        item.times.map((time, index) => ({ x: g.xScale(time), y: g.yScale(item.values[index]) })),
+        item.session.color,
+        2,
+      );
+    });
+    drawCentroidAxis(ctx, g, mode);
+    drawHoverCursor(ctx, g);
+  }
+
+  function drawSplit(sessions) {
+    const { ctx, width, height } = resizeCanvas(canvas);
+    clear(ctx, width, height);
+    if (!sessions.length) {
+      drawEmpty(ctx, width, height);
+      return;
+    }
+
+    const gap = 10;
+    const columnW = (width - gap * (sessions.length - 1)) / sessions.length;
+    sessions.forEach((session, index) => {
+      const x0 = index * (columnW + gap);
+      const localMargins = { left: index === 0 ? 50 : 28, right: 12, top: 32, bottom: 42 };
+      const source = session.data;
+      const times = source.centroid.time_relative;
+      const selectedIndex = Math.max(0, source.meta.channels.indexOf(getChannel()));
+      const yExtent = paddedExtent(source.centroid.values, 0.08);
+      const g = {
+        plotX: x0 + localMargins.left,
+        plotY: localMargins.top,
+        plotW: columnW - localMargins.left - localMargins.right,
+        plotH: height - localMargins.top - localMargins.bottom,
+        xScale: scaleLinear(times[0], times.at(-1), x0 + localMargins.left, x0 + columnW - localMargins.right),
+        yScale: scaleLinear(yExtent[0], yExtent[1], height - localMargins.bottom, localMargins.top),
+        yMin: yExtent[0],
+        yMax: yExtent[1],
+      };
+
+      ctx.strokeStyle = session.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x0 + 1, 0);
+      ctx.lineTo(x0 + 1, height);
+      ctx.stroke();
+      ctx.fillStyle = session.color;
+      ctx.font = `600 10px ${MONO_FONT}`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(session.name, x0 + 8, 10, Math.max(40, columnW - 16));
+      drawPlotShell(ctx, g, "split");
+      source.meta.channels.forEach((channel, channelIndex) => {
+        if (channelIndex === selectedIndex) return;
+        drawLine(
+          ctx,
+          times.map((time, timeIndex) => ({ x: g.xScale(time), y: g.yScale(source.centroid.values[channelIndex][timeIndex]) })),
+          "rgba(255,255,255,0.09)",
+          1,
+        );
+      });
+      drawLine(
+        ctx,
+        times.map((time, timeIndex) => ({ x: g.xScale(time), y: g.yScale(source.centroid.values[selectedIndex][timeIndex]) })),
+        session.color,
+        1.8,
+      );
+    });
+  }
+
+  function drawPlotShell(ctx, g, mode) {
+    ctx.strokeStyle = PLOT_BORDER_COLOR;
+    ctx.strokeRect(g.plotX, g.plotY, g.plotW, g.plotH);
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i += 1) {
+      const y = g.plotY + (g.plotH * i) / 4;
+      ctx.beginPath();
+      ctx.moveTo(g.plotX, y);
+      ctx.lineTo(g.plotX + g.plotW, y);
+      ctx.stroke();
+    }
+    if (mode === "delta") {
+      const y = g.yScale(0);
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.beginPath();
+      ctx.moveTo(g.plotX, y);
+      ctx.lineTo(g.plotX + g.plotW, y);
+      ctx.stroke();
+    }
+  }
+
+  function drawCentroidAxis(ctx, g, mode) {
+    ctx.fillStyle = MUTED_COLOR;
+    ctx.font = `10px ${MONO_FONT}`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${formatNumber(g.yMax, 1)}${mode === "delta" ? "" : " Hz"}`, g.plotX - 7, g.plotY);
+    ctx.fillText(`${formatNumber(g.yMin, 1)}${mode === "delta" ? "" : " Hz"}`, g.plotX - 7, g.plotY + g.plotH);
+    drawBottomAxis(ctx, [0, 20, 40, 60, 80, 100], g.xScale, g.plotY + g.plotH, mode === "delta" ? "Δ sec" : "sec");
+  }
+
+  function drawHoverCursor(ctx, g) {
+    const sharedHover = getTimeHover();
+    if (!sharedHover) return;
+    const x = g.xScale(sharedHover.time);
+    ctx.strokeStyle = PLAYBACK_CURSOR_COLOR;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, g.plotY);
+    ctx.lineTo(x, g.plotY + g.plotH);
+    ctx.stroke();
+  }
+
+  function overlayGeometry(width, height, series, mode) {
+    const plotX = margins.left;
+    const plotY = margins.top;
+    const plotW = width - margins.left - margins.right;
+    const plotH = height - margins.top - margins.bottom;
+    const values = series.flatMap((item) => mode === "delta" ? item.values.concat(0) : item.values);
+    const [yMin, yMax] = paddedExtent([values], 0.08);
+    return {
+      plotX,
+      plotY,
+      plotW,
+      plotH,
+      xScale: scaleLinear(series[0].times[0], series[0].times.at(-1), plotX, plotX + plotW),
+      yScale: scaleLinear(yMin, yMax, plotY + plotH, plotY),
+      yMin,
+      yMax,
+    };
+  }
+
+  function drawEmpty(ctx, width, height) {
+    ctx.fillStyle = MUTED_COLOR;
+    ctx.font = `12px ${MONO_FONT}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("No active sessions", width / 2, height / 2);
+  }
+
+  function singleSourceData() {
+    return getComparisonSessions(data)[0]?.data ?? data;
+  }
 }

@@ -11,12 +11,20 @@ import {
   setChannel,
 } from "../state.js";
 import {
+  getBaselineSession,
+  getComparisonSessions,
+  getRenderSessions,
+  getViewMode,
+  onSessionsChange,
+} from "../sessions.js";
+import {
   ACTIVE_COLOR,
   AXIS_COLOR,
   MONO_FONT,
   MUTED_COLOR,
   PLOT_BORDER_COLOR,
   clear,
+  deltaColorScale,
   drawBottomAxis,
   drawFrequencyBands,
   drawLine,
@@ -30,6 +38,7 @@ import {
   scaleLinear,
   canvasPoint,
 } from "./chart-utils.js";
+import { renderSessionLegend } from "./session-legend.js";
 
 const HEATMAP_PALETTE = [
   [5, 13, 18],
@@ -42,6 +51,7 @@ const HEATMAP_PALETTE = [
 export function initPsdView(data, tooltip) {
   const heatmap = document.querySelector("#psd-heatmap");
   const overlay = document.querySelector("#psd-overlay");
+  const legend = document.querySelector("#psd-legend");
   const channels = data.meta.channels;
   const frequencies = data.welch_psd.frequencies;
   const psd = data.welch_psd.psd;
@@ -54,6 +64,29 @@ export function initPsdView(data, tooltip) {
   const overlayMargins = { left: 46, right: 16, top: 42, bottom: 40 };
 
   function activeHeatmap() {
+    const sessions = getComparisonSessions(data);
+    const hasSessionComparison = sessions.length > 1 || !sessions[0]?.isDefault || getViewMode() === "delta";
+    if (hasSessionComparison) {
+      const mode = getViewMode();
+      const sourceSession = heatmapSession();
+      const matrix = sourceSession?.data?.welch_psd?.psd ?? psd;
+      const sourceChannels = sourceSession?.data?.meta?.channels ?? channels;
+      const sourceFrequencies = sourceSession?.data?.welch_psd?.frequencies ?? frequencies;
+      const sourceLogMatrix = mode === "delta" ? matrix : matrix.map((row) => row.map(log10));
+      const [sourceMin, sourceMax] = extent(sourceLogMatrix);
+      return {
+        mode,
+        session: sourceSession,
+        channels: sourceChannels,
+        frequencies: sourceFrequencies,
+        matrix,
+        logMatrix: sourceLogMatrix,
+        logMin: sourceMin,
+        logMax: sourceMax,
+        delta: mode === "delta",
+      };
+    }
+
     const live = getLiveState();
     const liveFrequencies = live.latestFrame?.frequency_hz;
     const livePsdByChannel = live.latestFrame?.psd_by_channel;
@@ -64,6 +97,7 @@ export function initPsdView(data, tooltip) {
         const [liveLogMin, liveLogMax] = extent(liveLogMatrix);
         return {
           mode: "live",
+          channels,
           frequencies: liveFrequencies.map(Number),
           matrix: liveMatrix,
           logMatrix: liveLogMatrix,
@@ -74,6 +108,7 @@ export function initPsdView(data, tooltip) {
     }
     return {
       mode: "static",
+      channels,
       frequencies,
       matrix: psd,
       logMatrix,
@@ -96,11 +131,13 @@ export function initPsdView(data, tooltip) {
     const selectedVisibleIndex = visibleChannels.indexOf(selectedChannel);
     const xScale = scaleLinear(source.frequencies[0], source.frequencies.at(-1), plotX, plotX + plotW);
     const channelH = plotH / Math.max(1, visibleChannels.length);
+    const sourceChannelIndexByName = new Map(source.channels.map((channel, index) => [channel, index]));
 
     drawFrequencyBands(ctx, xScale, plotY, plotH, { labels: true });
 
     for (let visibleIndex = 0; visibleIndex < visibleChannels.length; visibleIndex += 1) {
-      const channelIndex = channelIndexByName.get(visibleChannels[visibleIndex]);
+      const channelIndex = sourceChannelIndexByName.get(visibleChannels[visibleIndex]);
+      if (channelIndex == null) continue;
       for (let freqIndex = 0; freqIndex < source.frequencies.length; freqIndex += 1) {
         const f0 = freqIndex === 0
           ? source.frequencies[freqIndex]
@@ -110,7 +147,10 @@ export function initPsdView(data, tooltip) {
           : (source.frequencies[freqIndex] + source.frequencies[freqIndex + 1]) / 2;
         const x0 = xScale(f0);
         const x1 = xScale(f1);
-        ctx.fillStyle = heatmapColor(source.logMatrix[channelIndex][freqIndex], source.logMin, source.logMax);
+        const value = source.logMatrix[channelIndex][freqIndex];
+        ctx.fillStyle = source.delta
+          ? deltaColorScale(value, source.logMin, source.logMax)
+          : heatmapColor(value, source.logMin, source.logMax);
         ctx.fillRect(x0, plotY + visibleIndex * channelH, Math.max(1, x1 - x0 + 0.5), Math.ceil(channelH) + 0.5);
       }
     }
@@ -144,6 +184,15 @@ export function initPsdView(data, tooltip) {
     clear(ctx, width, height);
 
     const channel = getChannel();
+    const sessions = getRenderSessions(data);
+    const rawSessions = getComparisonSessions(data);
+    const compareMode = getViewMode();
+    const hasSessionComparison = rawSessions.length > 1 || !rawSessions[0]?.isDefault || compareMode === "delta";
+    if (hasSessionComparison) {
+      drawSessionOverlay(ctx, width, height, sessions, channel, compareMode);
+      return;
+    }
+
     const channelIndex = getChannelIndex();
     const live = getLiveState();
     const livePsd = live.latestFrame?.psd_by_channel?.[channel];
@@ -190,6 +239,7 @@ export function initPsdView(data, tooltip) {
   }
 
   function render() {
+    renderSessionLegend(legend, data);
     drawHeatmap();
     drawOverlay();
   }
@@ -223,9 +273,15 @@ export function initPsdView(data, tooltip) {
     const visibleChannels = getVisibleChannels(data);
     const source = activeHeatmap();
     const channel = visibleChannels[hit.channelIndex];
-    const sourceIndex = channelIndexByName.get(channel);
+    const sourceIndex = new Map(source.channels.map((item, index) => [item, index])).get(channel);
+    if (sourceIndex == null) {
+      tooltip.hide();
+      drawHeatmap();
+      return;
+    }
     const frequency = source.frequencies[hit.freqIndex];
-    tooltip.show(event.clientX, event.clientY, `<strong>${channel}</strong><br>${formatNumber(frequency, 2)} Hz · ${source.mode}<br>log PSD ${formatNumber(source.logMatrix[sourceIndex][hit.freqIndex], 2)}`);
+    const label = source.delta ? "Δ log PSD" : "log PSD";
+    tooltip.show(event.clientX, event.clientY, `<strong>${channel}</strong><br>${formatNumber(frequency, 2)} Hz · ${source.mode}<br>${label} ${formatNumber(source.logMatrix[sourceIndex][hit.freqIndex], 2)}`);
     drawHeatmap();
   });
 
@@ -244,8 +300,89 @@ export function initPsdView(data, tooltip) {
   onDisplayChange(render);
   onPsdScaleChange(render);
   onLiveChange(render);
+  onSessionsChange(render);
   observeCanvas(heatmap, render);
   observeCanvas(overlay, render);
+
+  function drawSessionOverlay(ctx, width, height, sessions, channel, mode) {
+    const plotX = overlayMargins.left;
+    const plotY = overlayMargins.top;
+    const plotW = width - overlayMargins.left - overlayMargins.right;
+    const plotH = height - overlayMargins.top - overlayMargins.bottom;
+    const scale = getPsdScale();
+    const series = sessions
+      .map((session) => {
+        const channelIndex = session.data.meta.channels.indexOf(channel);
+        if (channelIndex < 0) return null;
+        const sourceValues = session.data.welch_psd.psd[channelIndex] ?? [];
+        return {
+          session,
+          frequencies: session.data.welch_psd.frequencies,
+          values: mode === "delta" ? sourceValues : scale === "log" ? sourceValues.map(log10) : sourceValues,
+        };
+      })
+      .filter(Boolean);
+
+    if (!series.length) {
+      ctx.fillStyle = MUTED_COLOR;
+      ctx.font = `11px ${MONO_FONT}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("No active sessions", width / 2, height / 2);
+      return;
+    }
+
+    const [minY, maxY] = mode === "delta"
+      ? extent(series.flatMap((item) => item.values.concat(0)))
+      : extent(series.map((item) => item.values));
+    const xScale = scaleLinear(series[0].frequencies[0], series[0].frequencies.at(-1), plotX, plotX + plotW);
+    const yScale = scaleLinear(minY, maxY, plotY + plotH, plotY);
+
+    ctx.fillStyle = AXIS_COLOR;
+    ctx.font = `600 11px ${MONO_FONT}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`${mode === "delta" ? "PSD Δ" : "PSD overlay"} · ${channel}`, plotX, 14);
+
+    drawFrequencyBands(ctx, xScale, plotY, plotH, { labels: false });
+    ctx.strokeStyle = PLOT_BORDER_COLOR;
+    ctx.strokeRect(plotX, plotY, plotW, plotH);
+    if (mode === "delta") {
+      const zeroY = yScale(0);
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.beginPath();
+      ctx.moveTo(plotX, zeroY);
+      ctx.lineTo(plotX + plotW, zeroY);
+      ctx.stroke();
+    }
+    ctx.fillStyle = MUTED_COLOR;
+    ctx.font = `10px ${MONO_FONT}`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(formatNumber(maxY, 1), plotX - 6, plotY);
+    ctx.fillText(formatNumber(minY, 1), plotX - 6, plotY + plotH);
+
+    series.forEach((item) => {
+      drawLine(
+        ctx,
+        item.frequencies.map((frequency, index) => ({
+          x: xScale(frequency),
+          y: yScale(item.values[index]),
+        })),
+        item.session.color,
+        1.8,
+      );
+    });
+    drawBottomAxis(ctx, [1, 10, 20, 30, 40, 50, 55], xScale, plotY + plotH, `${mode === "delta" ? "delta" : scale} · Hz`);
+  }
+
+  function heatmapSession() {
+    if (getViewMode() === "delta") {
+      const baseline = getBaselineSession(data);
+      return getRenderSessions(data).find((session) => session.deltaSource?.id !== baseline?.id) ?? getRenderSessions(data)[0];
+    }
+    return getBaselineSession(data) ?? getComparisonSessions(data)[0];
+  }
 }
 
 function heatmapColor(value, min, max) {

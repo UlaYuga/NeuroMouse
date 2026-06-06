@@ -24,6 +24,14 @@ const VIRIDIS = [
   [0, 212, 160],
 ];
 
+const DELTA_PALETTE = [
+  [-1.0, [220, 50, 50]],
+  [-0.3, [100, 40, 40]],
+  [0.0, [20, 20, 24]],
+  [0.3, [0, 100, 80]],
+  [1.0, [0, 212, 160]],
+];
+
 export function resizeCanvas(canvas) {
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
@@ -117,6 +125,22 @@ export function colorScale(value, min, max) {
   const b = VIRIDIS[idx + 1];
   const rgb = a.map((start, i) => Math.round(start + (b[i] - start) * local));
   return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+}
+
+export function deltaColorScale(value, min, max) {
+  const extent = Math.max(Math.abs(min), Math.abs(max), 1e-9);
+  const normalized = clamp(value / extent, -1, 1);
+  for (let index = 1; index < DELTA_PALETTE.length; index += 1) {
+    const [stop, color] = DELTA_PALETTE[index];
+    const [prevStop, prevColor] = DELTA_PALETTE[index - 1];
+    if (normalized <= stop) {
+      const local = (normalized - prevStop) / (stop - prevStop || 1);
+      const rgb = prevColor.map((start, channel) => Math.round(start + (color[channel] - start) * local));
+      return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    }
+  }
+  const last = DELTA_PALETTE.at(-1)[1];
+  return `rgb(${last[0]},${last[1]},${last[2]})`;
 }
 
 export function nearestIndex(values, target) {
