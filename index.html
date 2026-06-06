@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="SpeedMouse static EEG spectral explorer dashboard.">
+    <title>SpeedMouse EEG Spectral Explorer</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./style.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#dashboard">Skip to dashboard</a>
+    <div class="app-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Static EEG export explorer</p>
+          <h1>SpeedMouse</h1>
+          <p class="lede">Interactive Welch PSD, spectral centroid, sliding geometry, and 10-20 channel summaries from exported analysis arrays.</p>
+        </div>
+        <div class="status-panel" aria-live="polite">
+          <span class="status-label">Selected channel</span>
+          <strong id="selected-channel">Cz</strong>
+          <span id="load-status">Loading data…</span>
+        </div>
+      </header>
+
+      <main id="dashboard" class="dashboard" aria-busy="true" tabindex="-1">
+        <section class="panel panel-psd" aria-labelledby="psd-title">
+          <div class="panel-head">
+            <div>
+              <h2 id="psd-title">PSD Heatmap</h2>
+              <p>Welch PSD — 4 s window, 50% overlap | units: a.u.</p>
+            </div>
+          </div>
+          <div class="psd-layout">
+            <canvas id="psd-heatmap" class="chart chart-heatmap" width="760" height="420" role="img" aria-label="Welch PSD heatmap by frequency and channel"></canvas>
+            <canvas id="psd-overlay" class="chart chart-overlay" width="320" height="420" role="img" aria-label="PSD line for the selected channel"></canvas>
+          </div>
+        </section>
+
+        <section class="panel panel-centroid" aria-labelledby="centroid-title">
+          <div class="panel-head">
+            <div>
+              <h2 id="centroid-title">Centroid Over Time</h2>
+              <p>Spectral centroid over time | 2 s window, 0.25 s step</p>
+            </div>
+          </div>
+          <canvas id="centroid-chart" class="chart chart-wide" width="1120" height="300" role="img" aria-label="Spectral centroid lines over time"></canvas>
+        </section>
+
+        <section class="panel panel-geometry" aria-labelledby="geometry-title">
+          <div class="panel-head">
+            <div>
+              <h2 id="geometry-title">Geometry Stack</h2>
+              <p id="geometry-caption">Sliding spectral geometry | channel: Cz</p>
+            </div>
+          </div>
+          <canvas id="geometry-chart" class="chart chart-stack" width="820" height="520" role="img" aria-label="Sliding spectral geometry for the selected channel"></canvas>
+        </section>
+
+        <section class="panel panel-grid" aria-labelledby="grid-title">
+          <div class="panel-head">
+            <div>
+              <h2 id="grid-title">Channel Grid</h2>
+              <p>10-20 layout | color: alpha rel. power</p>
+            </div>
+          </div>
+          <div id="channel-grid" class="channel-grid" aria-label="EEG 10-20 channel grid"></div>
+        </section>
+      </main>
+
+      <footer class="app-footer">
+        EEG data:
+        <a href="https://zenodo.org/records/15572614">GX dataset by Gebodh/CCNY</a>.
+        Spectral analysis:
+        <a href="https://github.com/soulsyrup1/Complete-Neural-Signal-Analysis">soulsyrup1/Complete-Neural-Signal-Analysis</a>.
+        Visualization:
+        <a href="https://github.com/MikMikMiller/SpeedMouse">MikMikMiller/SpeedMouse</a>.
+      </footer>
+    </div>
+
+    <div id="tooltip" class="tooltip" hidden></div>
+    <script type="module" src="./js/layout.js"></script>
+  </body>
+</html>
