@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#111113">
     <title>SpeedMouse</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./style.css?v=psd-axis-20260606">
+    <link rel="stylesheet" href="./style.css?v=compact-20260606b">
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
@@ -67,148 +67,196 @@
             </div>
           </div>
         </div>
-
       </section>
 
       <div class="app-body">
-        <aside class="session-sidebar" aria-label="Session comparison">
-          <div class="session-sidebar-head">
-            <h2>Sessions</h2>
-            <span id="session-count">0/6</span>
-          </div>
-          <button id="session-drop-zone" class="drop-zone" type="button" aria-label="Add SpeedMouse ZIP sessions">
-            <strong>Drop ZIP here</strong>
-            <span>or click to add</span>
-          </button>
-          <input id="session-file-input" name="session-files" type="file" accept=".zip" multiple aria-label="SpeedMouse ZIP session files" hidden>
-          <p id="session-message" class="session-message" aria-live="polite">Add sessions to compare</p>
-          <div id="session-list" class="session-list"></div>
+        <main id="dashboard" class="dashboard" aria-busy="true" tabindex="-1">
 
-          <div class="session-controls">
-            <div class="session-control-block">
-              <span class="session-control-label">View mode</span>
-              <div class="segmented session-mode" data-control="view-mode" role="group" aria-label="View mode">
-                <button type="button" class="is-active" data-view-mode="overlay" aria-label="Use overlay comparison mode">Overlay</button>
-                <button type="button" data-view-mode="split" aria-label="Use split comparison mode">Split</button>
-                <button type="button" data-view-mode="delta" aria-label="Use delta comparison mode">Delta</button>
+          <!-- ── Home Views ─────────────────────────────────────────── -->
+          <div id="home-views">
+
+            <!-- PSD Heatmap — expanded by default -->
+            <section class="panel panel-psd panel-collapsible is-expanded" aria-labelledby="psd-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="psd-title">PSD Heatmap</h2>
+                  <p>Welch PSD — 4 s window, 50% overlap | units: a.u.</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">−</span>
               </div>
-            </div>
-            <label class="session-control-block" for="baseline-select">
-              <span class="session-control-label">Baseline</span>
-              <select id="baseline-select"></select>
-            </label>
-          </div>
-        </aside>
+              <div class="panel-body">
+                <div id="psd-legend" class="session-legend" hidden></div>
+                <div class="psd-layout">
+                  <canvas id="psd-heatmap" class="chart chart-heatmap" width="760" height="420" role="img" aria-label="Welch PSD heatmap by frequency and channel"></canvas>
+                  <canvas id="psd-overlay" class="chart chart-overlay" width="320" height="420" role="img" aria-label="PSD line for the selected channel"></canvas>
+                </div>
+              </div>
+            </section>
 
-      <main id="dashboard" class="dashboard" aria-busy="true" tabindex="-1">
-        <section class="panel panel-psd" aria-labelledby="psd-title">
-          <div class="panel-head">
-            <div>
-              <h2 id="psd-title">PSD Heatmap</h2>
-              <p>Welch PSD — 4 s window, 50% overlap | units: a.u.</p>
-            </div>
-          </div>
-          <div id="psd-legend" class="session-legend" hidden></div>
-          <div class="psd-layout">
-            <canvas id="psd-heatmap" class="chart chart-heatmap" width="760" height="420" role="img" aria-label="Welch PSD heatmap by frequency and channel"></canvas>
-            <canvas id="psd-overlay" class="chart chart-overlay" width="320" height="420" role="img" aria-label="PSD line for the selected channel"></canvas>
-          </div>
-        </section>
+            <!-- Playback Bar — always visible, no collapse -->
+            <section class="panel panel-playback" aria-labelledby="playback-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="playback-title">Playback</h2>
+                  <p class="playback-label">Animate all views</p>
+                </div>
+              </div>
+              <div id="playback-bar" class="playback-bar"></div>
+            </section>
 
-        <section class="panel panel-centroid" aria-labelledby="centroid-title">
-          <div class="panel-head">
-            <div>
-              <h2 id="centroid-title">Centroid Over Time</h2>
-              <p>Spectral centroid over time | 2 s window, 0.25 s step</p>
-            </div>
-          </div>
-          <div id="centroid-legend" class="session-legend" hidden></div>
-          <canvas id="centroid-chart" class="chart chart-wide" width="1120" height="300" role="img" aria-label="Spectral centroid lines over time"></canvas>
-        </section>
+            <!-- Centroid — collapsed by default -->
+            <section class="panel panel-centroid panel-collapsible" aria-labelledby="centroid-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="centroid-title">Centroid Over Time</h2>
+                  <p>Spectral centroid over time | 2 s window, 0.25 s step</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="centroid-legend" class="session-legend" hidden></div>
+                <canvas id="centroid-chart" class="chart chart-wide" width="1120" height="300" role="img" aria-label="Spectral centroid lines over time"></canvas>
+              </div>
+            </section>
 
-        <section class="panel panel-playback" aria-labelledby="playback-title">
-          <div class="panel-head">
-            <div>
-              <h2 id="playback-title">Playback</h2>
-            </div>
-          </div>
-          <div id="playback-bar" class="playback-bar"></div>
-        </section>
+            <!-- Geometry Stack + Channel Grid — side by side, expanded -->
+            <section class="panel panel-geometry panel-collapsible is-expanded" aria-labelledby="geometry-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="geometry-title">Geometry Stack</h2>
+                  <p id="geometry-caption">Channel: Cz</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">−</span>
+              </div>
+              <div class="panel-body">
+                <div id="geometry-legend" class="session-legend" hidden></div>
+                <canvas id="geometry-chart" class="chart chart-stack" width="820" height="520" role="img" aria-label="Sliding spectral geometry for the selected channel"></canvas>
+              </div>
+            </section>
 
-        <section id="monitor-panel" class="panel panel-monitor monitor-panel static-mode" aria-labelledby="monitor-title"></section>
+            <section class="panel panel-grid panel-collapsible is-expanded" aria-labelledby="grid-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="grid-title">Channel Grid</h2>
+                  <p id="grid-caption">10-20 layout | color: alpha rel. power</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">−</span>
+              </div>
+              <div class="panel-body">
+                <p id="selected-channel" class="grid-selection" aria-live="polite">Selected channel: Cz</p>
+                <div id="channel-grid" class="channel-grid" aria-label="EEG 10-20 channel grid"></div>
+              </div>
+            </section>
 
-        <section class="panel panel-geometry" aria-labelledby="geometry-title">
-          <div class="panel-head">
-            <div>
-              <h2 id="geometry-title">Geometry Stack</h2>
-              <p id="geometry-caption">Channel: Cz</p>
-            </div>
-          </div>
-          <div id="geometry-legend" class="session-legend" hidden></div>
-          <canvas id="geometry-chart" class="chart chart-stack" width="820" height="520" role="img" aria-label="Sliding spectral geometry for the selected channel"></canvas>
-        </section>
+          </div><!-- #home-views -->
 
-        <section class="panel panel-grid" aria-labelledby="grid-title">
-          <div class="panel-head">
-            <div>
-              <h2 id="grid-title">Channel Grid</h2>
-              <p id="grid-caption">10-20 layout | color: alpha rel. power</p>
-            </div>
-          </div>
-          <p id="selected-channel" class="grid-selection" aria-live="polite">Selected channel: Cz</p>
-          <div id="channel-grid" class="channel-grid" aria-label="EEG 10-20 channel grid"></div>
-        </section>
+          <!-- ── Advanced Analysis Toggle ───────────────────────────── -->
+          <button id="advanced-toggle" class="advanced-toggle-btn" type="button">
+            Advanced Analysis
+            <span class="toggle-chevron">▾</span>
+          </button>
 
-        <section class="panel panel-phase" aria-labelledby="phase-title">
-          <div class="panel-head">
-            <div>
-              <h2 id="phase-title">Phase Space</h2>
-              <p>Delay embedding and 2-metric trajectory for the selected channel</p>
-            </div>
-          </div>
-          <div id="phase-space" class="phase-space"></div>
-        </section>
+          <!-- ── Advanced Views ─────────────────────────────────────── -->
+          <div id="advanced-views" style="display:none">
 
-        <section class="panel panel-polar" aria-labelledby="polar-title" hidden>
-          <div class="panel-head">
-            <div>
-              <h2 id="polar-title">Polar Alpha Chronomap</h2>
-              <p>One circle = full segment | bar = posterior alpha | color = posterior - frontal</p>
-            </div>
-          </div>
-          <div id="polar-chronomap" class="polar-chronomap"></div>
-        </section>
+            <section class="panel panel-phase panel-collapsible" aria-labelledby="phase-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="phase-title">Phase Space</h2>
+                  <p>Delay embedding and 2-metric trajectory for the selected channel</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="phase-space" class="phase-space"></div>
+              </div>
+            </section>
 
-        <section class="panel panel-kuramoto" aria-labelledby="kuramoto-title" hidden>
-          <div class="panel-head">
-            <div>
-              <h2 id="kuramoto-title">Kuramoto Animation</h2>
-              <p>Alpha-band phase synchrony | vector = order parameter r</p>
-            </div>
-          </div>
-          <div id="kuramoto-view" class="kuramoto-view"></div>
-        </section>
+            <section class="panel panel-polar panel-collapsible" aria-labelledby="polar-title" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2 id="polar-title">Polar Alpha Chronomap</h2>
+                  <p>One circle = full segment | bar = posterior alpha | color = posterior - frontal</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="polar-chronomap" class="polar-chronomap"></div>
+              </div>
+            </section>
 
-        <section class="panel panel-network" aria-labelledby="network-title" hidden>
-          <div class="panel-head">
-            <div>
-              <h2 id="network-title">Channel Network</h2>
-              <p>10-20 graph | edge = correlation or PLV strength | node = strong degree</p>
-            </div>
-          </div>
-          <div id="channel-network" class="channel-network"></div>
-        </section>
+            <section class="panel panel-kuramoto panel-collapsible" aria-labelledby="kuramoto-title" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2 id="kuramoto-title">Kuramoto Animation</h2>
+                  <p>Alpha-band phase synchrony | vector = order parameter r</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="kuramoto-view" class="kuramoto-view"></div>
+              </div>
+            </section>
 
-        <section class="panel panel-tda" aria-labelledby="tda-title" hidden>
-          <div class="panel-head">
-            <div>
-              <h2 id="tda-title">TDA View</h2>
-              <p>Persistence scatter and barcode from channel-level geometry point cloud</p>
-            </div>
-          </div>
-          <div id="tda-view" class="tda-view"></div>
-        </section>
-      </main>
+            <section class="panel panel-network panel-collapsible" aria-labelledby="network-title" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2 id="network-title">Channel Network</h2>
+                  <p>10-20 graph | edge = correlation or PLV strength | node = strong degree</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="channel-network" class="channel-network"></div>
+              </div>
+            </section>
+
+            <section class="panel panel-tda panel-collapsible" aria-labelledby="tda-title" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2 id="tda-title">TDA View</h2>
+                  <p>Persistence scatter and barcode from channel-level geometry point cloud</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="tda-view" class="tda-view"></div>
+              </div>
+            </section>
+
+            <section id="monitor-panel" class="panel panel-monitor monitor-panel static-mode" aria-labelledby="monitor-title"></section>
+
+            <aside class="session-sidebar" aria-label="Session comparison">
+              <div class="session-sidebar-head">
+                <h2>Sessions</h2>
+                <span id="session-count">0/6</span>
+              </div>
+              <button id="session-drop-zone" class="drop-zone" type="button" aria-label="Add SpeedMouse ZIP sessions">
+                <strong>Drop ZIP here</strong>
+                <span>or click to add</span>
+              </button>
+              <input id="session-file-input" name="session-files" type="file" accept=".zip" multiple aria-label="SpeedMouse ZIP session files" hidden>
+              <p id="session-message" class="session-message" aria-live="polite">Add sessions to compare</p>
+              <div id="session-list" class="session-list"></div>
+              <div class="session-controls">
+                <div class="session-control-block">
+                  <span class="session-control-label">View mode</span>
+                  <div class="segmented session-mode" data-control="view-mode" role="group" aria-label="View mode">
+                    <button type="button" class="is-active" data-view-mode="overlay" aria-label="Use overlay comparison mode">Overlay</button>
+                    <button type="button" data-view-mode="split" aria-label="Use split comparison mode">Split</button>
+                    <button type="button" data-view-mode="delta" aria-label="Use delta comparison mode">Delta</button>
+                  </div>
+                </div>
+                <label class="session-control-block" for="baseline-select">
+                  <span class="session-control-label">Baseline</span>
+                  <select id="baseline-select"></select>
+                </label>
+              </div>
+            </aside>
+
+          </div><!-- #advanced-views -->
+
+        </main>
       </div>
 
       <footer class="app-footer">
@@ -223,5 +271,31 @@
 
     <div id="tooltip" class="tooltip" hidden></div>
     <script type="module" src="./js/layout.js"></script>
+    <script>
+      (function () {
+        // ── Collapsible panels ──────────────────────────────────────────
+        document.querySelectorAll('.panel-collapsible .panel-head').forEach(function (head) {
+          head.addEventListener('click', function () {
+            var panel = head.closest('.panel');
+            var expanded = panel.classList.toggle('is-expanded');
+            var icon = head.querySelector('.panel-toggle-icon');
+            if (icon) icon.textContent = expanded ? '−' : '+';
+            // Notify views of resize after animation settles
+            if (expanded) {
+              setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 320);
+            }
+          });
+        });
+
+        // ── Advanced Analysis toggle ────────────────────────────────────
+        var advBtn = document.getElementById('advanced-toggle');
+        var advSection = document.getElementById('advanced-views');
+        advBtn.addEventListener('click', function () {
+          var open = advSection.style.display !== 'none';
+          advSection.style.display = open ? 'none' : 'grid';
+          advBtn.querySelector('.toggle-chevron').textContent = open ? '▾' : '▴';
+        });
+      }());
+    </script>
   </body>
 </html>

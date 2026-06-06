@@ -210,7 +210,7 @@ h2 {
 
 .control-panel-body {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(160px, 0.38fr) minmax(140px, 0.32fr) minmax(360px, 0.85fr);
+  grid-template-columns: minmax(320px, 1fr) minmax(160px, 0.38fr) minmax(140px, 0.32fr);
   gap: var(--s4);
   align-items: end;
   padding: var(--s3) var(--s5);
@@ -220,6 +220,10 @@ h2 {
   display: grid;
   gap: var(--s1);
   min-width: 0;
+}
+
+.live-controls {
+  display: none;
 }
 
 .segmented,
@@ -383,6 +387,45 @@ input[type="number"]:focus-visible {
   color: var(--danger);
 }
 
+.playback-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.advanced-toggle-btn {
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  background: var(--bg-2);
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--r-card);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.advanced-toggle-btn:hover {
+  background: var(--bg-3);
+  color: var(--text-primary);
+}
+
+.toggle-chevron {
+  font-size: 14px;
+  color: var(--text-tertiary);
+}
+
 @keyframes pulse {
   0%,
   100% {
@@ -410,21 +453,13 @@ input[type="number"]:focus-visible {
 }
 
 .app-body {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: var(--s4);
-  align-items: start;
+  display: block;
 }
 
 .session-sidebar {
-  position: sticky;
-  top: 118px;
   display: grid;
   align-content: start;
   gap: var(--s3);
-  height: calc(100vh - 118px);
-  min-height: 360px;
-  overflow-y: auto;
   border: 0.5px solid var(--border);
   border-radius: var(--r-card);
   background: var(--bg-1);
@@ -622,11 +657,22 @@ input[type="number"]:focus-visible {
 }
 
 .dashboard {
-  display: grid;
-  grid-template-columns: minmax(0, 1.16fr) minmax(340px, 0.84fr);
+  display: flex;
+  flex-direction: column;
   gap: var(--s4);
-  align-items: start;
   scroll-margin-top: 100px;
+}
+
+#home-views {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s3);
+  align-items: start;
+}
+
+#advanced-views {
+  grid-template-columns: 1fr;
+  gap: var(--s4);
 }
 
 .panel {
@@ -645,6 +691,17 @@ input[type="number"]:focus-visible {
   grid-column: 1 / -1;
 }
 
+/* Any expanded collapsible panel stretches full width … */
+.panel-collapsible.is-expanded {
+  grid-column: 1 / -1;
+}
+
+/* … except Geometry Stack + Channel Grid, which stay paired in their columns */
+.panel-geometry.is-expanded,
+.panel-grid.is-expanded {
+  grid-column: auto;
+}
+
 .panel-phase {
   grid-column: 1 / -1;
 }
@@ -656,7 +713,7 @@ input[type="number"]:focus-visible {
 
 .panel-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--s2);
   padding: var(--s3) var(--s4) var(--s2);
@@ -702,15 +759,15 @@ input[type="number"]:focus-visible {
 
 .chart-heatmap,
 .chart-overlay {
-  height: 520px;
+  height: 480px;
 }
 
 .chart-wide {
-  height: 250px;
+  height: 200px;
 }
 
 .chart-stack {
-  height: 440px;
+  height: 360px;
 }
 
 .chart-phase {
@@ -725,6 +782,15 @@ input[type="number"]:focus-visible {
 .chart-tda-scatter,
 .chart-tda-barcode {
   height: 320px;
+}
+
+.panel-playback {
+  position: sticky;
+  top: 116px;
+  z-index: 80;
+  box-shadow: var(--shadow-md);
+  backdrop-filter: saturate(160%) blur(18px);
+  -webkit-backdrop-filter: saturate(160%) blur(18px);
 }
 
 .playback-bar {
@@ -749,9 +815,9 @@ input[type="number"]:focus-visible {
 
 .playback-toggle {
   display: flex;
-  width: 46px;
-  height: 32px;
-  min-height: 32px;
+  width: 52px;
+  height: 40px;
+  min-height: 40px;
   align-items: center;
   justify-content: center;
   border-color: var(--border-accent);
@@ -759,7 +825,7 @@ input[type="number"]:focus-visible {
   background: var(--accent-dim);
   color: var(--accent);
   font-family: var(--font);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   box-shadow: var(--shadow-xs);
 }
@@ -1228,7 +1294,7 @@ input[type="number"]:focus-visible {
 }
 
 .channel-grid {
-  min-height: 440px;
+  min-height: 260px;
   padding: var(--s3);
   background-color: var(--bg-1);
   background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
@@ -1258,7 +1324,7 @@ input[type="number"]:focus-visible {
 }
 
 .channel-grid-map {
-  min-height: 390px;
+  min-height: 320px;
 }
 
 .grid-selection {
@@ -1275,7 +1341,8 @@ input[type="number"]:focus-visible {
   display: block;
   width: 100%;
   height: auto;
-  min-height: 390px;
+  min-height: 260px;
+  max-height: 420px;
 }
 
 .polar-chronomap,
@@ -1340,7 +1407,10 @@ input[type="number"]:focus-visible {
 .network-graph svg {
   display: block;
   width: 100%;
-  height: 560px;
+  max-width: 720px;
+  height: auto;
+  aspect-ratio: 720 / 520;
+  margin: 0 auto;
   min-height: 0;
 }
 
@@ -1422,6 +1492,59 @@ input[type="number"]:focus-visible {
   filter: drop-shadow(0 0 8px rgba(0, 212, 160, 0.62));
 }
 
+/* ── Panel collapse system ────────────────────────────────────── */
+
+.panel-collapsible .panel-head {
+  cursor: pointer;
+  user-select: none;
+}
+
+.panel-collapsible .panel-head:hover {
+  background: var(--bg-2);
+}
+
+.panel-body {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.28s ease-out;
+}
+
+.panel-collapsible.is-expanded .panel-body {
+  max-height: 3000px;
+  transition: max-height 0.38s ease-in;
+}
+
+.panel-toggle-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--r-tag);
+  background: var(--bg-2);
+  color: var(--text-tertiary);
+  font-size: 17px;
+  font-weight: 300;
+  line-height: 1;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+
+.panel-collapsible .panel-head:hover .panel-toggle-icon {
+  background: var(--bg-3);
+  color: var(--text-primary);
+}
+
+.panel-collapsible.is-expanded .panel-toggle-icon {
+  border-color: var(--border-accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
 .app-footer {
   padding: var(--s4) 0 0;
   border-top: 0.5px solid var(--border);
@@ -1482,24 +1605,16 @@ input[type="number"]:focus-visible {
     grid-template-columns: 1fr 1fr;
   }
 
-  .control-group-filter,
-  .live-controls {
+  .control-group-filter {
     grid-column: 1 / -1;
   }
 
-  .app-body {
+  #home-views {
     grid-template-columns: 1fr;
   }
 
-  .session-sidebar {
-    position: relative;
-    top: auto;
-    height: auto;
-    min-height: 0;
-  }
-
-  .dashboard {
-    grid-template-columns: 1fr;
+  .panel-collapsible.is-expanded {
+    grid-column: 1;
   }
 
   .panel-phase {
