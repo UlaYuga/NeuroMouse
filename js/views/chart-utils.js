@@ -1,14 +1,14 @@
-export const ACTIVE_COLOR = "#77d7c8";
-export const SECONDARY_COLOR = "#f2c86d";
-export const GRID_COLOR = "rgba(255,255,255,0.08)";
-export const AXIS_COLOR = "rgba(240,244,247,0.68)";
-export const MUTED_COLOR = "rgba(155,168,181,0.78)";
+export const ACTIVE_COLOR = "#33dec0";
+export const SECONDARY_COLOR = "#e5aa2f";
+export const GRID_COLOR = "rgba(241,235,217,0.10)";
+export const AXIS_COLOR = "rgba(241,235,217,0.76)";
+export const MUTED_COLOR = "rgba(205,199,181,0.78)";
 export const FREQUENCY_BANDS = [
-  { label: "delta", min: 1, max: 4, color: "rgba(120,140,255,0.10)" },
-  { label: "theta", min: 4, max: 8, color: "rgba(99,211,255,0.10)" },
-  { label: "alpha", min: 8, max: 13, color: "rgba(242,200,109,0.14)" },
-  { label: "beta", min: 13, max: 30, color: "rgba(119,215,200,0.09)" },
-  { label: "gamma", min: 30, max: 55, color: "rgba(255,120,109,0.08)" },
+  { label: "delta", min: 1, max: 4, color: "rgba(49,95,143,0.12)" },
+  { label: "theta", min: 4, max: 8, color: "rgba(0,159,132,0.10)" },
+  { label: "alpha", min: 8, max: 13, color: "rgba(229,170,47,0.16)" },
+  { label: "beta", min: 13, max: 30, color: "rgba(51,222,192,0.09)" },
+  { label: "gamma", min: 30, max: 55, color: "rgba(212,111,31,0.10)" },
 ];
 
 const VIRIDIS = [
@@ -62,7 +62,7 @@ export function canvasPoint(event, canvas) {
   };
 }
 
-export function clear(ctx, width, height, color = "#171a1f") {
+export function clear(ctx, width, height, color = "#111614") {
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, width, height);
 }
@@ -131,7 +131,7 @@ export function drawBottomAxis(ctx, ticks, xScale, y, label) {
   ctx.strokeStyle = GRID_COLOR;
   ctx.fillStyle = AXIS_COLOR;
   ctx.lineWidth = 1;
-  ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+  ctx.font = "11px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
@@ -159,8 +159,8 @@ export function drawFrequencyBands(ctx, xScale, y, height, options = {}) {
     ctx.fillStyle = band.color;
     ctx.fillRect(x0, y, Math.max(1, x1 - x0), height);
     if (labels) {
-      ctx.fillStyle = "rgba(240,244,247,0.46)";
-      ctx.font = "9px ui-sans-serif, system-ui, sans-serif";
+      ctx.fillStyle = "rgba(241,235,217,0.52)";
+      ctx.font = "9px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillText(band.label, x0 + (x1 - x0) / 2, y + 5);

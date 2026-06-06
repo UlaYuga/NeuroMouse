@@ -6,7 +6,7 @@ import {
   onDisplayChange,
   setChannel,
 } from "../state.js";
-import { ACTIVE_COLOR, colorScale, extent, formatNumber } from "./chart-utils.js";
+import { ACTIVE_COLOR, SECONDARY_COLOR, colorScale, extent, formatNumber } from "./chart-utils.js";
 
 const EEG_10_20 = {
   Fp1: [0.35, 0.05], Fpz: [0.5, 0.04], Fp2: [0.65, 0.05],
@@ -34,6 +34,7 @@ export function initChannelGrid(data, tooltip) {
       viewBox: "0 0 420 460",
       role: "group",
       "aria-label": "10-20 EEG channel map",
+      overflow: "hidden",
     });
 
     svg.append(
@@ -43,26 +44,26 @@ export function initChannelGrid(data, tooltip) {
         rx: 165,
         ry: 185,
         fill: "none",
-        stroke: "rgba(240,244,247,0.55)",
+        stroke: "rgba(241,235,217,0.58)",
         "stroke-width": 2,
       }),
       element("path", {
         d: "M196 25 L210 6 L224 25",
         fill: "none",
-        stroke: "rgba(240,244,247,0.55)",
+        stroke: "rgba(241,235,217,0.58)",
         "stroke-width": 2,
         "stroke-linejoin": "round",
       }),
       element("path", {
         d: "M46 185 C12 204 12 252 46 272",
         fill: "none",
-        stroke: "rgba(240,244,247,0.45)",
+        stroke: "rgba(241,235,217,0.46)",
         "stroke-width": 2,
       }),
       element("path", {
         d: "M374 185 C408 204 408 252 374 272",
         fill: "none",
-        stroke: "rgba(240,244,247,0.45)",
+        stroke: "rgba(241,235,217,0.46)",
         "stroke-width": 2,
       }),
     );
@@ -96,7 +97,7 @@ export function initChannelGrid(data, tooltip) {
             cy: y,
             r: 18,
             fill: "none",
-            stroke: "#f2c86d",
+            stroke: SECONDARY_COLOR,
             "stroke-width": 1.5,
             "stroke-dasharray": "2 3",
             opacity: isVisible ? 0.9 : 0.22,
@@ -131,9 +132,10 @@ export function initChannelGrid(data, tooltip) {
       element("text", {
         x: 44,
         y: 425,
-        fill: "rgba(155,168,181,0.9)",
+        fill: "rgba(205,199,181,0.86)",
         "font-size": 11,
         "font-weight": 700,
+        "font-family": "SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace",
       }, "alpha rel. power"),
     ];
     for (let i = 0; i < 36; i += 1) {
@@ -147,12 +149,12 @@ export function initChannelGrid(data, tooltip) {
       }));
     }
     parts.push(
-      element("text", { x: 154, y: 444, fill: "rgba(155,168,181,0.9)", "font-size": 10, "text-anchor": "middle" }, formatNumber(minPower, 2)),
-      element("text", { x: 334, y: 444, fill: "rgba(155,168,181,0.9)", "font-size": 10, "text-anchor": "middle" }, formatNumber(maxPower, 2)),
-      element("circle", { cx: 380, cy: 422, r: 6, fill: "none", stroke: ACTIVE_COLOR, "stroke-width": 2 }),
-      element("text", { x: 392, y: 426, fill: "rgba(155,168,181,0.9)", "font-size": 10 }, "selected"),
-      element("circle", { cx: 380, cy: 444, r: 7, fill: "none", stroke: "#f2c86d", "stroke-width": 1.5, "stroke-dasharray": "2 3" }),
-      element("text", { x: 392, y: 448, fill: "rgba(155,168,181,0.9)", "font-size": 10 }, "alpha peak"),
+      element("text", { x: 154, y: 444, fill: "rgba(205,199,181,0.86)", "font-size": 10, "font-family": "SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace", "text-anchor": "middle" }, formatNumber(minPower, 2)),
+      element("text", { x: 334, y: 444, fill: "rgba(205,199,181,0.86)", "font-size": 10, "font-family": "SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace", "text-anchor": "middle" }, formatNumber(maxPower, 2)),
+      element("circle", { cx: 346, cy: 422, r: 6, fill: "none", stroke: ACTIVE_COLOR, "stroke-width": 2 }),
+      element("text", { x: 358, y: 426, fill: "rgba(205,199,181,0.86)", "font-size": 10, "font-family": "SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace" }, "selected"),
+      element("circle", { cx: 346, cy: 444, r: 7, fill: "none", stroke: SECONDARY_COLOR, "stroke-width": 1.5, "stroke-dasharray": "2 3" }),
+      element("text", { x: 358, y: 448, fill: "rgba(205,199,181,0.86)", "font-size": 10, "font-family": "SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace" }, "alpha peak"),
     );
     return parts;
   }

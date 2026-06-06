@@ -94,7 +94,7 @@ export function initCentroidView(data, tooltip) {
     const selectedIndex = getChannelIndex();
     const visibleChannels = getVisibleChannels(data);
 
-    ctx.strokeStyle = "rgba(240,244,247,0.2)";
+    ctx.strokeStyle = "rgba(241,235,217,0.22)";
     ctx.strokeRect(g.plotX, g.plotY, g.plotW, g.plotH);
     ctx.strokeStyle = GRID_COLOR;
     ctx.lineWidth = 1;
@@ -109,13 +109,13 @@ export function initCentroidView(data, tooltip) {
     visibleChannels.forEach((channel) => {
       const index = channelIndexByName.get(channel);
       if (index !== selectedIndex) {
-        drawLine(ctx, pointsForChannel(index, g, series), "rgb(150,150,150)", 1, 0.28);
+        drawLine(ctx, pointsForChannel(index, g, series), "rgb(158,154,141)", 1, 0.28);
       }
     });
     drawLine(ctx, pointsForChannel(selectedIndex, g, series), ACTIVE_COLOR, 2.4, 1);
 
     ctx.fillStyle = MUTED_COLOR;
-    ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+    ctx.font = "10px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     ctx.fillText(`${formatNumber(g.yMax, 1)} Hz`, g.plotX - 7, g.plotY);
@@ -130,7 +130,7 @@ export function initCentroidView(data, tooltip) {
     if (hover || sharedHover) {
       const hoverPoint = hover || sharedHover;
       const x = g.xScale(hoverPoint.time);
-      ctx.strokeStyle = "rgba(119,215,200,0.55)";
+      ctx.strokeStyle = "rgba(51,222,192,0.62)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x, g.plotY);
