@@ -11,6 +11,7 @@ import {
   onLiveChange,
   setChannel,
 } from "../state.js";
+import { createDisposables } from "../disposables.js";
 import {
   getBaselineSession,
   getComparisonSessions,
@@ -34,6 +35,7 @@ const EEG_10_20 = {
 export function initChannelGrid(data, tooltip) {
   const root = document.querySelector("#channel-grid");
   const caption = document.querySelector("#grid-caption");
+  const disposables = createDisposables();
 
   function render() {
     const mode = getViewMode();
@@ -209,11 +211,11 @@ export function initChannelGrid(data, tooltip) {
     return parts;
   }
 
-  onChannelChange(render);
-  onDisplayChange(render);
-  onFrameChange(render);
-  onLiveChange(render);
-  onSessionsChange(render);
+  disposables.add(onChannelChange(render));
+  disposables.add(onDisplayChange(render));
+  disposables.add(onFrameChange(render));
+  disposables.add(onLiveChange(render));
+  disposables.add(onSessionsChange(render));
   render();
 
   function gridSession() {
@@ -223,6 +225,8 @@ export function initChannelGrid(data, tooltip) {
     }
     return getBaselineSession(data) ?? getComparisonSessions(data)[0];
   }
+
+  return disposables.dispose;
 }
 
 function element(name, attrs = {}, text = "") {

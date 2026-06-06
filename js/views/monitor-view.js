@@ -1,4 +1,9 @@
 import {
+  getChannel,
+  onChannelChange,
+} from "../state.js";
+import { createDisposables } from "../disposables.js";
+import {
   ConditionMonitor,
   MONITOR_METRICS,
   MONITOR_OPERATORS,
@@ -14,13 +19,15 @@ const LOG_LIMIT = 50;
 export function initMonitorView(root, data) {
   if (!root) return null;
 
+  const disposables = createDisposables();
   let channels = channelsFromData(data);
-  const condition = createDefaultCondition(defaultChannel(channels));
+  const condition = createDefaultCondition(channels.includes(getChannel()) ? getChannel() : defaultChannel(channels));
   const monitor = new ConditionMonitor();
   let lastValue = null;
   let lastTime = 0;
   let isLive = false;
   let highlightedEvent = null;
+  let highlightTimer = 0;
 
   root.innerHTML = "";
 
@@ -63,8 +70,8 @@ export function initMonitorView(root, data) {
     element("span", { className: "monitor-led", "aria-hidden": "true" }),
     "Enable",
   );
-  const clearButton = element("button", { type: "button" }, "Clear Log");
-  const exportButton = element("button", { type: "button" }, "Export CSV");
+  const clearButton = element("button", { type: "button", "aria-label": "Clear trigger log" }, "Clear Log");
+  const exportButton = element("button", { type: "button", "aria-label": "Export trigger log as CSV" }, "Export CSV");
   const actions = element("div", { className: "monitor-actions" }, enabledToggle, clearButton, exportButton);
 
   const stateText = element("strong", { className: "monitor-state is-idle" }, "● IDLE");
@@ -115,18 +122,26 @@ export function initMonitorView(root, data) {
   renderStatus();
   renderLog();
 
-  monitor.onTrigger((event) => {
+  disposables.add(monitor.onTrigger((event) => {
     highlightedEvent = event;
     renderLog();
     renderStatus();
-    window.setTimeout(() => {
+    if (highlightTimer) window.clearTimeout(highlightTimer);
+    highlightTimer = window.setTimeout(() => {
       if (highlightedEvent === event) {
         highlightedEvent = null;
         renderLog();
       }
       renderStatus();
+      highlightTimer = 0;
     }, monitor.autoResetMs + 20);
-  });
+  }));
+  disposables.add(onChannelChange((channel) => {
+    if (!channels.includes(channel) || condition.channel === channel) return;
+    condition.channel = channel;
+    channelSelect.select.value = channel;
+    resetConditionProgress();
+  }));
 
   return {
     condition,
@@ -150,6 +165,14 @@ export function initMonitorView(root, data) {
       monitor.update(lastValue, lastTime, condition);
       renderStatus();
     },
+    dispose() {
+      if (highlightTimer) {
+        window.clearTimeout(highlightTimer);
+        highlightTimer = 0;
+      }
+      monitor.reset();
+      disposables.dispose();
+    },
   };
 
   function populateControls() {
@@ -160,36 +183,36 @@ export function initMonitorView(root, data) {
   }
 
   function bindEvents() {
-    channelSelect.select.addEventListener("change", () => {
+    disposables.listen(channelSelect.select, "change", () => {
       condition.channel = channelSelect.select.value;
       resetConditionProgress();
     });
-    metricSelect.select.addEventListener("change", () => {
+    disposables.listen(metricSelect.select, "change", () => {
       condition.metric = metricSelect.select.value;
       resetConditionProgress();
     });
-    operatorSelect.select.addEventListener("change", () => {
+    disposables.listen(operatorSelect.select, "change", () => {
       condition.operator = operatorSelect.select.value;
       resetConditionProgress();
     });
-    thresholdInput.input.addEventListener("input", () => {
+    disposables.listen(thresholdInput.input, "input", () => {
       condition.threshold = Number(thresholdInput.input.value);
       resetConditionProgress();
     });
-    durationInput.input.addEventListener("input", () => {
+    disposables.listen(durationInput.input, "input", () => {
       condition.duration_sec = Math.max(0.5, Number(durationInput.input.value) || 0.5);
       resetConditionProgress();
     });
-    enabledInput.addEventListener("change", () => {
+    disposables.listen(enabledInput, "change", () => {
       condition.enabled = enabledInput.checked;
       resetConditionProgress();
     });
-    clearButton.addEventListener("click", () => {
+    disposables.listen(clearButton, "click", () => {
       monitor.clearLog();
       highlightedEvent = null;
       renderLog();
     });
-    exportButton.addEventListener("click", () => {
+    disposables.listen(exportButton, "click", () => {
       exportCSV(monitor.log);
     });
   }

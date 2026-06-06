@@ -7,6 +7,7 @@ import {
   onFrameChange,
   onLiveChange,
 } from "../state.js";
+import { createDisposables } from "../disposables.js";
 import {
   ACTIVE_COLOR,
   CHART_BACKGROUND,
@@ -38,6 +39,7 @@ const MODE_SCATTER = "scatter";
 export function initPhaseSpace(root, data) {
   if (!root) return;
 
+  const disposables = createDisposables();
   const canvas = element("canvas", {
     id: "phase-space-chart",
     className: "chart chart-phase",
@@ -52,13 +54,20 @@ export function initPhaseSpace(root, data) {
     role: "group",
     "aria-label": "Phase space mode",
   });
-  const delayButton = element("button", { type: "button", className: "is-active" }, "Delay Embedding");
-  const scatterButton = element("button", { type: "button" }, "2-Metric Scatter");
+  const delayButton = element("button", {
+    type: "button",
+    className: "is-active",
+    "aria-label": "Use delay embedding phase space mode",
+  }, "Delay Embedding");
+  const scatterButton = element("button", {
+    type: "button",
+    "aria-label": "Use two-metric scatter phase space mode",
+  }, "2-Metric Scatter");
   modeGroup.append(delayButton, scatterButton);
 
-  const primarySelect = metricSelect("centroid");
-  const xSelect = metricSelect("centroid");
-  const ySelect = metricSelect("spread");
+  const primarySelect = metricSelect("centroid", "phase-primary-metric", "Phase metric");
+  const xSelect = metricSelect("centroid", "phase-x-metric", "Phase X metric");
+  const ySelect = metricSelect("spread", "phase-y-metric", "Phase Y metric");
   const tauInput = element("input", {
     type: "number",
     name: "phase-tau",
@@ -94,29 +103,29 @@ export function initPhaseSpace(root, data) {
   let yMetric = "spread";
   let tau = 5;
 
-  delayButton.addEventListener("click", () => {
+  disposables.listen(delayButton, "click", () => {
     mode = MODE_DELAY;
     updateControls();
     draw();
   });
-  scatterButton.addEventListener("click", () => {
+  disposables.listen(scatterButton, "click", () => {
     mode = MODE_SCATTER;
     updateControls();
     draw();
   });
-  primarySelect.addEventListener("change", () => {
+  disposables.listen(primarySelect, "change", () => {
     metric = primarySelect.value;
     draw();
   });
-  xSelect.addEventListener("change", () => {
+  disposables.listen(xSelect, "change", () => {
     xMetric = xSelect.value;
     draw();
   });
-  ySelect.addEventListener("change", () => {
+  disposables.listen(ySelect, "change", () => {
     yMetric = ySelect.value;
     draw();
   });
-  tauInput.addEventListener("input", () => {
+  disposables.listen(tauInput, "input", () => {
     tau = clamp(Math.round(Number(tauInput.value) || 1), 1, 20);
     tauInput.value = String(tau);
     draw();
@@ -193,10 +202,10 @@ export function initPhaseSpace(root, data) {
   }
 
   updateControls();
-  onChannelChange(draw);
-  onFrameChange(draw);
-  onLiveChange(draw);
-  observeCanvas(canvas, draw);
+  disposables.add(onChannelChange(draw));
+  disposables.add(onFrameChange(draw));
+  disposables.add(onLiveChange(draw));
+  disposables.add(observeCanvas(canvas, draw));
 
   function activeSeries(xKey, yKey, channelIndex) {
     const live = getLiveState();
@@ -214,6 +223,8 @@ export function initPhaseSpace(root, data) {
       yValues: data.geometry[yKey]?.[channelIndex] ?? [],
     };
   }
+
+  return disposables.dispose;
 }
 
 function phasePoints(xValues, yValues, tau) {
@@ -385,8 +396,8 @@ function metricLabel(key) {
   return { key: row[0], label: row[1], unit: row[2] };
 }
 
-function metricSelect(value) {
-  const select = element("select");
+function metricSelect(value, id, label) {
+  const select = element("select", { id, name: id, "aria-label": label });
   METRICS.forEach(([key, label]) => {
     select.append(element("option", { value: key }, label));
   });

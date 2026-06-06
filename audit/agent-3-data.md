@@ -1,22 +1,20 @@
 # Agent 3: Data Integrity
 
-## Script
-- tools/verify_data.mjs created.
+## Verification Script
+- [OK] `tools/verify_data.mjs` exists.
+- [OK] The script validates metadata, Welch PSD, centroid arrays, geometry metrics, area-normalized PSD, and channel summary coverage.
 
 ## Command
+
 ```bash
 node tools/verify_data.mjs
 ```
 
-## Full Output
-```text
+## Output
 
+```text
 Data Integrity: 55 passed, 0 failed
 ```
-
-## Findings
-
-None.
 
 ## Summary
 - Critical: 0

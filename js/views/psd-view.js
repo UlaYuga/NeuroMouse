@@ -10,6 +10,7 @@ import {
   onPsdScaleChange,
   setChannel,
 } from "../state.js";
+import { createDisposables } from "../disposables.js";
 import {
   getBaselineSession,
   getComparisonSessions,
@@ -52,13 +53,15 @@ export function initPsdView(data, tooltip) {
   const heatmap = document.querySelector("#psd-heatmap");
   const overlay = document.querySelector("#psd-overlay");
   const legend = document.querySelector("#psd-legend");
+  const disposables = createDisposables();
   const channels = data.meta.channels;
   const frequencies = data.welch_psd.frequencies;
   const psd = data.welch_psd.psd;
   const logMatrix = psd.map((row) => row.map(log10));
   const [logMin, logMax] = extent(logMatrix);
-  const channelIndexByName = new Map(channels.map((channel, index) => [channel, index]));
   let heatHover = null;
+  let heatmapCache = document.createElement("canvas");
+  let heatmapCacheKey = "";
 
   const heatMargins = { left: 70, right: 12, top: 18, bottom: 44 };
   const overlayMargins = { left: 46, right: 16, top: 42, bottom: 40 };
@@ -87,25 +90,6 @@ export function initPsdView(data, tooltip) {
       };
     }
 
-    const live = getLiveState();
-    const liveFrequencies = live.latestFrame?.frequency_hz;
-    const livePsdByChannel = live.latestFrame?.psd_by_channel;
-    if (Array.isArray(liveFrequencies) && livePsdByChannel && typeof livePsdByChannel === "object") {
-      const liveMatrix = channels.map((channel) => livePsdByChannel[channel]);
-      if (liveMatrix.every(Array.isArray)) {
-        const liveLogMatrix = liveMatrix.map((row) => row.map(log10));
-        const [liveLogMin, liveLogMax] = extent(liveLogMatrix);
-        return {
-          mode: "live",
-          channels,
-          frequencies: liveFrequencies.map(Number),
-          matrix: liveMatrix,
-          logMatrix: liveLogMatrix,
-          logMin: liveLogMin,
-          logMax: liveLogMax,
-        };
-      }
-    }
     return {
       mode: "static",
       channels,
@@ -131,29 +115,8 @@ export function initPsdView(data, tooltip) {
     const selectedVisibleIndex = visibleChannels.indexOf(selectedChannel);
     const xScale = scaleLinear(source.frequencies[0], source.frequencies.at(-1), plotX, plotX + plotW);
     const channelH = plotH / Math.max(1, visibleChannels.length);
-    const sourceChannelIndexByName = new Map(source.channels.map((channel, index) => [channel, index]));
-
-    drawFrequencyBands(ctx, xScale, plotY, plotH, { labels: true });
-
-    for (let visibleIndex = 0; visibleIndex < visibleChannels.length; visibleIndex += 1) {
-      const channelIndex = sourceChannelIndexByName.get(visibleChannels[visibleIndex]);
-      if (channelIndex == null) continue;
-      for (let freqIndex = 0; freqIndex < source.frequencies.length; freqIndex += 1) {
-        const f0 = freqIndex === 0
-          ? source.frequencies[freqIndex]
-          : (source.frequencies[freqIndex - 1] + source.frequencies[freqIndex]) / 2;
-        const f1 = freqIndex === source.frequencies.length - 1
-          ? source.frequencies[freqIndex]
-          : (source.frequencies[freqIndex] + source.frequencies[freqIndex + 1]) / 2;
-        const x0 = xScale(f0);
-        const x1 = xScale(f1);
-        const value = source.logMatrix[channelIndex][freqIndex];
-        ctx.fillStyle = source.delta
-          ? deltaColorScale(value, source.logMin, source.logMax)
-          : heatmapColor(value, source.logMin, source.logMax);
-        ctx.fillRect(x0, plotY + visibleIndex * channelH, Math.max(1, x1 - x0 + 0.5), Math.ceil(channelH) + 0.5);
-      }
-    }
+    renderHeatmapCache(width, height, source, visibleChannels);
+    ctx.drawImage(heatmapCache, 0, 0, width, height);
 
     ctx.font = `600 11px ${MONO_FONT}`;
     ctx.textAlign = "right";
@@ -244,6 +207,57 @@ export function initPsdView(data, tooltip) {
     drawOverlay();
   }
 
+  function renderHeatmapCache(width, height, source, visibleChannels) {
+    const dpr = window.devicePixelRatio || 1;
+    const pixelWidth = Math.round(width * dpr);
+    const pixelHeight = Math.round(height * dpr);
+    const cacheKey = [
+      source.mode,
+      source.session?.id ?? "default",
+      source.delta ? "delta" : "power",
+      visibleChannels.join(","),
+      pixelWidth,
+      pixelHeight,
+    ].join("|");
+    if (cacheKey === heatmapCacheKey && heatmapCache.width === pixelWidth && heatmapCache.height === pixelHeight) return;
+
+    heatmapCacheKey = cacheKey;
+    heatmapCache.width = pixelWidth;
+    heatmapCache.height = pixelHeight;
+    const cacheCtx = heatmapCache.getContext("2d");
+    cacheCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    clear(cacheCtx, width, height);
+
+    const plotX = heatMargins.left;
+    const plotY = heatMargins.top;
+    const plotW = width - heatMargins.left - heatMargins.right;
+    const plotH = height - heatMargins.top - heatMargins.bottom;
+    const xScale = scaleLinear(source.frequencies[0], source.frequencies.at(-1), plotX, plotX + plotW);
+    const channelH = plotH / Math.max(1, visibleChannels.length);
+    const sourceChannelIndexByName = new Map(source.channels.map((channel, index) => [channel, index]));
+
+    drawFrequencyBands(cacheCtx, xScale, plotY, plotH, { labels: true });
+    for (let visibleIndex = 0; visibleIndex < visibleChannels.length; visibleIndex += 1) {
+      const channelIndex = sourceChannelIndexByName.get(visibleChannels[visibleIndex]);
+      if (channelIndex == null) continue;
+      for (let freqIndex = 0; freqIndex < source.frequencies.length; freqIndex += 1) {
+        const f0 = freqIndex === 0
+          ? source.frequencies[freqIndex]
+          : (source.frequencies[freqIndex - 1] + source.frequencies[freqIndex]) / 2;
+        const f1 = freqIndex === source.frequencies.length - 1
+          ? source.frequencies[freqIndex]
+          : (source.frequencies[freqIndex] + source.frequencies[freqIndex + 1]) / 2;
+        const x0 = xScale(f0);
+        const x1 = xScale(f1);
+        const value = source.logMatrix[channelIndex][freqIndex];
+        cacheCtx.fillStyle = source.delta
+          ? deltaColorScale(value, source.logMin, source.logMax)
+          : heatmapColor(value, source.logMin, source.logMax);
+        cacheCtx.fillRect(x0, plotY + visibleIndex * channelH, Math.max(1, x1 - x0 + 0.5), Math.ceil(channelH) + 0.5);
+      }
+    }
+  }
+
   function hitTest(event) {
     const source = activeHeatmap();
     const point = canvasPoint(event, heatmap);
@@ -262,7 +276,7 @@ export function initPsdView(data, tooltip) {
     return { channelIndex, freqIndex };
   }
 
-  heatmap.addEventListener("mousemove", (event) => {
+  disposables.listen(heatmap, "mousemove", (event) => {
     const hit = hitTest(event);
     heatHover = hit;
     if (!hit) {
@@ -285,24 +299,33 @@ export function initPsdView(data, tooltip) {
     drawHeatmap();
   });
 
-  heatmap.addEventListener("mouseleave", () => {
+  disposables.listen(heatmap, "mouseleave", () => {
     heatHover = null;
     tooltip.hide();
     drawHeatmap();
   });
 
-  heatmap.addEventListener("click", (event) => {
+  disposables.listen(heatmap, "click", (event) => {
     const hit = hitTest(event);
     if (hit) setChannel(getVisibleChannels(data)[hit.channelIndex]);
   });
 
-  onChannelChange(render);
-  onDisplayChange(render);
-  onPsdScaleChange(render);
-  onLiveChange(render);
-  onSessionsChange(render);
-  observeCanvas(heatmap, render);
-  observeCanvas(overlay, render);
+  disposables.add(onChannelChange(render));
+  disposables.add(onDisplayChange(() => {
+    heatmapCacheKey = "";
+    render();
+  }));
+  disposables.add(onPsdScaleChange(drawOverlay));
+  disposables.add(onLiveChange(drawOverlay));
+  disposables.add(onSessionsChange(() => {
+    heatmapCacheKey = "";
+    render();
+  }));
+  disposables.add(observeCanvas(heatmap, () => {
+    heatmapCacheKey = "";
+    drawHeatmap();
+  }));
+  disposables.add(observeCanvas(overlay, drawOverlay));
 
   function drawSessionOverlay(ctx, width, height, sessions, channel, mode) {
     const plotX = overlayMargins.left;
@@ -383,6 +406,12 @@ export function initPsdView(data, tooltip) {
     }
     return getBaselineSession(data) ?? getComparisonSessions(data)[0];
   }
+
+  return () => {
+    heatmapCacheKey = "";
+    heatmapCache = null;
+    disposables.dispose();
+  };
 }
 
 function heatmapColor(value, min, max) {

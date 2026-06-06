@@ -159,7 +159,7 @@ export function createLiveSource(wsUrl, options = {}) {
           sampling_rate: samplingRate,
           window_sec: WINDOW_SEC,
           overlap: OVERLAP,
-        });
+        }, buffers.map((buffer) => buffer.buffer));
       }, UPDATE_MS);
     },
 
@@ -182,8 +182,8 @@ export function createLiveSource(wsUrl, options = {}) {
   };
 
   function buildLiveData(result, frameSequence, elapsedMs) {
-    const frequencies = result.frequencies.map(Number);
-    const psdRows = result.psd.map((row) => row.map(Number));
+    const frequencies = Array.from(result.frequencies, Number);
+    const psdRows = result.psd.map((row) => Array.from(row, Number));
     const metricRows = result.metrics.map((metrics) => ({
       centroid: finite(metrics.centroid),
       spread: finite(metrics.spread),

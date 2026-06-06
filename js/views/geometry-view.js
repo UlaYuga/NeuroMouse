@@ -9,6 +9,7 @@ import {
   onTimeHoverChange,
   setTimeHover,
 } from "../state.js";
+import { createDisposables } from "../disposables.js";
 import {
   getComparisonSessions,
   getRenderSessions,
@@ -49,6 +50,7 @@ export function initGeometryView(data, tooltip) {
   const canvas = document.querySelector("#geometry-chart");
   const caption = document.querySelector("#geometry-caption");
   const legend = document.querySelector("#geometry-legend");
+  const disposables = createDisposables();
   const margins = { left: 158, right: 18, top: 14, bottom: 30 };
   let hover = null;
 
@@ -216,7 +218,7 @@ export function initGeometryView(data, tooltip) {
     };
   }
 
-  canvas.addEventListener("mousemove", (event) => {
+  disposables.listen(canvas, "mousemove", (event) => {
     hover = hit(event);
     if (!hover) {
       setTimeHover(null);
@@ -234,19 +236,19 @@ export function initGeometryView(data, tooltip) {
     draw();
   });
 
-  canvas.addEventListener("mouseleave", () => {
+  disposables.listen(canvas, "mouseleave", () => {
     hover = null;
     setTimeHover(null);
     tooltip.hide();
     draw();
   });
 
-  onChannelChange(draw);
-  onFrameChange(draw);
-  onLiveChange(draw);
-  onTimeHoverChange(draw);
-  onSessionsChange(draw);
-  observeCanvas(canvas, draw);
+  disposables.add(onChannelChange(draw));
+  disposables.add(onFrameChange(draw));
+  disposables.add(onLiveChange(draw));
+  disposables.add(onTimeHoverChange(draw));
+  disposables.add(onSessionsChange(draw));
+  disposables.add(observeCanvas(canvas, draw));
 
   function drawSessionOverlay(sessions, mode) {
     const { ctx, width, height } = resizeCanvas(canvas);
@@ -425,4 +427,6 @@ export function initGeometryView(data, tooltip) {
   function singleSourceData() {
     return getComparisonSessions(data)[0]?.data ?? data;
   }
+
+  return disposables.dispose;
 }

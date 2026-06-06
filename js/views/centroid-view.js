@@ -13,6 +13,7 @@ import {
   setChannel,
   setTimeHover,
 } from "../state.js";
+import { createDisposables } from "../disposables.js";
 import {
   getComparisonSessions,
   getRenderSessions,
@@ -46,6 +47,7 @@ import { renderSessionLegend } from "./session-legend.js";
 export function initCentroidView(data, tooltip) {
   const canvas = document.querySelector("#centroid-chart");
   const legend = document.querySelector("#centroid-legend");
+  const disposables = createDisposables();
   const margins = { left: 50, right: 18, top: 18, bottom: 42 };
   let hover = null;
 
@@ -232,7 +234,7 @@ export function initCentroidView(data, tooltip) {
     return best?.channelIndex ?? null;
   }
 
-  canvas.addEventListener("mousemove", (event) => {
+  disposables.listen(canvas, "mousemove", (event) => {
     hover = selectedHover(event);
     if (!hover) {
       setTimeHover(null);
@@ -247,25 +249,25 @@ export function initCentroidView(data, tooltip) {
     draw();
   });
 
-  canvas.addEventListener("mouseleave", () => {
+  disposables.listen(canvas, "mouseleave", () => {
     hover = null;
     setTimeHover(null);
     tooltip.hide();
     draw();
   });
 
-  canvas.addEventListener("click", (event) => {
+  disposables.listen(canvas, "click", (event) => {
     const channelIndex = nearestLine(event);
     if (channelIndex !== null) setChannel(activeSeries().channels[channelIndex]);
   });
 
-  onChannelChange(draw);
-  onDisplayChange(draw);
-  onFrameChange(draw);
-  onLiveChange(draw);
-  onTimeHoverChange(draw);
-  onSessionsChange(draw);
-  observeCanvas(canvas, draw);
+  disposables.add(onChannelChange(draw));
+  disposables.add(onDisplayChange(draw));
+  disposables.add(onFrameChange(draw));
+  disposables.add(onLiveChange(draw));
+  disposables.add(onTimeHoverChange(draw));
+  disposables.add(onSessionsChange(draw));
+  disposables.add(observeCanvas(canvas, draw));
 
   function drawSessionOverlay(sessions, mode) {
     const { ctx, width, height } = resizeCanvas(canvas);
@@ -434,4 +436,6 @@ export function initCentroidView(data, tooltip) {
   function singleSourceData() {
     return getComparisonSessions(data)[0]?.data ?? data;
   }
+
+  return disposables.dispose;
 }

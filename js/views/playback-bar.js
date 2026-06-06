@@ -8,6 +8,7 @@ import {
   setPlaybackSpeed,
   setPlaying,
 } from "../state.js";
+import { createDisposables } from "../disposables.js";
 import { formatNumber } from "./chart-utils.js";
 
 const BASE_FPS = 8;
@@ -17,6 +18,7 @@ export function initPlaybackBar(root, data) {
   if (!root) return;
 
   const times = data.geometry.time;
+  const disposables = createDisposables();
   root.innerHTML = "";
 
   const playButton = element("button", {
@@ -33,6 +35,7 @@ export function initPlaybackBar(root, data) {
     const button = element("button", {
       type: "button",
       "data-speed": String(speed),
+      "aria-label": `Set playback speed to ${speed}x`,
     }, `${speed}x`);
     speedGroup.append(button);
     return button;
@@ -108,7 +111,7 @@ export function initPlaybackBar(root, data) {
     animationFrame = window.requestAnimationFrame(tick);
   }
 
-  playButton.addEventListener("click", () => {
+  disposables.listen(playButton, "click", () => {
     if (getIsPlaying()) {
       setPlaying(false);
       return;
@@ -119,12 +122,12 @@ export function initPlaybackBar(root, data) {
   });
 
   speedButtons.forEach((button) => {
-    button.addEventListener("click", () => {
+    disposables.listen(button, "click", () => {
       setPlaybackSpeed(button.dataset.speed);
     });
   });
 
-  scrubber.addEventListener("input", () => {
+  disposables.listen(scrubber, "input", () => {
     setPlaying(false);
     setFrame(scrubber.value);
   });
@@ -145,12 +148,17 @@ export function initPlaybackBar(root, data) {
     });
   }
 
-  onFrameChange(() => {
+  disposables.add(onFrameChange(() => {
     sync();
     if (getIsPlaying()) startLoop();
     else stopLoop();
-  });
+  }));
   sync();
+
+  return () => {
+    stopLoop();
+    disposables.dispose();
+  };
 }
 
 function element(name, attrs = {}, ...children) {

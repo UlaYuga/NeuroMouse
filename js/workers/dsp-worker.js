@@ -22,13 +22,15 @@ self.addEventListener("message", (event) => {
       };
     });
 
+    const frequencies = new Float32Array(channelResults[0]?.frequencies ?? []);
+    const psd = channelResults.map((result) => new Float32Array(result.psd));
     self.postMessage({
       type: "result",
-      frequencies: channelResults[0]?.frequencies ?? [],
-      psd: channelResults.map((result) => result.psd),
+      frequencies,
+      psd,
       metrics: channelResults.map((result) => result.metrics),
       compute_ms: performance.now() - startedAt,
-    });
+	    }, [frequencies.buffer, ...psd.map((row) => row.buffer)]);
   } catch (error) {
     self.postMessage({
       type: "error",

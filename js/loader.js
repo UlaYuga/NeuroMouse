@@ -2,6 +2,9 @@ import { createLiveSource } from "./sources/live-source.js";
 import { createStaticSource, loadStaticData, validateData } from "./sources/static-source.js";
 
 let activeSource = createStaticSource();
+let jsZipPromise = null;
+
+const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 
 export { createLiveSource, createStaticSource };
 
@@ -163,12 +166,30 @@ export function connectLive(
 }
 
 async function readZip(file) {
-  const Zip = globalThis.JSZip;
-  if (!Zip) throw new Error("JSZip is not loaded");
+  const Zip = await loadJSZip();
   return {
     file,
     zip: await Zip.loadAsync(file),
   };
+}
+
+async function loadJSZip() {
+  if (globalThis.JSZip) return globalThis.JSZip;
+  if (!jsZipPromise) {
+    jsZipPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = JSZIP_URL;
+      script.async = true;
+      script.crossOrigin = "anonymous";
+      script.onload = () => {
+        if (globalThis.JSZip) resolve(globalThis.JSZip);
+        else reject(new Error("JSZip failed to initialize"));
+      };
+      script.onerror = () => reject(new Error("Failed to load JSZip"));
+      document.head.append(script);
+    });
+  }
+  return jsZipPromise;
 }
 
 function classifyZip(zip) {

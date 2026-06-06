@@ -7,9 +7,7 @@
     <meta name="theme-color" content="#111113">
     <title>SpeedMouse</title>
     <link rel="icon" href="data:,">
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <link rel="stylesheet" href="./style.css?v=psd-axis-20260606">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
@@ -24,14 +22,14 @@
         <div class="control-panel-body">
           <div class="control-group control-group-filter">
             <span class="control-label">Filter</span>
-            <div class="segmented" data-control="filter">
-              <button type="button" class="is-active" data-filter="all">All</button>
-              <button type="button" data-filter="frontal">Frontal</button>
-              <button type="button" data-filter="central_temporal">Central</button>
-              <button type="button" data-filter="parietal">Parietal</button>
-              <button type="button" data-filter="occipital">Occipital</button>
-              <button type="button" data-filter="L">L</button>
-              <button type="button" data-filter="R">R</button>
+            <div class="segmented" data-control="filter" role="group" aria-label="Channel filter">
+              <button type="button" class="is-active" data-filter="all" aria-label="Show all channels">All</button>
+              <button type="button" data-filter="frontal" aria-label="Show frontal channels">Frontal</button>
+              <button type="button" data-filter="central_temporal" aria-label="Show central channels">Central</button>
+              <button type="button" data-filter="parietal" aria-label="Show parietal channels">Parietal</button>
+              <button type="button" data-filter="occipital" aria-label="Show occipital channels">Occipital</button>
+              <button type="button" data-filter="L" aria-label="Show left hemisphere channels">L</button>
+              <button type="button" data-filter="R" aria-label="Show right hemisphere channels">R</button>
             </div>
           </div>
 
@@ -46,9 +44,9 @@
 
           <div class="control-group">
             <span class="control-label">PSD overlay</span>
-            <div class="segmented" data-control="psd-scale">
-              <button type="button" class="is-active" data-scale="log">Log</button>
-              <button type="button" data-scale="linear">Linear</button>
+            <div class="segmented" data-control="psd-scale" role="group" aria-label="PSD overlay scale">
+              <button type="button" class="is-active" data-scale="log" aria-label="Use logarithmic PSD scale">Log</button>
+              <button type="button" data-scale="linear" aria-label="Use linear PSD scale">Linear</button>
             </div>
           </div>
 
@@ -90,9 +88,9 @@
             <div class="session-control-block">
               <span class="session-control-label">View mode</span>
               <div class="segmented session-mode" data-control="view-mode" role="group" aria-label="View mode">
-                <button type="button" class="is-active" data-view-mode="overlay">Overlay</button>
-                <button type="button" data-view-mode="split">Split</button>
-                <button type="button" data-view-mode="delta">Delta</button>
+                <button type="button" class="is-active" data-view-mode="overlay" aria-label="Use overlay comparison mode">Overlay</button>
+                <button type="button" data-view-mode="split" aria-label="Use split comparison mode">Split</button>
+                <button type="button" data-view-mode="delta" aria-label="Use delta comparison mode">Delta</button>
               </div>
             </div>
             <label class="session-control-block" for="baseline-select">
@@ -158,6 +156,7 @@
               <p id="grid-caption">10-20 layout | color: alpha rel. power</p>
             </div>
           </div>
+          <p id="selected-channel" class="grid-selection" aria-live="polite">Selected channel: Cz</p>
           <div id="channel-grid" class="channel-grid" aria-label="EEG 10-20 channel grid"></div>
         </section>
 
@@ -184,6 +183,6 @@
     </div>
 
     <div id="tooltip" class="tooltip" hidden></div>
-    <script type="module" src="./js/layout.js?v=grid-legend-20260606"></script>
+    <script type="module" src="./js/layout.js"></script>
   </body>
 </html>

@@ -9,7 +9,7 @@
 
   --text-primary: #f0f0f2;
   --text-secondary: #98989d;
-  --text-tertiary: #56565a;
+  --text-tertiary: #8a8a90;
   --text-mono: #8a9ba8;
 
   --border: rgba(255, 255, 255, 0.07);
@@ -121,7 +121,7 @@ a:hover {
 }
 
 .app-shell {
-  width: min(1440px, 100vw);
+  width: min(1440px, 100%);
   margin: 0 auto;
   padding: 0 var(--s5) var(--s5);
 }
@@ -967,7 +967,7 @@ input[type="number"]:focus-visible {
 .monitor-kicker {
   color: var(--text-tertiary);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   line-height: 1.1;
@@ -1148,7 +1148,7 @@ input[type="number"]:focus-visible {
 .phase-control span {
   color: var(--text-tertiary);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   line-height: 1.1;
@@ -1189,6 +1189,16 @@ input[type="number"]:focus-visible {
   background-size: 20px 20px;
 }
 
+.grid-selection {
+  padding: var(--s2) var(--s3);
+  border-top: 0.5px solid var(--border);
+  background: var(--bg-1);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .channel-grid svg {
   display: block;
   width: 100%;
@@ -1208,7 +1218,7 @@ input[type="number"]:focus-visible {
   pointer-events: none;
   fill: rgba(255, 255, 255, 0.75);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 600;
   text-anchor: middle;
   dominant-baseline: middle;
@@ -1339,7 +1349,7 @@ input[type="number"]:focus-visible {
 
 @media (max-width: 720px) {
   .app-shell {
-    width: 100vw;
+    width: 100%;
     padding-right: var(--s3);
     padding-left: var(--s3);
   }

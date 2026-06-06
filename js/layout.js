@@ -13,6 +13,7 @@ import {
   setPsdScale,
   updateLiveStatus,
 } from "./state.js";
+import { createDisposables } from "./disposables.js";
 import { createLiveSource, createStaticSource, loadData, loadZipFiles, setSource } from "./loader.js";
 import {
   MAX_SESSIONS,
@@ -27,10 +28,10 @@ import {
   setViewMode,
   toggleSession,
 } from "./sessions.js";
-import { initPsdView } from "./views/psd-view.js?v=psd-axis-20260606";
+import { initPsdView } from "./views/psd-view.js";
 import { initCentroidView } from "./views/centroid-view.js";
 import { initGeometryView } from "./views/geometry-view.js";
-import { initChannelGrid } from "./views/channel-grid.js?v=grid-legend-20260606";
+import { initChannelGrid } from "./views/channel-grid.js";
 import { initPlaybackBar } from "./views/playback-bar.js";
 import { initPhaseSpace } from "./views/phase-space.js";
 import { initMonitorView } from "./views/monitor-view.js";
@@ -56,6 +57,7 @@ const baselineSelect = document.querySelector("#baseline-select");
 let liveConnection = null;
 let activeData = null;
 let monitorView = null;
+const appDisposables = createDisposables();
 
 init();
 
@@ -65,34 +67,36 @@ async function init() {
     activeData = data;
     configureChannels(data.meta.channels);
     configurePlayback(data.geometry.time.length);
-    if (selectedChannel) selectedChannel.textContent = getChannel();
+    updateSelectedChannelLabel(getChannel());
     if (loadStatus) loadStatus.textContent = "Ready";
     dashboard.setAttribute("aria-busy", "false");
 
     bindSessionControls();
     renderSessionSidebar();
-    initPsdView(data, tooltip);
-    initCentroidView(data, tooltip);
-    initPlaybackBar(document.querySelector("#playback-bar"), data);
+    appDisposables.add(initPsdView(data, tooltip));
+    appDisposables.add(initCentroidView(data, tooltip));
+    appDisposables.add(initPlaybackBar(document.querySelector("#playback-bar"), data));
     monitorView = initMonitorView(document.querySelector("#monitor-panel"), data);
-    initGeometryView(data, tooltip);
-    initChannelGrid(data, tooltip);
-    initPhaseSpace(document.querySelector("#phase-space"), data);
+    appDisposables.add(monitorView?.dispose);
+    appDisposables.add(initGeometryView(data, tooltip));
+    appDisposables.add(initChannelGrid(data, tooltip));
+    appDisposables.add(initPhaseSpace(document.querySelector("#phase-space"), data));
 
-    onChannelChange((channel) => {
-      if (selectedChannel) selectedChannel.textContent = channel;
+    appDisposables.add(onChannelChange((channel) => {
+      updateSelectedChannelLabel(channel);
       updateLiveMetrics(getLiveState());
-    });
+    }));
     bindControls();
-    onLiveChange((state) => {
+    appDisposables.add(onLiveChange((state) => {
       updateLiveMetrics(state);
       monitorView?.setLiveState(state);
-    });
-    onSessionsChange(() => {
+    }));
+    appDisposables.add(onSessionsChange(() => {
       syncSessionState();
       renderSessionSidebar();
       updateLiveMetrics(getLiveState());
-    });
+    }));
+    appDisposables.listen(window, "pagehide", () => appDisposables.dispose(), { once: true });
   } catch (error) {
     dashboard.setAttribute("aria-busy", "false");
     if (loadStatus) {
@@ -104,27 +108,27 @@ async function init() {
 
 function bindControls() {
   document.querySelectorAll("[data-control='filter'] button").forEach((button) => {
-    button.addEventListener("click", () => {
+    appDisposables.listen(button, "click", () => {
       setActiveButton("[data-control='filter'] button", button);
       setChannelFilter(button.dataset.filter);
     });
   });
 
-  document.querySelector("#channel-sort").addEventListener("change", (event) => {
+  appDisposables.listen(document.querySelector("#channel-sort"), "change", (event) => {
     setChannelSort(event.target.value);
   });
 
   document.querySelectorAll("[data-control='psd-scale'] button").forEach((button) => {
-    button.addEventListener("click", () => {
+    appDisposables.listen(button, "click", () => {
       setActiveButton("[data-control='psd-scale'] button", button);
       setPsdScale(button.dataset.scale);
     });
   });
 
-  liveConnect.addEventListener("click", () => {
+  appDisposables.listen(liveConnect, "click", () => {
     startLive(liveUrl.value.trim() || "ws://127.0.0.1:8766");
   });
-  liveDisconnect.addEventListener("click", stopLive);
+  appDisposables.listen(liveDisconnect, "click", stopLive);
 }
 
 function startLive(url) {
@@ -227,29 +231,29 @@ function setActiveButton(selector, active) {
 }
 
 function bindSessionControls() {
-  sessionDropZone?.addEventListener("click", () => sessionFileInput?.click());
-  sessionDropZone?.addEventListener("dragover", (event) => {
+  appDisposables.listen(sessionDropZone, "click", () => sessionFileInput?.click());
+  appDisposables.listen(sessionDropZone, "dragover", (event) => {
     event.preventDefault();
     sessionDropZone.classList.add("drag-over");
   });
-  sessionDropZone?.addEventListener("dragleave", () => {
+  appDisposables.listen(sessionDropZone, "dragleave", () => {
     sessionDropZone.classList.remove("drag-over");
   });
-  sessionDropZone?.addEventListener("drop", async (event) => {
+  appDisposables.listen(sessionDropZone, "drop", async (event) => {
     event.preventDefault();
     sessionDropZone.classList.remove("drag-over");
     await handleSessionFiles(Array.from(event.dataTransfer.files));
   });
-  sessionFileInput?.addEventListener("change", async () => {
+  appDisposables.listen(sessionFileInput, "change", async () => {
     await handleSessionFiles(Array.from(sessionFileInput.files ?? []));
     sessionFileInput.value = "";
   });
   document.querySelectorAll("[data-control='view-mode'] button").forEach((button) => {
-    button.addEventListener("click", () => {
+    appDisposables.listen(button, "click", () => {
       setViewMode(button.dataset.viewMode);
     });
   });
-  baselineSelect?.addEventListener("change", () => {
+  appDisposables.listen(baselineSelect, "change", () => {
     setBaseline(baselineSelect.value);
   });
 }
@@ -288,7 +292,11 @@ function syncSessionState() {
   if (!primary?.data) return;
   configureChannels(primary.data.meta.channels);
   configurePlayback(primary.data.geometry.time.length);
-  if (selectedChannel) selectedChannel.textContent = getChannel();
+  updateSelectedChannelLabel(getChannel());
+}
+
+function updateSelectedChannelLabel(channel) {
+  if (selectedChannel) selectedChannel.textContent = `Selected channel: ${channel}`;
 }
 
 function renderSessionSidebar() {
