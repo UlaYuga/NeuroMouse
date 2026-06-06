@@ -1,4 +1,16 @@
-import { getChannel, getChannelIndex, onChannelChange, setChannel } from "../state.js";
+import {
+  getChannel,
+  getChannelIndex,
+  getLiveState,
+  getTimeHover,
+  getVisibleChannels,
+  onChannelChange,
+  onDisplayChange,
+  onLiveChange,
+  onTimeHoverChange,
+  setChannel,
+  setTimeHover,
+} from "../state.js";
 import {
   ACTIVE_COLOR,
   AXIS_COLOR,
@@ -14,6 +26,7 @@ import {
   nearestIndex,
   observeCanvas,
   paddedExtent,
+  rankAt,
   resizeCanvas,
   scaleLinear,
 } from "./chart-utils.js";
@@ -23,37 +36,63 @@ export function initCentroidView(data, tooltip) {
   const channels = data.meta.channels;
   const times = data.centroid.time_relative;
   const values = data.centroid.values;
+  const channelIndexByName = new Map(channels.map((channel, index) => [channel, index]));
   const margins = { left: 50, right: 18, top: 18, bottom: 42 };
   const [minY, maxY] = paddedExtent(values, 0.08);
   let hover = null;
 
-  function geometry(width, height) {
+  function activeSeries() {
+    const live = getLiveState();
+    if (live.history.length > 1) {
+      const liveTimes = live.history.map((frame) => frame.time);
+      const liveValues = channels.map((channel) => live.history.map((frame) => frame.metrics[channel]?.centroid));
+      return {
+        mode: "live",
+        times: liveTimes,
+        values: liveValues,
+        yExtent: paddedExtent(liveValues, 0.08),
+      };
+    }
+    return {
+      mode: "static",
+      times,
+      values,
+      yExtent: [minY, maxY],
+    };
+  }
+
+  function geometry(width, height, series) {
     const plotX = margins.left;
     const plotY = margins.top;
     const plotW = width - margins.left - margins.right;
     const plotH = height - margins.top - margins.bottom;
+    const [seriesMinY, seriesMaxY] = series.yExtent;
     return {
       plotX,
       plotY,
       plotW,
       plotH,
-      xScale: scaleLinear(times[0], times.at(-1), plotX, plotX + plotW),
-      yScale: scaleLinear(minY, maxY, plotY + plotH, plotY),
+      xScale: scaleLinear(series.times[0], series.times.at(-1), plotX, plotX + plotW),
+      yScale: scaleLinear(seriesMinY, seriesMaxY, plotY + plotH, plotY),
+      yMin: seriesMinY,
+      yMax: seriesMaxY,
     };
   }
 
-  function pointsForChannel(channelIndex, g) {
-    return times.map((time, index) => ({
+  function pointsForChannel(channelIndex, g, series) {
+    return series.times.map((time, index) => ({
       x: g.xScale(time),
-      y: g.yScale(values[channelIndex][index]),
+      y: g.yScale(series.values[channelIndex][index]),
     }));
   }
 
   function draw() {
     const { ctx, width, height } = resizeCanvas(canvas);
     clear(ctx, width, height);
-    const g = geometry(width, height);
+    const series = activeSeries();
+    const g = geometry(width, height, series);
     const selectedIndex = getChannelIndex();
+    const visibleChannels = getVisibleChannels(data);
 
     ctx.strokeStyle = "rgba(240,244,247,0.2)";
     ctx.strokeRect(g.plotX, g.plotY, g.plotW, g.plotH);
@@ -67,24 +106,30 @@ export function initCentroidView(data, tooltip) {
       ctx.stroke();
     }
 
-    channels.forEach((_, index) => {
+    visibleChannels.forEach((channel) => {
+      const index = channelIndexByName.get(channel);
       if (index !== selectedIndex) {
-        drawLine(ctx, pointsForChannel(index, g), "rgb(150,150,150)", 1, 0.28);
+        drawLine(ctx, pointsForChannel(index, g, series), "rgb(150,150,150)", 1, 0.28);
       }
     });
-    drawLine(ctx, pointsForChannel(selectedIndex, g), ACTIVE_COLOR, 2.4, 1);
+    drawLine(ctx, pointsForChannel(selectedIndex, g, series), ACTIVE_COLOR, 2.4, 1);
 
     ctx.fillStyle = MUTED_COLOR;
     ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.fillText(`${formatNumber(maxY, 1)} Hz`, g.plotX - 7, g.plotY);
-    ctx.fillText(`${formatNumber(minY, 1)} Hz`, g.plotX - 7, g.plotY + g.plotH);
+    ctx.fillText(`${formatNumber(g.yMax, 1)} Hz`, g.plotX - 7, g.plotY);
+    ctx.fillText(`${formatNumber(g.yMin, 1)} Hz`, g.plotX - 7, g.plotY + g.plotH);
 
-    drawBottomAxis(ctx, [0, 20, 40, 60, 80, 100], g.xScale, g.plotY + g.plotH, "sec");
+    const ticks = series.mode === "live"
+      ? [series.times[0], series.times.at(-1)].filter((value, index, arr) => index === 0 || value !== arr[0])
+      : [0, 20, 40, 60, 80, 100];
+    drawBottomAxis(ctx, ticks.map((tick) => Number(tick.toFixed ? tick.toFixed(1) : tick)), g.xScale, g.plotY + g.plotH, series.mode === "live" ? "live sec" : "sec");
 
-    if (hover) {
-      const x = g.xScale(hover.time);
+    const sharedHover = getTimeHover();
+    if (hover || sharedHover) {
+      const hoverPoint = hover || sharedHover;
+      const x = g.xScale(hoverPoint.time);
       ctx.strokeStyle = "rgba(119,215,200,0.55)";
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -94,33 +139,45 @@ export function initCentroidView(data, tooltip) {
       ctx.fillStyle = AXIS_COLOR;
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
-      ctx.fillText(`${formatNumber(hover.value, 2)} Hz`, x + 8, g.plotY + 8);
+      if (hover) ctx.fillText(`${formatNumber(hover.value, 2)} Hz`, x + 8, g.plotY + 8);
     }
   }
 
   function selectedHover(event) {
     const point = canvasPoint(event, canvas);
     const rect = canvas.getBoundingClientRect();
-    const g = geometry(rect.width, rect.height);
+    const series = activeSeries();
+    const g = geometry(rect.width, rect.height, series);
     if (point.x < g.plotX || point.x > g.plotX + g.plotW || point.y < g.plotY || point.y > g.plotY + g.plotH) {
       return null;
     }
-    const time = invertLinear(times[0], times.at(-1), g.plotX, g.plotX + g.plotW)(point.x);
-    const timeIndex = nearestIndex(times, time);
+    const time = invertLinear(series.times[0], series.times.at(-1), g.plotX, g.plotX + g.plotW)(point.x);
+    const timeIndex = nearestIndex(series.times, time);
     const channelIndex = getChannelIndex();
     return {
-      time: times[timeIndex],
-      value: values[channelIndex][timeIndex],
+      mode: series.mode,
+      time: series.times[timeIndex],
+      timeIndex,
+      value: series.values[channelIndex][timeIndex],
+      rankings: rankingsFor(series, timeIndex),
     };
+  }
+
+  function rankingsFor(series, timeIndex) {
+    const visibleChannels = getVisibleChannels(data);
+    const visibleValues = visibleChannels.map((channel) => series.values[channelIndexByName.get(channel)]);
+    return rankAt(visibleValues, visibleChannels, timeIndex, 3);
   }
 
   function nearestLine(event) {
     const point = canvasPoint(event, canvas);
     const rect = canvas.getBoundingClientRect();
-    const g = geometry(rect.width, rect.height);
+    const series = activeSeries();
+    const g = geometry(rect.width, rect.height, series);
     let best = null;
-    for (let channelIndex = 0; channelIndex < channels.length; channelIndex += 1) {
-      const points = pointsForChannel(channelIndex, g);
+    for (const channel of getVisibleChannels(data)) {
+      const channelIndex = channelIndexByName.get(channel);
+      const points = pointsForChannel(channelIndex, g, series);
       for (let i = 1; i < points.length; i += 1) {
         const distance = distanceToSegment(point, points[i - 1], points[i]);
         if (distance <= 5 && (!best || distance < best.distance)) {
@@ -134,16 +191,21 @@ export function initCentroidView(data, tooltip) {
   canvas.addEventListener("mousemove", (event) => {
     hover = selectedHover(event);
     if (!hover) {
+      setTimeHover(null);
       tooltip.hide();
       draw();
       return;
     }
-    tooltip.show(event.clientX, event.clientY, `<strong>${getChannel()}</strong><br>${formatNumber(hover.time, 2)} sec<br>${formatNumber(hover.value, 2)} Hz`);
+    setTimeHover({ source: "centroid", mode: hover.mode, time: hover.time, timeIndex: hover.timeIndex });
+    const high = hover.rankings.high.map((row) => `${row.channel} ${formatNumber(row.value, 1)}`).join(", ");
+    const low = hover.rankings.low.map((row) => `${row.channel} ${formatNumber(row.value, 1)}`).join(", ");
+    tooltip.show(event.clientX, event.clientY, `<strong>${getChannel()}</strong><br>${formatNumber(hover.time, 2)} sec · ${hover.mode}<br>${formatNumber(hover.value, 2)} Hz<br><span>High: ${high}</span><br><span>Low: ${low}</span>`);
     draw();
   });
 
   canvas.addEventListener("mouseleave", () => {
     hover = null;
+    setTimeHover(null);
     tooltip.hide();
     draw();
   });
@@ -154,6 +216,8 @@ export function initCentroidView(data, tooltip) {
   });
 
   onChannelChange(draw);
+  onDisplayChange(draw);
+  onLiveChange(draw);
+  onTimeHoverChange(draw);
   observeCanvas(canvas, draw);
 }
-

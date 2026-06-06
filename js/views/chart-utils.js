@@ -3,6 +3,13 @@ export const SECONDARY_COLOR = "#f2c86d";
 export const GRID_COLOR = "rgba(255,255,255,0.08)";
 export const AXIS_COLOR = "rgba(240,244,247,0.68)";
 export const MUTED_COLOR = "rgba(155,168,181,0.78)";
+export const FREQUENCY_BANDS = [
+  { label: "delta", min: 1, max: 4, color: "rgba(120,140,255,0.10)" },
+  { label: "theta", min: 4, max: 8, color: "rgba(99,211,255,0.10)" },
+  { label: "alpha", min: 8, max: 13, color: "rgba(242,200,109,0.14)" },
+  { label: "beta", min: 13, max: 30, color: "rgba(119,215,200,0.09)" },
+  { label: "gamma", min: 30, max: 55, color: "rgba(255,120,109,0.08)" },
+];
 
 const VIRIDIS = [
   [68, 1, 84],
@@ -143,6 +150,25 @@ export function drawBottomAxis(ctx, ticks, xScale, y, label) {
   }
 }
 
+export function drawFrequencyBands(ctx, xScale, y, height, options = {}) {
+  const { labels = false } = options;
+  ctx.save();
+  for (const band of FREQUENCY_BANDS) {
+    const x0 = xScale(band.min);
+    const x1 = xScale(band.max);
+    ctx.fillStyle = band.color;
+    ctx.fillRect(x0, y, Math.max(1, x1 - x0), height);
+    if (labels) {
+      ctx.fillStyle = "rgba(240,244,247,0.46)";
+      ctx.font = "9px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(band.label, x0 + (x1 - x0) / 2, y + 5);
+    }
+  }
+  ctx.restore();
+}
+
 export function drawLine(ctx, points, color, width = 1.5, alpha = 1) {
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -151,9 +177,15 @@ export function drawLine(ctx, points, color, width = 1.5, alpha = 1) {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
   ctx.beginPath();
+  let hasPoint = false;
   points.forEach((point, index) => {
-    if (index === 0) ctx.moveTo(point.x, point.y);
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      hasPoint = false;
+      return;
+    }
+    if (index === 0 || !hasPoint) ctx.moveTo(point.x, point.y);
     else ctx.lineTo(point.x, point.y);
+    hasPoint = true;
   });
   ctx.stroke();
   ctx.restore();
@@ -175,3 +207,14 @@ export function formatNumber(value, digits = 2) {
   return Number(value).toFixed(digits);
 }
 
+export function rankAt(valuesByChannel, channels, index, limit = 3) {
+  const rows = channels
+    .map((channel, channelIndex) => ({
+      channel,
+      value: valuesByChannel[channelIndex]?.[index],
+    }))
+    .filter((row) => Number.isFinite(row.value));
+  const high = rows.slice().sort((a, b) => b.value - a.value).slice(0, limit);
+  const low = rows.slice().sort((a, b) => a.value - b.value).slice(0, limit);
+  return { high, low };
+}

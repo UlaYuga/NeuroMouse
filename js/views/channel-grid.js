@@ -1,4 +1,11 @@
-import { getChannel, onChannelChange, setChannel } from "../state.js";
+import {
+  getChannel,
+  getChannelFilter,
+  getVisibleChannels,
+  onChannelChange,
+  onDisplayChange,
+  setChannel,
+} from "../state.js";
 import { ACTIVE_COLOR, colorScale, extent, formatNumber } from "./chart-utils.js";
 
 const EEG_10_20 = {
@@ -20,6 +27,8 @@ export function initChannelGrid(data, tooltip) {
 
   function render() {
     const selected = getChannel();
+    const visible = new Set(getVisibleChannels(data));
+    const filter = getChannelFilter();
     root.innerHTML = "";
     const svg = element("svg", {
       viewBox: "0 0 420 460",
@@ -61,11 +70,12 @@ export function initChannelGrid(data, tooltip) {
     for (const [channel, [nx, ny]] of Object.entries(EEG_10_20)) {
       const item = byChannel.get(channel);
       const power = item?.alpha_relative_power ?? 0;
+      const isVisible = visible.has(channel);
       const group = element("g", {
-        class: "electrode",
+        class: `electrode${isVisible ? "" : " is-muted"}`,
         tabindex: "0",
         role: "button",
-        "aria-label": `${channel}, alpha rel. power ${formatNumber(power, 3)}`,
+        "aria-label": `${channel}, alpha rel. power ${formatNumber(power, 3)}${filter === "all" || isVisible ? "" : ", filtered out"}`,
       });
       const x = 28 + nx * 364;
       const y = 22 + ny * 360;
@@ -78,7 +88,20 @@ export function initChannelGrid(data, tooltip) {
           fill: colorScale(power, minPower, maxPower),
           stroke: active ? "#ffffff" : "rgba(12,15,18,0.72)",
           "stroke-width": active ? 3 : 1.2,
+          opacity: isVisible ? 1 : 0.22,
         }),
+        ...(item?.has_clear_alpha_peak ? [
+          element("circle", {
+            cx: x,
+            cy: y,
+            r: 18,
+            fill: "none",
+            stroke: "#f2c86d",
+            "stroke-width": 1.5,
+            "stroke-dasharray": "2 3",
+            opacity: isVisible ? 0.9 : 0.22,
+          }),
+        ] : []),
         element("text", { x, y: y + 0.5 }, channel),
       );
       group.addEventListener("click", () => setChannel(channel));
@@ -92,7 +115,7 @@ export function initChannelGrid(data, tooltip) {
         tooltip.show(
           event.clientX,
           event.clientY,
-          `<strong>${channel}</strong><br>alpha rel. power ${formatNumber(power, 3)}<br>${item?.region ?? ""} · ${item?.hemisphere ?? ""}`,
+          `<strong>${channel}</strong><br>alpha rel. power ${formatNumber(power, 3)}<br>${item?.region ?? ""} · ${item?.hemisphere ?? ""}<br>${item?.has_clear_alpha_peak ? "alpha peak marker" : "no alpha peak marker"}`,
         );
       });
       group.addEventListener("mouseleave", tooltip.hide);
@@ -128,11 +151,14 @@ export function initChannelGrid(data, tooltip) {
       element("text", { x: 334, y: 444, fill: "rgba(155,168,181,0.9)", "font-size": 10, "text-anchor": "middle" }, formatNumber(maxPower, 2)),
       element("circle", { cx: 380, cy: 422, r: 6, fill: "none", stroke: ACTIVE_COLOR, "stroke-width": 2 }),
       element("text", { x: 392, y: 426, fill: "rgba(155,168,181,0.9)", "font-size": 10 }, "selected"),
+      element("circle", { cx: 380, cy: 444, r: 7, fill: "none", stroke: "#f2c86d", "stroke-width": 1.5, "stroke-dasharray": "2 3" }),
+      element("text", { x: 392, y: 448, fill: "rgba(155,168,181,0.9)", "font-size": 10 }, "alpha peak"),
     );
     return parts;
   }
 
   onChannelChange(render);
+  onDisplayChange(render);
   render();
 }
 
@@ -142,4 +168,3 @@ function element(name, attrs = {}, text = "") {
   if (text) node.textContent = text;
   return node;
 }
-

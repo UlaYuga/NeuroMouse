@@ -30,7 +30,69 @@ function validateData(data) {
   }
 }
 
-// FUTURE: Live WebSocket source (soulsyrup1 backend, port 8766)
-// Wire format TBD.
-// export function connectLive(url = "ws://localhost:8766", onFrame) { ... }
+export function connectLive(
+  url = "ws://127.0.0.1:8766",
+  { onFrame, onStatus, onError } = {},
+) {
+  const ws = new WebSocket(url);
 
+  const status = (message, patch = {}) => {
+    onStatus?.({ message, url, ...patch });
+  };
+
+  status("Connecting", { connected: false });
+
+  ws.addEventListener("open", () => {
+    status("Connected", { connected: true });
+    ws.send(JSON.stringify({ type: "get_status" }));
+    ws.send(JSON.stringify({ type: "get_latest" }));
+  });
+
+  ws.addEventListener("message", (event) => {
+    let frame;
+    try {
+      frame = JSON.parse(event.data);
+    } catch (error) {
+      onError?.(`Bad live JSON: ${error.message}`);
+      return;
+    }
+
+    if (frame.type === "bridge_status") {
+      status("Bridge status", {
+        connected: true,
+        bridge: frame,
+      });
+      return;
+    }
+
+    if (frame.type === "bridge_hello") {
+      status("Bridge hello", {
+        connected: true,
+        bridge: frame,
+      });
+      return;
+    }
+
+    if (frame.type === "spectral_analysis") {
+      onFrame?.(frame);
+      return;
+    }
+
+    status(`Ignored ${frame.type || "unknown frame"}`, { connected: true });
+  });
+
+  ws.addEventListener("error", () => {
+    onError?.("WebSocket error; check that the spectral backend is running on port 8766.");
+  });
+
+  ws.addEventListener("close", (event) => {
+    status(`Closed code=${event.code}`, { connected: false });
+  });
+
+  return {
+    close() {
+      ws.close();
+    },
+    socket: ws,
+  };
+}

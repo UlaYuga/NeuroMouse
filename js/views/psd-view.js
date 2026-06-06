@@ -1,4 +1,15 @@
-import { getChannel, getChannelIndex, onChannelChange, setChannel } from "../state.js";
+import {
+  getChannel,
+  getChannelIndex,
+  getLiveState,
+  getPsdScale,
+  getVisibleChannels,
+  onChannelChange,
+  onDisplayChange,
+  onLiveChange,
+  onPsdScaleChange,
+  setChannel,
+} from "../state.js";
 import {
   ACTIVE_COLOR,
   AXIS_COLOR,
@@ -6,6 +17,7 @@ import {
   clear,
   colorScale,
   drawBottomAxis,
+  drawFrequencyBands,
   drawLine,
   extent,
   formatNumber,
@@ -26,6 +38,7 @@ export function initPsdView(data, tooltip) {
   const psd = data.welch_psd.psd;
   const logMatrix = psd.map((row) => row.map(log10));
   const [logMin, logMax] = extent(logMatrix);
+  const channelIndexByName = new Map(channels.map((channel, index) => [channel, index]));
   let heatHover = null;
 
   const heatMargins = { left: 58, right: 12, top: 14, bottom: 40 };
@@ -39,11 +52,16 @@ export function initPsdView(data, tooltip) {
     const plotY = heatMargins.top;
     const plotW = width - heatMargins.left - heatMargins.right;
     const plotH = height - heatMargins.top - heatMargins.bottom;
-    const selectedIndex = getChannelIndex();
+    const visibleChannels = getVisibleChannels(data);
+    const selectedChannel = getChannel();
+    const selectedVisibleIndex = visibleChannels.indexOf(selectedChannel);
     const xScale = scaleLinear(frequencies[0], frequencies.at(-1), plotX, plotX + plotW);
-    const channelH = plotH / channels.length;
+    const channelH = plotH / Math.max(1, visibleChannels.length);
 
-    for (let channelIndex = 0; channelIndex < channels.length; channelIndex += 1) {
+    drawFrequencyBands(ctx, xScale, plotY, plotH, { labels: true });
+
+    for (let visibleIndex = 0; visibleIndex < visibleChannels.length; visibleIndex += 1) {
+      const channelIndex = channelIndexByName.get(visibleChannels[visibleIndex]);
       for (let freqIndex = 0; freqIndex < frequencies.length; freqIndex += 1) {
         const f0 = freqIndex === 0
           ? frequencies[freqIndex]
@@ -54,15 +72,15 @@ export function initPsdView(data, tooltip) {
         const x0 = xScale(f0);
         const x1 = xScale(f1);
         ctx.fillStyle = colorScale(logMatrix[channelIndex][freqIndex], logMin, logMax);
-        ctx.fillRect(x0, plotY + channelIndex * channelH, Math.max(1, x1 - x0 + 0.5), Math.ceil(channelH) + 0.5);
+        ctx.fillRect(x0, plotY + visibleIndex * channelH, Math.max(1, x1 - x0 + 0.5), Math.ceil(channelH) + 0.5);
       }
     }
 
     ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    channels.forEach((channel, index) => {
-      ctx.fillStyle = index === selectedIndex ? ACTIVE_COLOR : MUTED_COLOR;
+    visibleChannels.forEach((channel, index) => {
+      ctx.fillStyle = channel === selectedChannel ? ACTIVE_COLOR : MUTED_COLOR;
       ctx.fillText(channel, plotX - 8, plotY + index * channelH + channelH / 2);
     });
 
@@ -73,7 +91,9 @@ export function initPsdView(data, tooltip) {
 
     ctx.strokeStyle = ACTIVE_COLOR;
     ctx.lineWidth = 2;
-    ctx.strokeRect(plotX, plotY + selectedIndex * channelH + 1, plotW, Math.max(1, channelH - 2));
+    if (selectedVisibleIndex >= 0) {
+      ctx.strokeRect(plotX, plotY + selectedVisibleIndex * channelH + 1, plotW, Math.max(1, channelH - 2));
+    }
 
     ctx.strokeStyle = "rgba(240,244,247,0.32)";
     ctx.strokeRect(plotX, plotY, plotW, plotH);
@@ -86,21 +106,29 @@ export function initPsdView(data, tooltip) {
 
     const channel = getChannel();
     const channelIndex = getChannelIndex();
-    const values = logMatrix[channelIndex];
+    const live = getLiveState();
+    const livePsd = live.latestFrame?.psd_by_channel?.[channel];
+    const liveFreq = live.latestFrame?.frequency_hz;
+    const sourceFrequencies = Array.isArray(livePsd) && Array.isArray(liveFreq) ? liveFreq.map(Number) : frequencies;
+    const sourceValues = Array.isArray(livePsd) ? livePsd.map(Number) : psd[channelIndex];
+    const scale = getPsdScale();
+    const values = scale === "log" ? sourceValues.map(log10) : sourceValues;
     const [minY, maxY] = extent([values]);
     const plotX = overlayMargins.left;
     const plotY = overlayMargins.top;
     const plotW = width - overlayMargins.left - overlayMargins.right;
     const plotH = height - overlayMargins.top - overlayMargins.bottom;
-    const xScale = scaleLinear(frequencies[0], frequencies.at(-1), plotX, plotX + plotW);
+    const xScale = scaleLinear(sourceFrequencies[0], sourceFrequencies.at(-1), plotX, plotX + plotW);
     const yScale = scaleLinear(minY, maxY, plotY + plotH, plotY);
 
     ctx.fillStyle = AXIS_COLOR;
     ctx.font = "700 13px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillText(`Channel ${channel}`, plotX, 14);
+    const sourceLabel = Array.isArray(livePsd) ? "Live PSD" : "Static PSD";
+    ctx.fillText(`${sourceLabel} · ${channel}`, plotX, 14);
 
+    drawFrequencyBands(ctx, xScale, plotY, plotH, { labels: false });
     ctx.strokeStyle = "rgba(240,244,247,0.22)";
     ctx.strokeRect(plotX, plotY, plotW, plotH);
     ctx.fillStyle = MUTED_COLOR;
@@ -112,14 +140,14 @@ export function initPsdView(data, tooltip) {
 
     drawLine(
       ctx,
-      frequencies.map((frequency, index) => ({
+      sourceFrequencies.map((frequency, index) => ({
         x: xScale(frequency),
         y: yScale(values[index]),
       })),
       ACTIVE_COLOR,
       2,
     );
-    drawBottomAxis(ctx, [1, 10, 20, 30, 40, 50, 55], xScale, plotY + plotH, "Hz");
+    drawBottomAxis(ctx, [1, 10, 20, 30, 40, 50, 55], xScale, plotY + plotH, `${scale} · Hz`);
   }
 
   function render() {
@@ -137,7 +165,8 @@ export function initPsdView(data, tooltip) {
     if (point.x < plotX || point.x > plotX + plotW || point.y < plotY || point.y > plotY + plotH) {
       return null;
     }
-    const channelIndex = Math.min(channels.length - 1, Math.floor(((point.y - plotY) / plotH) * channels.length));
+    const visibleChannels = getVisibleChannels(data);
+    const channelIndex = Math.min(visibleChannels.length - 1, Math.floor(((point.y - plotY) / plotH) * visibleChannels.length));
     const frequency = invertLinear(frequencies[0], frequencies.at(-1), plotX, plotX + plotW)(point.x);
     const freqIndex = nearestIndex(frequencies, frequency);
     return { channelIndex, freqIndex };
@@ -151,9 +180,11 @@ export function initPsdView(data, tooltip) {
       drawHeatmap();
       return;
     }
-    const channel = channels[hit.channelIndex];
+    const visibleChannels = getVisibleChannels(data);
+    const channel = visibleChannels[hit.channelIndex];
+    const sourceIndex = channelIndexByName.get(channel);
     const frequency = frequencies[hit.freqIndex];
-    tooltip.show(event.clientX, event.clientY, `<strong>${channel}</strong><br>${formatNumber(frequency, 2)} Hz<br>log PSD ${formatNumber(logMatrix[hit.channelIndex][hit.freqIndex], 2)}`);
+    tooltip.show(event.clientX, event.clientY, `<strong>${channel}</strong><br>${formatNumber(frequency, 2)} Hz<br>log PSD ${formatNumber(logMatrix[sourceIndex][hit.freqIndex], 2)}`);
     drawHeatmap();
   });
 
@@ -165,11 +196,13 @@ export function initPsdView(data, tooltip) {
 
   heatmap.addEventListener("click", (event) => {
     const hit = hitTest(event);
-    if (hit) setChannel(channels[hit.channelIndex]);
+    if (hit) setChannel(getVisibleChannels(data)[hit.channelIndex]);
   });
 
   onChannelChange(render);
+  onDisplayChange(render);
+  onPsdScaleChange(render);
+  onLiveChange(drawOverlay);
   observeCanvas(heatmap, render);
   observeCanvas(overlay, render);
 }
-
