@@ -771,12 +771,18 @@ input[type="number"]:focus-visible {
 }
 
 .chart-phase {
-  height: 420px;
+  width: 100%;
+  max-width: 760px;
+  height: 460px;
+  margin: 0 auto;
 }
 
 .chart-polar,
 .chart-kuramoto {
+  width: 100%;
+  max-width: 480px;
   height: 430px;
+  margin: 0 auto;
 }
 
 .chart-tda-scatter,

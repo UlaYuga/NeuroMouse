@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#111113">
     <title>SpeedMouse</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./style.css?v=compact-20260606b">
+    <link rel="stylesheet" href="./style.css?v=compact-20260607">
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
@@ -72,37 +72,37 @@
       <div class="app-body">
         <main id="dashboard" class="dashboard" aria-busy="true" tabindex="-1">
 
-          <!-- ── Home Views ─────────────────────────────────────────── -->
+          <!-- PSD Heatmap — full width, top -->
+          <section class="panel panel-psd panel-collapsible is-expanded" aria-labelledby="psd-title">
+            <div class="panel-head">
+              <div>
+                <h2 id="psd-title">PSD Heatmap</h2>
+                <p>Welch PSD — 4 s window, 50% overlap | units: a.u.</p>
+              </div>
+              <span class="panel-toggle-icon" aria-hidden="true">−</span>
+            </div>
+            <div class="panel-body">
+              <div id="psd-legend" class="session-legend" hidden></div>
+              <div class="psd-layout">
+                <canvas id="psd-heatmap" class="chart chart-heatmap" width="760" height="420" role="img" aria-label="Welch PSD heatmap by frequency and channel"></canvas>
+                <canvas id="psd-overlay" class="chart chart-overlay" width="320" height="420" role="img" aria-label="PSD line for the selected channel"></canvas>
+              </div>
+            </div>
+          </section>
+
+          <!-- Playback — sticky player; direct child of #dashboard so it follows the whole page -->
+          <section class="panel panel-playback" aria-labelledby="playback-title">
+            <div class="panel-head">
+              <div>
+                <h2 id="playback-title">Playback</h2>
+                <p class="playback-label">Animate all views</p>
+              </div>
+            </div>
+            <div id="playback-bar" class="playback-bar"></div>
+          </section>
+
+          <!-- ── Home grid ──────────────────────────────────────────── -->
           <div id="home-views">
-
-            <!-- PSD Heatmap — expanded by default -->
-            <section class="panel panel-psd panel-collapsible is-expanded" aria-labelledby="psd-title">
-              <div class="panel-head">
-                <div>
-                  <h2 id="psd-title">PSD Heatmap</h2>
-                  <p>Welch PSD — 4 s window, 50% overlap | units: a.u.</p>
-                </div>
-                <span class="panel-toggle-icon" aria-hidden="true">−</span>
-              </div>
-              <div class="panel-body">
-                <div id="psd-legend" class="session-legend" hidden></div>
-                <div class="psd-layout">
-                  <canvas id="psd-heatmap" class="chart chart-heatmap" width="760" height="420" role="img" aria-label="Welch PSD heatmap by frequency and channel"></canvas>
-                  <canvas id="psd-overlay" class="chart chart-overlay" width="320" height="420" role="img" aria-label="PSD line for the selected channel"></canvas>
-                </div>
-              </div>
-            </section>
-
-            <!-- Playback Bar — always visible, no collapse -->
-            <section class="panel panel-playback" aria-labelledby="playback-title">
-              <div class="panel-head">
-                <div>
-                  <h2 id="playback-title">Playback</h2>
-                  <p class="playback-label">Animate all views</p>
-                </div>
-              </div>
-              <div id="playback-bar" class="playback-bar"></div>
-            </section>
 
             <!-- Centroid — collapsed by default -->
             <section class="panel panel-centroid panel-collapsible" aria-labelledby="centroid-title">
