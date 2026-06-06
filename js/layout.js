@@ -17,7 +17,7 @@ import { connectLive, loadData } from "./loader.js";
 import { initPsdView } from "./views/psd-view.js?v=psd-axis-20260606";
 import { initCentroidView } from "./views/centroid-view.js";
 import { initGeometryView } from "./views/geometry-view.js";
-import { initChannelGrid } from "./views/channel-grid.js";
+import { initChannelGrid } from "./views/channel-grid.js?v=grid-legend-20260606";
 import { initPlaybackBar } from "./views/playback-bar.js";
 import { initPhaseSpace } from "./views/phase-space.js";
 

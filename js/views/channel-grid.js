@@ -51,7 +51,7 @@ export function initChannelGrid(data, tooltip) {
 
     root.innerHTML = "";
     const svg = element("svg", {
-      viewBox: "0 0 420 460",
+      viewBox: "0 0 420 492",
       role: "group",
       "aria-label": "10-20 EEG channel map",
       overflow: "hidden",
@@ -170,10 +170,10 @@ export function initChannelGrid(data, tooltip) {
     parts.push(
       element("text", { x: 154, y: 444, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace", "text-anchor": "middle" }, formatNumber(minPower, 2)),
       element("text", { x: 334, y: 444, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace", "text-anchor": "middle" }, formatNumber(maxPower, 2)),
-      element("circle", { cx: 346, cy: 422, r: 6, fill: "none", stroke: ACTIVE_COLOR, "stroke-width": 2 }),
-      element("text", { x: 358, y: 426, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace" }, "selected"),
-      element("circle", { cx: 346, cy: 444, r: 7, fill: ACTIVE_COLOR, opacity: 0.62, style: "filter:drop-shadow(0 0 4px rgba(0,212,160,0.6))" }),
-      element("text", { x: 358, y: 448, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace" }, "alpha peak"),
+      element("circle", { cx: 156, cy: 470, r: 6, fill: "none", stroke: ACTIVE_COLOR, "stroke-width": 2 }),
+      element("text", { x: 170, y: 474, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace" }, "selected"),
+      element("circle", { cx: 264, cy: 470, r: 7, fill: ACTIVE_COLOR, opacity: 0.62, style: "filter:drop-shadow(0 0 4px rgba(0,212,160,0.6))" }),
+      element("text", { x: 280, y: 474, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace" }, "alpha peak"),
     );
     return parts;
   }
