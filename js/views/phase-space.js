@@ -14,6 +14,7 @@ import {
   GRID_COLOR,
   MONO_FONT,
   MUTED_COLOR,
+  axisLabels,
   clamp,
   clear,
   formatNumber,
@@ -158,8 +159,11 @@ export function initPhaseSpace(root, data) {
     const displayTitle = mode === MODE_DELAY
       ? `Delay Embedding - ${channel} - ${selectedMetric.label}`
       : `Phase Space - ${channel} - ${selectedXMetric.label} vs ${selectedYMetric.label}`;
+    const compactTitle = mode === MODE_DELAY
+      ? `${channel} | ${selectedMetric.label} | tau ${tau} | ${series.mode}`
+      : `${channel} | ${selectedXMetric.label} vs ${selectedYMetric.label} | tau ${tau} | ${series.mode}`;
 
-    title.textContent = `${displayTitle} | tau ${tau} | ${series.mode}`;
+    title.textContent = compactTitle;
     canvas.setAttribute("aria-label", `${displayTitle}, tau ${tau}`);
 
     const margins = { left: 58, right: 18, top: 34, bottom: 48 };
@@ -348,7 +352,7 @@ function drawAxes(ctx, g) {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
-  const xTicks = [g.minX, (g.minX + g.maxX) / 2, g.maxX];
+  const xTicks = axisLabels(g.minX, g.maxX, g.plotW, 72);
   xTicks.forEach((tick) => {
     const x = scaleLinear(g.minX, g.maxX, g.plotX, g.plotX + g.plotW)(tick);
     ctx.strokeStyle = PLOT_BORDER_COLOR;
@@ -358,11 +362,11 @@ function drawAxes(ctx, g) {
     ctx.stroke();
     ctx.fillText(formatNumber(tick, 2), x, g.plotY + g.plotH + 9);
   });
-  ctx.fillText(g.xLabel, g.plotX + g.plotW / 2, g.plotY + g.plotH + 30);
+  ctx.fillText(g.xLabel, g.plotX + g.plotW / 2, g.plotY + g.plotH + 30, g.plotW);
 
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
-  const yTicks = [g.minY, (g.minY + g.maxY) / 2, g.maxY];
+  const yTicks = axisLabels(g.minY, g.maxY, g.plotH, 52);
   yTicks.forEach((tick) => {
     const y = scaleLinear(g.minY, g.maxY, g.plotY + g.plotH, g.plotY)(tick);
     ctx.strokeStyle = PLOT_BORDER_COLOR;
@@ -377,7 +381,7 @@ function drawAxes(ctx, g) {
   ctx.translate(15, g.plotY + g.plotH / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.textAlign = "center";
-  ctx.fillText(g.yLabel, 0, 0);
+  ctx.fillText(g.yLabel, 0, 0, g.plotH);
   ctx.restore();
   ctx.restore();
 }

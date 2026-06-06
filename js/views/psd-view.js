@@ -24,6 +24,7 @@ import {
   MONO_FONT,
   MUTED_COLOR,
   PLOT_BORDER_COLOR,
+  axisLabels,
   clear,
   deltaColorScale,
   drawBottomAxis,
@@ -139,7 +140,7 @@ export function initPsdView(data, tooltip) {
 
     ctx.strokeStyle = PLOT_BORDER_COLOR;
     ctx.strokeRect(plotX, plotY, plotW, plotH);
-    drawBottomAxis(ctx, [1, 10, 20, 30, 40, 50, 55], xScale, plotY + plotH, "Hz");
+    drawBottomAxis(ctx, frequencyTicks(plotW, source.frequencies), xScale, plotY + plotH, "Hz");
   }
 
   function drawOverlay() {
@@ -198,7 +199,7 @@ export function initPsdView(data, tooltip) {
       ACTIVE_COLOR,
       2,
     );
-    drawBottomAxis(ctx, [1, 10, 20, 30, 40, 50, 55], xScale, plotY + plotH, `${scale} · Hz`);
+    drawBottomAxis(ctx, frequencyTicks(plotW, sourceFrequencies), xScale, plotY + plotH, `${scale} · Hz`);
   }
 
   function render() {
@@ -396,7 +397,7 @@ export function initPsdView(data, tooltip) {
         1.8,
       );
     });
-    drawBottomAxis(ctx, [1, 10, 20, 30, 40, 50, 55], xScale, plotY + plotH, `${mode === "delta" ? "delta" : scale} · Hz`);
+    drawBottomAxis(ctx, frequencyTicks(plotW, series[0].frequencies), xScale, plotY + plotH, `${mode === "delta" ? "delta" : scale} · Hz`);
   }
 
   function heatmapSession() {
@@ -416,6 +417,12 @@ export function initPsdView(data, tooltip) {
 
 function heatmapColor(value, min, max) {
   return rgbString(paletteColor((value - min) / (max - min || 1)));
+}
+
+function frequencyTicks(plotW, frequencies) {
+  const min = frequencies[0];
+  const max = frequencies.at(-1);
+  return plotW < 380 ? axisLabels(min, max, plotW, 56) : [1, 10, 20, 30, 40, 50, 55];
 }
 
 function paletteColor(t) {

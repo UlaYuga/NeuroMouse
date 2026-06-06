@@ -120,6 +120,15 @@ a:hover {
   transform: translateY(0);
 }
 
+.visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .app-shell {
   width: min(1440px, 100%);
   margin: 0 auto;
@@ -334,7 +343,7 @@ input[type="number"]:focus-visible {
 .live-readouts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s1) var(--s3);
+  gap: 6px var(--s3);
   align-items: center;
   min-height: 22px;
   color: var(--text-tertiary);
@@ -344,13 +353,21 @@ input[type="number"]:focus-visible {
   line-height: 1.35;
 }
 
+.live-readouts span {
+  min-width: 0;
+}
+
 .live-readouts strong {
   color: var(--text-secondary);
   font-weight: 600;
 }
 
 .live-status {
+  max-width: 100%;
   color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .live-status.is-connecting {
@@ -642,6 +659,17 @@ input[type="number"]:focus-visible {
   background: var(--bg-1);
 }
 
+.panel-head > div {
+  min-width: 0;
+}
+
+.panel-head h2,
+.panel-head p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .panel-head p {
   margin-top: 2px;
   color: var(--text-tertiary);
@@ -660,6 +688,7 @@ input[type="number"]:focus-visible {
 .chart {
   display: block;
   width: 100%;
+  max-width: 100%;
   background-color: var(--bg-1);
   background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 20px 20px;
@@ -1178,7 +1207,9 @@ input[type="number"]:focus-visible {
   color: var(--text-mono);
   font-size: 10px;
   line-height: 1.35;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .channel-grid {

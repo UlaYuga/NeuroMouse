@@ -28,6 +28,7 @@ import {
   MUTED_COLOR,
   PLAYBACK_CURSOR_COLOR,
   PLOT_BORDER_COLOR,
+  axisLabels,
   canvasPoint,
   clear,
   distanceToSegment,
@@ -154,8 +155,8 @@ export function initCentroidView(data, tooltip) {
     ctx.fillText(`${formatNumber(g.yMin, 1)} Hz`, g.plotX - 7, g.plotY + g.plotH);
 
     const ticks = series.mode === "live"
-      ? [series.times[0], series.times.at(-1)].filter((value, index, arr) => index === 0 || value !== arr[0])
-      : [0, 20, 40, 60, 80, 100];
+      ? axisLabels(series.times[0], series.times.at(-1), g.plotW, 64)
+      : axisLabels(0, series.times.at(-1), g.plotW, 64);
     drawBottomAxis(ctx, ticks.map((tick) => Number(tick.toFixed ? tick.toFixed(1) : tick)), g.xScale, g.plotY + g.plotH, series.mode === "live" ? "live sec" : "sec");
 
     if (series.mode === "static") {
@@ -391,7 +392,7 @@ export function initCentroidView(data, tooltip) {
     ctx.textBaseline = "middle";
     ctx.fillText(`${formatNumber(g.yMax, 1)}${mode === "delta" ? "" : " Hz"}`, g.plotX - 7, g.plotY);
     ctx.fillText(`${formatNumber(g.yMin, 1)}${mode === "delta" ? "" : " Hz"}`, g.plotX - 7, g.plotY + g.plotH);
-    drawBottomAxis(ctx, [0, 20, 40, 60, 80, 100], g.xScale, g.plotY + g.plotH, mode === "delta" ? "Δ sec" : "sec");
+    drawBottomAxis(ctx, axisLabels(g.xMin ?? 0, g.xMax ?? 1, g.plotW, 64), g.xScale, g.plotY + g.plotH, mode === "delta" ? "Δ sec" : "sec");
   }
 
   function drawHoverCursor(ctx, g) {
@@ -420,6 +421,8 @@ export function initCentroidView(data, tooltip) {
       plotH,
       xScale: scaleLinear(series[0].times[0], series[0].times.at(-1), plotX, plotX + plotW),
       yScale: scaleLinear(yMin, yMax, plotY + plotH, plotY),
+      xMin: series[0].times[0],
+      xMax: series[0].times.at(-1),
       yMin,
       yMax,
     };

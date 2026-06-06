@@ -24,6 +24,7 @@ import {
   MUTED_COLOR,
   PLAYBACK_CURSOR_COLOR,
   PLOT_BORDER_COLOR,
+  axisLabels,
   canvasPoint,
   clear,
   drawLine,
@@ -45,13 +46,14 @@ const METRICS = [
   ["edge95", "Edge Frequency 95%", "Hz"],
   ["alpha_relative_power", "Alpha Rel. Power", ""],
 ];
+const LABEL_WIDTH = 110;
 
 export function initGeometryView(data, tooltip) {
   const canvas = document.querySelector("#geometry-chart");
   const caption = document.querySelector("#geometry-caption");
   const legend = document.querySelector("#geometry-legend");
   const disposables = createDisposables();
-  const margins = { left: 158, right: 18, top: 14, bottom: 30 };
+  const margins = { left: 154, right: 18, top: 14, bottom: 30 };
   let hover = null;
 
   function activeSeries() {
@@ -91,6 +93,8 @@ export function initGeometryView(data, tooltip) {
       plotH,
       panelH,
       xScale: scaleLinear(series.times[0], series.times.at(-1), plotX, plotX + plotW),
+      xMin: series.times[0],
+      xMax: series.times.at(-1),
     };
   }
 
@@ -112,7 +116,7 @@ export function initGeometryView(data, tooltip) {
     const series = activeSeries();
     const g = geometry(width, height, series);
     const channel = getChannel();
-    caption.textContent = `Sliding spectral geometry | channel: ${channel} | ${series.mode}`;
+    caption.textContent = `Channel: ${channel} | ${series.mode}`;
 
     METRICS.forEach(([key, label, unit], metricIndex) => {
       const y0 = g.plotY + metricIndex * g.panelH;
@@ -128,14 +132,7 @@ export function initGeometryView(data, tooltip) {
       ctx.lineTo(g.plotX + g.plotW, y0 + g.panelH);
       ctx.stroke();
 
-      ctx.fillStyle = AXIS_COLOR;
-      ctx.font = `600 10px ${MONO_FONT}`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.fillText(label, 14, panelTop - 1);
-      ctx.fillStyle = MUTED_COLOR;
-      ctx.font = `10px ${MONO_FONT}`;
-      ctx.fillText(unit || "—", 14, panelTop + 15);
+      drawMetricLabel(ctx, label, unit, panelTop, g.panelH);
       ctx.textAlign = "right";
       ctx.fillText(formatNumber(maxY, key.includes("alpha") || key === "flatness" || key === "entropy" ? 2 : 1), g.plotX - 8, panelTop - 2);
       ctx.fillText(formatNumber(minY, key.includes("alpha") || key === "flatness" || key === "entropy" ? 2 : 1), g.plotX - 8, panelBottom - 9);
@@ -173,8 +170,8 @@ export function initGeometryView(data, tooltip) {
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     const ticks = series.mode === "live"
-      ? [series.times[0], series.times.at(-1)].filter((value, index, arr) => index === 0 || value !== arr[0])
-      : [0, 20, 40, 60, 80, 100];
+      ? axisLabels(series.times[0], series.times.at(-1), g.plotW, 64)
+      : axisLabels(series.times[0], series.times.at(-1), g.plotW, 64);
     ticks.forEach((tick) => {
       const x = g.xScale(tick);
       ctx.strokeStyle = PLOT_BORDER_COLOR;
@@ -261,7 +258,7 @@ export function initGeometryView(data, tooltip) {
       times: sessions[0].data.geometry.time,
     });
     const channel = getChannel();
-    caption.textContent = `Sliding spectral geometry | channel: ${channel} | ${mode === "delta" ? `Δ vs ${sessions[0].baselineName}` : "overlay"}`;
+    caption.textContent = `Channel: ${channel} | ${mode === "delta" ? `delta vs ${sessions[0].baselineName}` : "overlay"}`;
 
     METRICS.forEach(([key, label, unit], metricIndex) => {
       const y0 = g.plotY + metricIndex * g.panelH;
@@ -305,7 +302,7 @@ export function initGeometryView(data, tooltip) {
       return;
     }
 
-    caption.textContent = `Sliding spectral geometry | channel: ${getChannel()} | split`;
+    caption.textContent = `Channel: ${getChannel()} | split`;
     const gap = 10;
     const columnW = (width - gap * (sessions.length - 1)) / sessions.length;
     sessions.forEach((session, columnIndex) => {
@@ -371,14 +368,7 @@ export function initGeometryView(data, tooltip) {
     }
 
     if (label) {
-      ctx.fillStyle = AXIS_COLOR;
-      ctx.font = `600 10px ${MONO_FONT}`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.fillText(label, 14, panelTop - 1);
-      ctx.fillStyle = MUTED_COLOR;
-      ctx.font = `10px ${MONO_FONT}`;
-      ctx.fillText(unit || "—", 14, panelTop + 15);
+      drawMetricLabel(ctx, label, unit, panelTop, g.panelH);
     }
     ctx.fillStyle = MUTED_COLOR;
     ctx.font = `10px ${MONO_FONT}`;
@@ -394,7 +384,7 @@ export function initGeometryView(data, tooltip) {
     ctx.font = `10px ${MONO_FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    [0, 20, 40, 60, 80, 100].forEach((tick) => {
+    axisLabels(g.xMin ?? 0, g.xMax ?? 1, g.plotW, 64).forEach((tick) => {
       const x = g.xScale(tick);
       ctx.strokeStyle = PLOT_BORDER_COLOR;
       ctx.beginPath();
@@ -414,6 +404,22 @@ export function initGeometryView(data, tooltip) {
     ctx.moveTo(x, g.plotY);
     ctx.lineTo(x, g.plotY + g.plotH);
     ctx.stroke();
+  }
+
+  function drawMetricLabel(ctx, label, unit, panelTop, panelH) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(12, panelTop - 4, LABEL_WIDTH, Math.max(28, panelH - 8));
+    ctx.clip();
+    ctx.fillStyle = AXIS_COLOR;
+    ctx.font = `600 10px ${MONO_FONT}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(label, 14, panelTop - 1, LABEL_WIDTH);
+    ctx.fillStyle = MUTED_COLOR;
+    ctx.font = `10px ${MONO_FONT}`;
+    ctx.fillText(unit || "-", 14, panelTop + 15, LABEL_WIDTH);
+    ctx.restore();
   }
 
   function drawEmpty(ctx, width, height) {

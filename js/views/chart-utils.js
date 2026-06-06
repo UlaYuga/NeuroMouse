@@ -111,6 +111,27 @@ export function scaleLinear(domainMin, domainMax, rangeMin, rangeMax) {
   return (value) => rangeMin + ((value - domainMin) / span) * (rangeMax - rangeMin);
 }
 
+export function axisLabels(min, max, pixelWidth, minGapPx = 55) {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [];
+  if (min === max) return [min];
+  const reversed = min > max;
+  const from = reversed ? max : min;
+  const to = reversed ? min : max;
+  const range = to - from;
+  const maxLabels = Math.max(2, Math.floor(Math.max(1, pixelWidth) / minGapPx));
+  const rawStep = range / maxLabels;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const step = Math.max(magnitude, Math.ceil(rawStep / magnitude) * magnitude);
+  const start = Math.ceil(from / step) * step;
+  const labels = [];
+
+  for (let value = start; value <= to + step * 0.001; value += step) {
+    labels.push(Math.round(value * 100) / 100);
+  }
+
+  return reversed ? labels.reverse() : labels;
+}
+
 export function invertLinear(domainMin, domainMax, rangeMin, rangeMax) {
   const span = rangeMax - rangeMin || 1;
   return (value) => domainMin + ((value - rangeMin) / span) * (domainMax - domainMin);
@@ -157,6 +178,7 @@ export function nearestIndex(values, target) {
 }
 
 export function drawBottomAxis(ctx, ticks, xScale, y, label) {
+  if (!ticks.length) return;
   ctx.strokeStyle = GRID_COLOR;
   ctx.fillStyle = AXIS_COLOR;
   ctx.lineWidth = 1;
