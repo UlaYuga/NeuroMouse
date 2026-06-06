@@ -20,6 +20,7 @@ import { initGeometryView } from "./views/geometry-view.js";
 import { initChannelGrid } from "./views/channel-grid.js?v=grid-legend-20260606";
 import { initPlaybackBar } from "./views/playback-bar.js";
 import { initPhaseSpace } from "./views/phase-space.js";
+import { initMonitorView } from "./views/monitor-view.js";
 
 const dashboard = document.querySelector("#dashboard");
 const loadStatus = document.querySelector("#load-status");
@@ -35,6 +36,7 @@ const liveCompute = document.querySelector("#live-compute");
 const liveAlpha = document.querySelector("#live-alpha");
 let liveConnection = null;
 let activeData = null;
+let monitorView = null;
 
 init();
 
@@ -51,6 +53,7 @@ async function init() {
     initPsdView(data, tooltip);
     initCentroidView(data, tooltip);
     initPlaybackBar(document.querySelector("#playback-bar"), data);
+    monitorView = initMonitorView(document.querySelector("#monitor-panel"), data);
     initGeometryView(data, tooltip);
     initChannelGrid(data, tooltip);
     initPhaseSpace(document.querySelector("#phase-space"), data);
@@ -60,7 +63,10 @@ async function init() {
       updateLiveMetrics(getLiveState());
     });
     bindControls();
-    onLiveChange(updateLiveMetrics);
+    onLiveChange((state) => {
+      updateLiveMetrics(state);
+      monitorView?.setLiveState(state);
+    });
   } catch (error) {
     dashboard.setAttribute("aria-busy", "false");
     if (loadStatus) {
@@ -110,6 +116,7 @@ function startLive(url) {
   liveConnection.start(
     (frame) => {
       pushLiveFrame(frame);
+      monitorView?.handleFrame(frame);
       updateLiveStatus({ connected: true, status: "live", url });
     },
     (status, detail = {}) => {

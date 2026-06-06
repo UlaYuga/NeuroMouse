@@ -411,7 +411,8 @@ input[type="number"]:focus-visible {
 
 .panel-psd,
 .panel-centroid,
-.panel-playback {
+.panel-playback,
+.panel-monitor {
   grid-column: 1 / -1;
 }
 
@@ -622,6 +623,295 @@ input[type="number"]:focus-visible {
   white-space: nowrap;
 }
 
+.monitor-panel {
+  transition:
+    height var(--t-normal) var(--ease),
+    border-color var(--t-normal) var(--ease),
+    box-shadow var(--t-normal) var(--ease);
+}
+
+.monitor-panel.static-mode {
+  display: flex;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+}
+
+.monitor-panel.live-mode {
+  height: auto;
+  border-color: var(--border-accent);
+}
+
+.monitor-static {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.monitor-live {
+  display: none;
+}
+
+.monitor-panel.live-mode .monitor-live {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: linear-gradient(180deg, rgba(0, 212, 160, 0.045), transparent 48%);
+}
+
+.monitor-panel.live-mode .monitor-static {
+  display: none;
+}
+
+.monitor-head,
+.monitor-actions,
+.monitor-status-row {
+  display: flex;
+  align-items: center;
+}
+
+.monitor-head {
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.monitor-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+
+.monitor-actions button,
+.monitor-toggle {
+  height: 26px;
+  min-height: 26px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--r-btn);
+  background: var(--bg-3);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.monitor-actions button {
+  padding: 0 var(--s2);
+}
+
+.monitor-toggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0 var(--s2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.monitor-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.monitor-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  box-shadow: none;
+}
+
+.monitor-toggle:has(input:checked) {
+  border-color: var(--border-accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.monitor-toggle:has(input:checked) .monitor-led {
+  background: var(--accent);
+  box-shadow: var(--accent-glow);
+}
+
+.monitor-toggle:focus-within {
+  outline: 2px solid rgba(0, 212, 160, 0.45);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
+.monitor-builder {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.55fr) minmax(180px, 1fr) 72px minmax(96px, 0.55fr) minmax(96px, 0.55fr);
+  gap: var(--s3);
+  align-items: end;
+}
+
+.monitor-field {
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.monitor-field > span,
+.monitor-kicker {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.monitor-field select,
+.monitor-field input {
+  width: 100%;
+  height: 26px;
+  min-height: 26px;
+  border-color: var(--border);
+  font-size: 11px;
+}
+
+.monitor-input-suffix {
+  position: relative;
+}
+
+.monitor-input-suffix input {
+  padding-right: 24px;
+}
+
+.monitor-input-suffix span {
+  position: absolute;
+  top: 50%;
+  right: var(--s2);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.monitor-status {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-btn);
+  background: rgba(17, 17, 19, 0.42);
+}
+
+.monitor-status-row {
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.monitor-status-current {
+  align-items: baseline;
+}
+
+.monitor-state {
+  min-width: 92px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.monitor-state.is-idle {
+  color: var(--text-secondary);
+}
+
+.monitor-state.is-building {
+  color: var(--accent);
+}
+
+.monitor-state.is-triggered {
+  color: var(--accent-bright);
+  text-shadow: var(--accent-glow);
+}
+
+.progress-track {
+  overflow: hidden;
+  flex: 1 1 160px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-3);
+}
+
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: var(--accent-glow);
+  transition: width 200ms linear;
+}
+
+.monitor-progress-text,
+.monitor-current {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.monitor-current {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.monitor-log {
+  position: relative;
+  max-height: 200px;
+  overflow: auto;
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-btn);
+  background: var(--bg-1);
+}
+
+.monitor-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.monitor-log-table th,
+.monitor-log-table td {
+  padding: 7px var(--s2);
+  border-bottom: 0.5px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.monitor-log-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-2);
+  color: var(--text-tertiary);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.monitor-log-table td {
+  color: var(--text-secondary);
+}
+
+.monitor-log-table tr.is-new td {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+  transition: background-color var(--t-normal) var(--ease);
+}
+
+.monitor-log-empty {
+  padding: var(--s3);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-align: center;
+}
+
 .phase-space {
   display: grid;
   background: var(--bg-1);
@@ -803,6 +1093,10 @@ input[type="number"]:focus-visible {
     align-items: stretch;
   }
 
+  .monitor-builder {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .phase-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -882,6 +1176,20 @@ input[type="number"]:focus-visible {
 
   .playback-time {
     text-align: left;
+  }
+
+  .monitor-head,
+  .monitor-status-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .monitor-actions {
+    justify-content: flex-start;
+  }
+
+  .monitor-builder {
+    grid-template-columns: 1fr;
   }
 
   .phase-controls {
