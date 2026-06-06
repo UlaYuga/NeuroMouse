@@ -512,7 +512,7 @@ input[type="number"]:focus-visible {
 }
 
 .panel-phase {
-  grid-column: 1;
+  grid-column: 1 / -1;
 }
 
 .panel-head {
@@ -563,7 +563,7 @@ input[type="number"]:focus-visible {
 }
 
 .chart-phase {
-  height: 390px;
+  height: 420px;
 }
 
 .playback-bar {

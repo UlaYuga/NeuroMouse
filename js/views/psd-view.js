@@ -17,7 +17,6 @@ import {
   MUTED_COLOR,
   PLOT_BORDER_COLOR,
   clear,
-  colorScale,
   drawBottomAxis,
   drawFrequencyBands,
   drawLine,
@@ -31,6 +30,14 @@ import {
   scaleLinear,
   canvasPoint,
 } from "./chart-utils.js";
+
+const HEATMAP_PALETTE = [
+  [5, 13, 18],
+  [10, 42, 61],
+  [13, 107, 94],
+  [13, 168, 130],
+  [0, 212, 160],
+];
 
 export function initPsdView(data, tooltip) {
   const heatmap = document.querySelector("#psd-heatmap");
@@ -73,7 +80,7 @@ export function initPsdView(data, tooltip) {
           : (frequencies[freqIndex] + frequencies[freqIndex + 1]) / 2;
         const x0 = xScale(f0);
         const x1 = xScale(f1);
-        ctx.fillStyle = colorScale(logMatrix[channelIndex][freqIndex], logMin, logMax);
+        ctx.fillStyle = heatmapColor(logMatrix[channelIndex][freqIndex], logMin, logMax);
         ctx.fillRect(x0, plotY + visibleIndex * channelH, Math.max(1, x1 - x0 + 0.5), Math.ceil(channelH) + 0.5);
       }
     }
@@ -207,4 +214,26 @@ export function initPsdView(data, tooltip) {
   onLiveChange(drawOverlay);
   observeCanvas(heatmap, render);
   observeCanvas(overlay, render);
+}
+
+function heatmapColor(value, min, max) {
+  return rgbString(paletteColor((value - min) / (max - min || 1)));
+}
+
+function paletteColor(t) {
+  const nextT = Math.max(0, Math.min(1, t));
+  const n = HEATMAP_PALETTE.length - 1;
+  const i = Math.floor(nextT * n);
+  const f = nextT * n - i;
+  const a = HEATMAP_PALETTE[Math.min(i, n)];
+  const b = HEATMAP_PALETTE[Math.min(i + 1, n)];
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * f),
+    Math.round(a[1] + (b[1] - a[1]) * f),
+    Math.round(a[2] + (b[2] - a[2]) * f),
+  ];
+}
+
+function rgbString(rgb) {
+  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
 }

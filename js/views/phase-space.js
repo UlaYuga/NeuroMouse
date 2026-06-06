@@ -7,12 +7,10 @@ import {
 } from "../state.js";
 import {
   ACTIVE_COLOR,
-  AXIS_COLOR,
   CHART_BACKGROUND,
   GRID_COLOR,
   MONO_FONT,
   MUTED_COLOR,
-  SECONDARY_COLOR,
   clamp,
   clear,
   formatNumber,
@@ -174,8 +172,8 @@ export function initPhaseSpace(root, data) {
 
     drawGrid(ctx, plotX, plotY, plotW, plotH);
     drawTrajectory(ctx, points, xScale, yScale);
-    drawEndpoint(ctx, points[0], xScale, yScale, ACTIVE_COLOR, "start");
-    drawEndpoint(ctx, points.at(-1), xScale, yScale, SECONDARY_COLOR, "end");
+    drawStartDot(ctx, points[0], xScale, yScale);
+    drawEndDot(ctx, points.at(-1), xScale, yScale);
     drawPlaybackDot(ctx, points, xScale, yScale);
     drawAxes(ctx, {
       plotX,
@@ -241,14 +239,14 @@ function drawDotGrid(ctx, width, height) {
 
 function drawTrajectory(ctx, points, xScale, yScale) {
   ctx.save();
-  ctx.lineWidth = 1.8;
+  ctx.lineWidth = 1;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1];
-    const current = points[index];
-    const t = index / (points.length - 1);
-    ctx.strokeStyle = gradientColor(t, 0.95);
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const previous = points[index];
+    const current = points[index + 1];
+    const t = index / Math.max(1, points.length - 1);
+    ctx.strokeStyle = phaseColor(t);
     ctx.beginPath();
     ctx.moveTo(xScale(previous.xValue), yScale(previous.yValue));
     ctx.lineTo(xScale(current.xValue), yScale(current.yValue));
@@ -257,22 +255,29 @@ function drawTrajectory(ctx, points, xScale, yScale) {
   ctx.restore();
 }
 
-function drawEndpoint(ctx, point, xScale, yScale, color, label) {
+function drawStartDot(ctx, point, xScale, yScale) {
   const x = xScale(point.xValue);
   const y = yScale(point.yValue);
   ctx.save();
-  ctx.fillStyle = color;
-  ctx.strokeStyle = CHART_BACKGROUND;
-  ctx.lineWidth = 1.5;
+  ctx.fillStyle = "rgba(0,160,110,0.8)";
+  ctx.shadowColor = "transparent";
   ctx.beginPath();
-  ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+  ctx.arc(x, y, 4, 0, Math.PI * 2);
   ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = AXIS_COLOR;
-  ctx.font = `10px ${MONO_FONT}`;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  ctx.fillText(label, x + 8, y);
+  ctx.restore();
+}
+
+function drawEndDot(ctx, point, xScale, yScale) {
+  const x = xScale(point.xValue);
+  const y = yScale(point.yValue);
+  ctx.save();
+  ctx.fillStyle = "#00D4A0";
+  ctx.shadowColor = "rgba(0,212,160,0.8)";
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(x, y, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
   ctx.restore();
 }
 
@@ -300,6 +305,7 @@ function drawPlaybackDot(ctx, points, xScale, yScale) {
   ctx.arc(x, y, 7, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+  ctx.shadowBlur = 0;
   ctx.restore();
 }
 
@@ -344,12 +350,13 @@ function drawAxes(ctx, g) {
   ctx.restore();
 }
 
-function gradientColor(t, alpha) {
-  const start = [0, 180, 130];
-  const end = [0, 212, 160];
-  const nextAlpha = 0.5 + t * (alpha - 0.5);
-  const rgb = start.map((value, index) => Math.round(value + (end[index] - value) * t));
-  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${nextAlpha})`;
+function phaseColor(t) {
+  const nextT = Math.max(0, Math.min(1, t));
+  const r = 0;
+  const g = Math.round(100 + nextT * 112);
+  const b = Math.round(80 + nextT * 80);
+  const a = 0.25 + nextT * 0.75;
+  return `rgba(${r},${g},${b},${a})`;
 }
 
 function metricLabel(key) {
