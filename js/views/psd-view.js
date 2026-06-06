@@ -50,7 +50,7 @@ export function initPsdView(data, tooltip) {
   const channelIndexByName = new Map(channels.map((channel, index) => [channel, index]));
   let heatHover = null;
 
-  const heatMargins = { left: 58, right: 12, top: 14, bottom: 40 };
+  const heatMargins = { left: 70, right: 12, top: 18, bottom: 44 };
   const overlayMargins = { left: 46, right: 16, top: 42, bottom: 40 };
 
   function drawHeatmap() {
@@ -85,12 +85,12 @@ export function initPsdView(data, tooltip) {
       }
     }
 
-    ctx.font = `10px ${MONO_FONT}`;
+    ctx.font = `600 11px ${MONO_FONT}`;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     visibleChannels.forEach((channel, index) => {
       ctx.fillStyle = channel === selectedChannel ? ACTIVE_COLOR : MUTED_COLOR;
-      ctx.fillText(channel, plotX - 8, plotY + index * channelH + channelH / 2);
+      ctx.fillText(channel, plotX - 12, plotY + index * channelH + channelH / 2);
     });
 
     if (heatHover) {

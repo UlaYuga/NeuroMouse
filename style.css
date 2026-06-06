@@ -409,7 +409,7 @@ input[type="number"]:focus-visible {
 
 .chart-heatmap,
 .chart-overlay {
-  height: 350px;
+  height: 520px;
 }
 
 .chart-wide {
@@ -766,7 +766,7 @@ input[type="number"]:focus-visible {
   }
 
   .chart-overlay {
-    height: 240px;
+    height: 360px;
   }
 
   .channel-grid {
@@ -843,7 +843,7 @@ input[type="number"]:focus-visible {
   }
 
   .chart-heatmap {
-    height: 470px;
+    height: 560px;
   }
 
   .chart-wide {
