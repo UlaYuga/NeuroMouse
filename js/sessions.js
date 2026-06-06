@@ -124,7 +124,10 @@ export function computeDelta(sessionData, baselineData) {
     "flatness",
     "edge95",
     "alpha_relative_power",
-  ];
+  ].filter((key) => sessionData.geometry[key] && baselineData.geometry[key]);
+  if (sessionData.geometry.higuchi_fd && baselineData.geometry.higuchi_fd) {
+    geometryKeys.push("higuchi_fd");
+  }
 
   const geometry = {
     time: sessionData.geometry.time.slice(),

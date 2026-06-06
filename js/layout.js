@@ -35,6 +35,10 @@ import { initChannelGrid } from "./views/channel-grid.js";
 import { initPlaybackBar } from "./views/playback-bar.js";
 import { initPhaseSpace } from "./views/phase-space.js";
 import { initMonitorView } from "./views/monitor-view.js";
+import { initPolarChronomap } from "./views/polar-chronomap.js";
+import { initKuramotoView } from "./views/kuramoto.js";
+import { initChannelNetwork } from "./views/channel-network.js";
+import { initTdaView } from "./views/tda-view.js";
 
 const dashboard = document.querySelector("#dashboard");
 const loadStatus = document.querySelector("#load-status");
@@ -81,6 +85,10 @@ async function init() {
     appDisposables.add(initGeometryView(data, tooltip));
     appDisposables.add(initChannelGrid(data, tooltip));
     appDisposables.add(initPhaseSpace(document.querySelector("#phase-space"), data));
+    appDisposables.add(initPolarChronomap(document.querySelector("#polar-chronomap"), data, tooltip));
+    appDisposables.add(initKuramotoView(document.querySelector("#kuramoto-view"), data));
+    appDisposables.add(initChannelNetwork(document.querySelector("#channel-network"), data, tooltip));
+    appDisposables.add(initTdaView(document.querySelector("#tda-view"), data, tooltip));
 
     appDisposables.add(onChannelChange((channel) => {
       updateSelectedChannelLabel(channel);

@@ -21,7 +21,7 @@ import {
 } from "../sessions.js";
 import { ACTIVE_COLOR, CHART_BACKGROUND, MUTED_COLOR, colorScale, deltaColorScale, extent, formatNumber } from "./chart-utils.js";
 
-const EEG_10_20 = {
+export const EEG_10_20 = {
   Fp1: [0.35, 0.05], Fpz: [0.5, 0.04], Fp2: [0.65, 0.05],
   F7: [0.17, 0.25], F3: [0.35, 0.22], Fz: [0.5, 0.21], F4: [0.65, 0.22], F8: [0.83, 0.25],
   FC5: [0.24, 0.35], FC1: [0.41, 0.33], FC2: [0.59, 0.33], FC6: [0.76, 0.35],
@@ -32,16 +32,35 @@ const EEG_10_20 = {
   O1: [0.38, 0.93], Oz: [0.5, 0.95], O2: [0.62, 0.93],
 };
 
+const COLOR_MODES = [
+  { key: "alpha_relative_power", label: "alpha power", shortLabel: "Alpha" },
+  { key: "lyapunov_exponent", label: "Lyapunov exponent", shortLabel: "Lyapunov" },
+  { key: "variability.alpha_range", label: "alpha range", shortLabel: "Alpha range" },
+];
+
 export function initChannelGrid(data, tooltip) {
   const root = document.querySelector("#channel-grid");
   const caption = document.querySelector("#grid-caption");
   const disposables = createDisposables();
+  const modeBar = document.createElement("div");
+  const mapRoot = document.createElement("div");
+  let colorMode = "alpha_relative_power";
+
+  modeBar.className = "grid-mode-bar";
+  mapRoot.className = "channel-grid-map";
+  root.innerHTML = "";
+  root.append(modeBar, mapRoot);
 
   function render() {
     const mode = getViewMode();
     const sourceSession = gridSession();
     const sourceData = sourceSession?.data ?? data;
     const isDelta = mode === "delta";
+    const availableModes = colorModesFor(sourceData, isDelta);
+    if (!availableModes.some((item) => item.key === colorMode)) colorMode = availableModes[0].key;
+    const activeMode = availableModes.find((item) => item.key === colorMode) ?? availableModes[0];
+    renderModeBar(availableModes);
+
     const summary = sourceData.channel_summary;
     const byChannel = new Map(summary.map((item) => [item.channel, item]));
     const channelIndexByName = new Map(sourceData.meta.channels.map((channel, index) => [channel, index]));
@@ -61,21 +80,37 @@ export function initChannelGrid(data, tooltip) {
       : [];
     const useFrame = !useLive && (isDelta || getIsPlaying() || frame > 0);
     const [minLivePower, maxLivePower] = extent(livePowers);
-    const rangeMin = useLive ? minLivePower : (useFrame ? minFramePower : minPower);
-    const rangeMax = useLive ? maxLivePower : (useFrame ? maxFramePower : maxPower);
+    const rangeValues = sourceData.meta.channels.map((channel) => metricValue({
+      channel,
+      colorMode,
+      frame,
+      frameAlpha,
+      useLive,
+      useFrame,
+      liveFrame,
+      byChannel,
+      channelIndexByName,
+    }));
+    const [metricMin, metricMax] = extent(rangeValues);
+    const rangeMin = colorMode === "alpha_relative_power"
+      ? useLive ? minLivePower : (useFrame ? minFramePower : minPower)
+      : metricMin;
+    const rangeMax = colorMode === "alpha_relative_power"
+      ? useLive ? maxLivePower : (useFrame ? maxFramePower : maxPower)
+      : metricMax;
     const time = frameTimes[Math.min(frame, frameTimes.length - 1)] ?? 0;
 
     if (caption) {
       caption.textContent = isDelta
-        ? `alpha power Δ vs ${sourceSession?.baselineName ?? getBaselineSession(data)?.name ?? "baseline"} @ t=${formatNumber(time, 2)}s`
+        ? `${activeMode.label} delta vs ${sourceSession?.baselineName ?? getBaselineSession(data)?.name ?? "baseline"} @ t=${formatNumber(time, 2)}s`
         : useLive
-        ? `live alpha power @ t=${formatNumber(liveFrame.time, 2)}s`
-        : useFrame
-        ? `alpha power @ t=${formatNumber(time, 2)}s`
-        : "10-20 layout | color: alpha rel. power";
+        ? `live ${activeMode.label} @ t=${formatNumber(liveFrame.time, 2)}s`
+        : useFrame && colorMode === "alpha_relative_power"
+        ? `${activeMode.label} @ t=${formatNumber(time, 2)}s`
+        : `10-20 layout | color: ${activeMode.label}`;
     }
 
-    root.innerHTML = "";
+    mapRoot.innerHTML = "";
     const svg = element("svg", {
       viewBox: "0 0 420 492",
       role: "group",
@@ -118,19 +153,23 @@ export function initChannelGrid(data, tooltip) {
     for (const [channel, [nx, ny]] of Object.entries(EEG_10_20)) {
       const item = byChannel.get(channel);
       const channelIndex = channelIndexByName.get(channel);
-      const framePower = frameAlpha[channelIndex]?.[frame];
-      const livePower = liveFrame?.metrics?.[channel]?.alpha_relative_power;
-      const power = useLive && Number.isFinite(Number(livePower))
-        ? Number(livePower)
-        : useFrame && Number.isFinite(framePower)
-        ? framePower
-        : item?.alpha_relative_power ?? 0;
+      const power = metricValue({
+        channel,
+        colorMode,
+        frame,
+        frameAlpha,
+        useLive,
+        useFrame,
+        liveFrame,
+        byChannel,
+        channelIndexByName,
+      });
       const isVisible = visible.has(channel);
       const group = element("g", {
         class: `electrode${isVisible ? "" : " is-muted"}`,
         tabindex: "0",
         role: "button",
-        "aria-label": `${channel}, ${isDelta ? "alpha power delta" : "alpha rel. power"} ${formatNumber(power, 3)}${filter === "all" || isVisible ? "" : ", filtered out"}`,
+        "aria-label": `${channel}, ${isDelta ? `${activeMode.label} delta` : activeMode.label} ${formatNumber(power, 3)}${filter === "all" || isVisible ? "" : ", filtered out"}`,
       });
       const x = 28 + nx * 364;
       const y = 22 + ny * 360;
@@ -144,7 +183,7 @@ export function initChannelGrid(data, tooltip) {
           stroke: active ? ACTIVE_COLOR : "rgba(255,255,255,0.16)",
           "stroke-width": active ? 2 : 0.5,
           opacity: isVisible ? 1 : 0.22,
-          style: item?.has_clear_alpha_peak && isVisible ? "filter:drop-shadow(0 0 4px rgba(0,212,160,0.6))" : "",
+          style: colorMode === "alpha_relative_power" && item?.has_clear_alpha_peak && isVisible ? "filter:drop-shadow(0 0 4px rgba(0,212,160,0.6))" : "",
         }),
         element("text", { x, y: y + 0.5 }, channel),
       );
@@ -159,18 +198,41 @@ export function initChannelGrid(data, tooltip) {
         tooltip.show(
           event.clientX,
           event.clientY,
-          `<strong>${channel}</strong><br>${isDelta ? "alpha power Δ" : "alpha rel. power"} ${formatNumber(power, 3)}<br>${useLive ? `live t=${formatNumber(liveFrame.time, 2)} sec<br>` : useFrame || isDelta ? `t=${formatNumber(time, 2)} sec<br>` : ""}${item?.region ?? ""} · ${item?.hemisphere ?? ""}<br>${item?.has_clear_alpha_peak ? "alpha peak marker" : "no alpha peak marker"}`,
+          `<strong>${channel}</strong><br>${isDelta ? `${activeMode.label} delta` : activeMode.label}: ${formatNumber(power, 3)}<br>${useLive ? `live t=${formatNumber(liveFrame.time, 2)} sec<br>` : useFrame && colorMode === "alpha_relative_power" || isDelta ? `t=${formatNumber(time, 2)} sec<br>` : ""}${item?.region ?? ""} · ${item?.hemisphere ?? ""}${colorMode === "alpha_relative_power" ? `<br>${item?.has_clear_alpha_peak ? "alpha peak marker" : "no alpha peak marker"}` : ""}`,
         );
       });
       group.addEventListener("mouseleave", tooltip.hide);
       svg.append(group);
     }
 
-    svg.append(...colorbar(rangeMin, rangeMax, isDelta));
-    root.append(svg);
+    svg.append(...colorbar(rangeMin, rangeMax, isDelta, activeMode.label, colorMode === "alpha_relative_power"));
+    mapRoot.append(svg);
   }
 
-  function colorbar(minPower, maxPower, isDelta = false) {
+  function renderModeBar(availableModes) {
+    modeBar.innerHTML = "";
+    modeBar.append(document.createElement("span"));
+    modeBar.firstChild.textContent = "Color";
+    const group = document.createElement("div");
+    group.className = "segmented";
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", "Channel grid color mode");
+    availableModes.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = item.shortLabel;
+      button.classList.toggle("is-active", item.key === colorMode);
+      button.setAttribute("aria-label", `Color channels by ${item.label}`);
+      button.addEventListener("click", () => {
+        colorMode = item.key;
+        render();
+      });
+      group.append(button);
+    });
+    modeBar.append(group);
+  }
+
+  function colorbar(minPower, maxPower, isDelta = false, label = "alpha rel. power", showPeak = true) {
     const parts = [
       element("defs", {}, [
         element("linearGradient", { id: "alpha-power-gradient", x1: "0%", x2: "100%", y1: "0%", y2: "0%" }, isDelta ? [
@@ -190,7 +252,7 @@ export function initChannelGrid(data, tooltip) {
         "font-size": 11,
         "font-weight": 600,
         "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace",
-      }, isDelta ? "alpha power Δ" : "alpha rel. power"),
+      }, isDelta ? `${label} delta` : label),
       element("rect", {
         x: 154,
         y: 416,
@@ -205,9 +267,13 @@ export function initChannelGrid(data, tooltip) {
       element("text", { x: 334, y: 444, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace", "text-anchor": "middle" }, formatNumber(maxPower, 2)),
       element("circle", { cx: 156, cy: 470, r: 6, fill: "none", stroke: ACTIVE_COLOR, "stroke-width": 2 }),
       element("text", { x: 170, y: 474, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace" }, "selected"),
-      element("circle", { cx: 264, cy: 470, r: 7, fill: ACTIVE_COLOR, opacity: 0.62, style: "filter:drop-shadow(0 0 4px rgba(0,212,160,0.6))" }),
-      element("text", { x: 280, y: 474, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace" }, "alpha peak"),
     );
+    if (showPeak) {
+      parts.push(
+        element("circle", { cx: 264, cy: 470, r: 7, fill: ACTIVE_COLOR, opacity: 0.62, style: "filter:drop-shadow(0 0 4px rgba(0,212,160,0.6))" }),
+        element("text", { x: 280, y: 474, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace" }, "alpha peak"),
+      );
+    }
     return parts;
   }
 
@@ -227,6 +293,55 @@ export function initChannelGrid(data, tooltip) {
   }
 
   return disposables.dispose;
+}
+
+function colorModesFor(sourceData, isDelta) {
+  if (isDelta) return [COLOR_MODES[0]];
+  return COLOR_MODES.filter((mode) => sourceData.meta.channels.some((channel, index) => {
+    const item = sourceData.channel_summary[index];
+    return Number.isFinite(metricValue({
+      channel,
+      colorMode: mode.key,
+      frame: 0,
+      frameAlpha: sourceData.geometry.alpha_relative_power,
+      useLive: false,
+      useFrame: false,
+      liveFrame: null,
+      byChannel: new Map(sourceData.channel_summary.map((entry) => [entry.channel, entry])),
+      channelIndexByName: new Map(sourceData.meta.channels.map((entry, entryIndex) => [entry, entryIndex])),
+    }));
+  }));
+}
+
+function metricValue(context) {
+  const {
+    channel,
+    colorMode,
+    frame,
+    frameAlpha,
+    useLive,
+    useFrame,
+    liveFrame,
+    byChannel,
+    channelIndexByName,
+  } = context;
+  const item = byChannel.get(channel);
+  const channelIndex = channelIndexByName.get(channel);
+
+  if (colorMode === "alpha_relative_power") {
+    const framePower = frameAlpha[channelIndex]?.[frame];
+    const livePower = liveFrame?.metrics?.[channel]?.alpha_relative_power;
+    if (useLive && Number.isFinite(Number(livePower))) return Number(livePower);
+    if (useFrame && Number.isFinite(framePower)) return framePower;
+    return item?.alpha_relative_power ?? 0;
+  }
+  if (colorMode === "lyapunov_exponent") {
+    return Number(item?.lyapunov_exponent ?? 0);
+  }
+  if (colorMode === "variability.alpha_range") {
+    return Number(item?.variability?.alpha_range ?? 0);
+  }
+  return 0;
 }
 
 function element(name, attrs = {}, text = "") {

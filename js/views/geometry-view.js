@@ -45,6 +45,7 @@ const METRICS = [
   ["flatness", "Spectral Flatness", "ratio"],
   ["edge95", "Edge Frequency 95%", "Hz"],
   ["alpha_relative_power", "Alpha Rel. Power", ""],
+  ["higuchi_fd", "Higuchi Fractal Dim", "D"],
 ];
 const LABEL_WIDTH = 110;
 
@@ -61,18 +62,20 @@ export function initGeometryView(data, tooltip) {
     const live = getLiveState();
     const allowLive = getComparisonSessions(data)[0]?.isDefault && getViewMode() === "overlay";
     if (allowLive && live.history.length > 1) {
-      return {
-        mode: "live",
-        data: sourceData,
-        times: live.history.map((frame) => frame.time),
-        metric(key, channel) {
-          return live.history.map((frame) => frame.metrics[channel]?.[key]);
-        },
-      };
+    return {
+      mode: "live",
+      data: sourceData,
+      metrics: metricRows(sourceData),
+      times: live.history.map((frame) => frame.time),
+      metric(key, channel) {
+        return live.history.map((frame) => frame.metrics[channel]?.[key]);
+      },
+    };
     }
     return {
       mode: "static",
       data: sourceData,
+      metrics: metricRows(sourceData),
       times: sourceData.geometry.time,
       metric(key, channel) {
         return sourceData.geometry[key][sourceData.meta.channels.indexOf(channel)];
@@ -85,7 +88,7 @@ export function initGeometryView(data, tooltip) {
     const plotY = margins.top;
     const plotW = width - margins.left - margins.right;
     const plotH = height - margins.top - margins.bottom;
-    const panelH = plotH / METRICS.length;
+    const panelH = plotH / Math.max(1, series.metrics.length);
     return {
       plotX,
       plotY,
@@ -118,7 +121,7 @@ export function initGeometryView(data, tooltip) {
     const channel = getChannel();
     caption.textContent = `Channel: ${channel} | ${series.mode}`;
 
-    METRICS.forEach(([key, label, unit], metricIndex) => {
+    series.metrics.forEach(([key, label, unit], metricIndex) => {
       const y0 = g.plotY + metricIndex * g.panelH;
       const panelTop = y0 + 8;
       const panelBottom = y0 + g.panelH - 12;
@@ -126,7 +129,7 @@ export function initGeometryView(data, tooltip) {
       const [minY, maxY] = paddedExtent([values], 0.1);
       const yScale = scaleLinear(minY, maxY, panelBottom, panelTop);
 
-      ctx.strokeStyle = metricIndex === METRICS.length - 1 ? PLOT_BORDER_COLOR : GRID_COLOR;
+      ctx.strokeStyle = metricIndex === series.metrics.length - 1 ? PLOT_BORDER_COLOR : GRID_COLOR;
       ctx.beginPath();
       ctx.moveTo(g.plotX, y0 + g.panelH);
       ctx.lineTo(g.plotX + g.plotW, y0 + g.panelH);
@@ -207,11 +210,11 @@ export function initGeometryView(data, tooltip) {
     const time = invertLinear(series.times[0], series.times.at(-1), g.plotX, g.plotX + g.plotW)(point.x);
     const timeIndex = nearestIndex(series.times, time);
     const channel = getChannel();
-    return {
+      return {
       mode: series.mode,
       time: series.times[timeIndex],
       timeIndex,
-      values: Object.fromEntries(METRICS.map(([key]) => [key, series.metric(key, channel)[timeIndex]])),
+      values: Object.fromEntries(series.metrics.map(([key]) => [key, series.metric(key, channel)[timeIndex]])),
     };
   }
 
@@ -224,7 +227,7 @@ export function initGeometryView(data, tooltip) {
       return;
     }
     setTimeHover({ source: "geometry", mode: hover.mode, time: hover.time, timeIndex: hover.timeIndex });
-    const rows = METRICS.map(([key, label, unit]) => {
+    const rows = activeSeries().metrics.map(([key, label, unit]) => {
       const suffix = unit ? ` ${unit}` : "";
       const digits = key.includes("alpha") || key === "flatness" || key === "entropy" ? 3 : 2;
       return `${label}: ${formatNumber(hover.values[key], digits)}${suffix}`;
@@ -254,13 +257,15 @@ export function initGeometryView(data, tooltip) {
       drawEmpty(ctx, width, height);
       return;
     }
+    const metrics = metricRows(sessions[0].data);
     const g = geometry(width, height, {
       times: sessions[0].data.geometry.time,
+      metrics,
     });
     const channel = getChannel();
     caption.textContent = `Channel: ${channel} | ${mode === "delta" ? `delta vs ${sessions[0].baselineName}` : "overlay"}`;
 
-    METRICS.forEach(([key, label, unit], metricIndex) => {
+    metrics.forEach(([key, label, unit], metricIndex) => {
       const y0 = g.plotY + metricIndex * g.panelH;
       const panelTop = y0 + 8;
       const panelBottom = y0 + g.panelH - 12;
@@ -270,14 +275,14 @@ export function initGeometryView(data, tooltip) {
           if (channelIndex < 0) return null;
           return {
             session,
-            values: session.data.geometry[key][channelIndex],
-          };
-        })
-        .filter(Boolean);
+          values: session.data.geometry[key]?.[channelIndex],
+        };
+      })
+        .filter((row) => row?.values);
       const [minY, maxY] = paddedExtent([rows.flatMap((row) => mode === "delta" ? row.values.concat(0) : row.values)], 0.1);
       const yScale = scaleLinear(minY, maxY, panelBottom, panelTop);
 
-      drawMetricShell(ctx, g, y0, panelTop, panelBottom, metricIndex, label, unit, minY, maxY, key, mode, yScale);
+      drawMetricShell(ctx, g, y0, panelTop, panelBottom, metricIndex, metrics.length, label, unit, minY, maxY, key, mode, yScale);
       rows.forEach((row) => {
         drawLine(
           ctx,
@@ -309,11 +314,12 @@ export function initGeometryView(data, tooltip) {
       const x0 = columnIndex * (columnW + gap);
       const localMargins = { left: columnIndex === 0 ? 118 : 36, right: 10, top: 34, bottom: 28 };
       const times = session.data.geometry.time;
+      const metrics = metricRows(session.data);
       const plotX = x0 + localMargins.left;
       const plotY = localMargins.top;
       const plotW = columnW - localMargins.left - localMargins.right;
       const plotH = height - localMargins.top - localMargins.bottom;
-      const panelH = plotH / METRICS.length;
+      const panelH = plotH / Math.max(1, metrics.length);
       const xScale = scaleLinear(times[0], times.at(-1), plotX, plotX + plotW);
       const channelIndex = Math.max(0, session.data.meta.channels.indexOf(getChannel()));
 
@@ -329,7 +335,7 @@ export function initGeometryView(data, tooltip) {
       ctx.textBaseline = "top";
       ctx.fillText(session.name, x0 + 8, 10, Math.max(40, columnW - 16));
 
-      METRICS.forEach(([key, label, unit], metricIndex) => {
+      metrics.forEach(([key, label, unit], metricIndex) => {
         const y0 = plotY + metricIndex * panelH;
         const panelTop = y0 + 8;
         const panelBottom = y0 + panelH - 12;
@@ -337,7 +343,7 @@ export function initGeometryView(data, tooltip) {
         const [minY, maxY] = paddedExtent([values], 0.1);
         const yScale = scaleLinear(minY, maxY, panelBottom, panelTop);
         const g = { plotX, plotY, plotW, plotH, panelH, xScale };
-        drawMetricShell(ctx, g, y0, panelTop, panelBottom, metricIndex, columnIndex === 0 ? label : "", columnIndex === 0 ? unit : "", minY, maxY, key, "split", yScale);
+        drawMetricShell(ctx, g, y0, panelTop, panelBottom, metricIndex, metrics.length, columnIndex === 0 ? label : "", columnIndex === 0 ? unit : "", minY, maxY, key, "split", yScale);
         drawLine(
           ctx,
           times.map((time, index) => ({
@@ -351,8 +357,8 @@ export function initGeometryView(data, tooltip) {
     });
   }
 
-  function drawMetricShell(ctx, g, y0, panelTop, panelBottom, metricIndex, label, unit, minY, maxY, key, mode, yScale) {
-    ctx.strokeStyle = metricIndex === METRICS.length - 1 ? PLOT_BORDER_COLOR : GRID_COLOR;
+  function drawMetricShell(ctx, g, y0, panelTop, panelBottom, metricIndex, metricCount, label, unit, minY, maxY, key, mode, yScale) {
+    ctx.strokeStyle = metricIndex === metricCount - 1 ? PLOT_BORDER_COLOR : GRID_COLOR;
     ctx.beginPath();
     ctx.moveTo(g.plotX, y0 + g.panelH);
     ctx.lineTo(g.plotX + g.plotW, y0 + g.panelH);
@@ -435,4 +441,8 @@ export function initGeometryView(data, tooltip) {
   }
 
   return disposables.dispose;
+}
+
+function metricRows(sourceData) {
+  return METRICS.filter(([key]) => Array.isArray(sourceData.geometry?.[key]));
 }

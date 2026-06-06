@@ -58,6 +58,15 @@ check('geometry.area_normalized_psd exists', 'area_normalized_psd' in data.geome
 check('geometry.area_normalized_psd.psd channels',
   data.geometry.area_normalized_psd?.psd?.length === 32);
 
+if (data.geometry.higuchi_fd) {
+  check('geometry.higuchi_fd channels', data.geometry.higuchi_fd.length === 32);
+  check('geometry.higuchi_fd[0] length', data.geometry.higuchi_fd[0]?.length === data.geometry.time.length,
+    `got ${data.geometry.higuchi_fd[0]?.length}`);
+  const hfdFlat = data.geometry.higuchi_fd.flat();
+  check('geometry.higuchi_fd no NaN', hfdFlat.filter(v => isNaN(v)).length === 0);
+  check('geometry.higuchi_fd finite', hfdFlat.every(v => isFinite(v)));
+}
+
 // Channel summary
 check('channel_summary length', data.channel_summary.length === 32);
 const REQUIRED_FIELDS = ['channel','hemisphere','region','has_clear_alpha_peak','alpha_relative_power'];
@@ -71,6 +80,76 @@ const metaChannels = data.meta.channels;
 const missingInSummary = metaChannels.filter(c => !summaryChannels.has(c));
 check('channel_summary covers all meta.channels', missingInSummary.length === 0,
   `missing: ${missingInSummary.join(', ')}`);
+
+if (data.channel_summary.some(ch => ch.variability)) {
+  const missingVariability = data.channel_summary.filter(ch => !ch.variability?.alpha_range).length;
+  check('channel_summary variability alpha_range present', missingVariability === 0,
+    `missing in ${missingVariability} channels`);
+  const badVariability = data.channel_summary
+    .flatMap(ch => Object.values(ch.variability ?? {}))
+    .filter(v => !isFinite(v) || isNaN(v)).length;
+  check('channel_summary variability finite', badVariability === 0, `found ${badVariability} bad values`);
+}
+
+if (data.channel_summary.some(ch => 'lyapunov_exponent' in ch)) {
+  const missingLyapunov = data.channel_summary.filter(ch => !isFinite(ch.lyapunov_exponent)).length;
+  check('channel_summary lyapunov_exponent finite', missingLyapunov === 0,
+    `missing/bad in ${missingLyapunov} channels`);
+}
+
+// Phase 2 optional sections
+if (data.polar_chronomap) {
+  check('polar_chronomap.time length', data.polar_chronomap.time.length === data.geometry.time.length,
+    `got ${data.polar_chronomap.time.length}`);
+  check('polar_chronomap posterior_alpha length', data.polar_chronomap.posterior_alpha.length === data.geometry.time.length);
+  check('polar_chronomap frontal_alpha length', data.polar_chronomap.frontal_alpha.length === data.geometry.time.length);
+  check('polar_chronomap balance no NaN',
+    data.polar_chronomap.balance.every(v => isFinite(v) && !isNaN(v)));
+  check('polar_chronomap posterior channels present',
+    Array.isArray(data.polar_chronomap.posterior_channels) && data.polar_chronomap.posterior_channels.length > 0);
+  check('polar_chronomap frontal channels present',
+    Array.isArray(data.polar_chronomap.frontal_channels) && data.polar_chronomap.frontal_channels.length > 0);
+}
+
+if (data.channel_network) {
+  check('channel_network channels length', data.channel_network.channels?.length === 32);
+  check('channel_network composite 32x32',
+    data.channel_network.composite_correlation?.length === 32 &&
+    data.channel_network.composite_correlation?.[0]?.length === 32);
+  check('channel_network composite finite',
+    data.channel_network.composite_correlation.flat().every(v => isFinite(v) && !isNaN(v)));
+  check('channel_network per_metric includes alpha',
+    Array.isArray(data.channel_network.per_metric?.alpha_relative_power));
+}
+
+// Phase 3 optional sections
+if (data.kuramoto) {
+  check('kuramoto.order_parameter_r length', data.kuramoto.order_parameter_r?.length === data.geometry.time.length);
+  check('kuramoto.order_parameter_r range',
+    data.kuramoto.order_parameter_r.every(v => v >= 0 && v <= 1));
+  check('kuramoto.channel_phases 32 channels', data.kuramoto.channel_phases?.length === 32);
+}
+
+if (data.phase_synchrony) {
+  check('plv_static 32x32',
+    data.phase_synchrony.plv_static?.length === 32 &&
+    data.phase_synchrony.plv_static?.[0]?.length === 32);
+  check('plv_static range',
+    data.phase_synchrony.plv_static.flat().every(v => v >= 0 && v <= 1));
+  if (data.phase_synchrony.plv_sliding) {
+    check('plv_sliding has time axis',
+      data.phase_synchrony.plv_sliding_time?.length === data.phase_synchrony.plv_sliding.length);
+    check('plv_sliding first matrix 32x32',
+      data.phase_synchrony.plv_sliding[0]?.length === 32 &&
+      data.phase_synchrony.plv_sliding[0]?.[0]?.length === 32);
+  }
+}
+
+if (data.tda && data.tda.status === 'computed') {
+  check('tda point_cloud 32 rows', data.tda.point_cloud?.length === 32);
+  check('tda h0 finite', data.tda.h0.flat().every(v => isFinite(v) && !isNaN(v)));
+  check('tda h1 finite', data.tda.h1.flat().every(v => isFinite(v) && !isNaN(v)));
+}
 
 // Summary
 const passed = results.filter(r => r.ok).length;
