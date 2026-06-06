@@ -331,6 +331,52 @@ input[type="number"]:focus-visible {
   width: auto;
 }
 
+.live-readouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s3);
+  align-items: center;
+  min-height: 22px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+.live-readouts strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.live-status {
+  color: var(--text-tertiary);
+}
+
+.live-status.is-connecting {
+  color: var(--accent-blue);
+}
+
+.live-status.is-live {
+  color: var(--accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.live-status.is-error {
+  color: var(--danger);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
 #live-connect {
   border-color: rgba(10, 132, 255, 0.35);
   background: var(--accent-blue-dim);

@@ -13,7 +13,7 @@ import {
   setPsdScale,
   updateLiveStatus,
 } from "./state.js";
-import { connectLive, loadData } from "./loader.js";
+import { createLiveSource, createStaticSource, loadData, setSource } from "./loader.js";
 import { initPsdView } from "./views/psd-view.js?v=psd-axis-20260606";
 import { initCentroidView } from "./views/centroid-view.js";
 import { initGeometryView } from "./views/geometry-view.js";
@@ -96,48 +96,56 @@ function bindControls() {
 }
 
 function startLive(url) {
-  if (liveConnection) liveConnection.close();
+  if (liveConnection) liveConnection.stop();
   clearLiveHistory();
-  updateLiveStatus({ connected: false, status: "Connecting", url });
+  updateLiveStatus({ connected: false, status: "connecting", url });
   liveConnect.disabled = true;
   liveDisconnect.disabled = false;
   if (liveStatus) {
-    liveStatus.className = "live-status";
-    liveStatus.textContent = `Connecting ${url}`;
+    liveStatus.className = "live-status is-connecting";
+    liveStatus.textContent = `connecting... ${url}`;
   }
 
-  liveConnection = connectLive(url, {
-    onFrame(frame) {
+  liveConnection = setSource(createLiveSource(url, { referenceData: activeData }));
+  liveConnection.start(
+    (frame) => {
       pushLiveFrame(frame);
-      updateLiveStatus({ connected: true, status: "Live stream", url });
+      updateLiveStatus({ connected: true, status: "live", url });
     },
-    onStatus(status) {
+    (status, detail = {}) => {
+      const connected = status === "live";
       updateLiveStatus({
-        connected: status.connected,
-        status: status.message,
+        connected,
+        status,
         url,
-        bridge: status.bridge,
+        detail,
       });
-    },
-    onError(message) {
-      updateLiveStatus({ connected: false, status: message, url });
-      if (liveStatus) {
-        liveStatus.className = "live-status is-error";
-        liveStatus.textContent = message;
+      if (status === "error") {
+        liveConnection?.stop();
+        liveConnection = null;
+        setSource(createStaticSource());
+        clearLiveHistory();
+        liveConnect.disabled = false;
+        liveDisconnect.disabled = true;
+      } else if (status === "disconnected") {
+        liveConnection = null;
+        setSource(createStaticSource());
+        clearLiveHistory();
+        liveConnect.disabled = false;
+        liveDisconnect.disabled = true;
       }
-      liveConnect.disabled = false;
-      liveDisconnect.disabled = false;
     },
-  });
+  );
 }
 
 function stopLive() {
   if (liveConnection) {
-    liveConnection.close();
+    liveConnection.stop();
     liveConnection = null;
   }
+  setSource(createStaticSource());
   clearLiveHistory();
-  updateLiveStatus({ connected: false, status: "Ready", url: liveUrl.value.trim() });
+  updateLiveStatus({ connected: false, status: "static replay", url: liveUrl.value.trim() });
   liveConnect.disabled = false;
   liveDisconnect.disabled = true;
 }
@@ -151,23 +159,32 @@ function updateLiveMetrics(state) {
   const alpha = liveMetric(frame, channel, "alpha_relative_power");
   if (liveAlpha) liveAlpha.textContent = alpha == null ? "—" : alpha.toFixed(4);
 
-  const liveText = state.connected ? "is-live" : "";
-  if (liveStatus && !liveStatus.classList.contains("is-error")) {
-    liveStatus.className = `live-status ${liveText}`.trim();
-  }
-  const psdNote = state.latestFrame && !state.latestFrame.psd_by_channel
-    ? " · PSD frame not included"
-    : "";
   if (liveStatus) {
-    liveStatus.textContent = state.connected
-      ? `${state.status} · ${state.url || liveUrl.value}${psdNote}`
-      : state.status;
+    liveStatus.className = `live-status ${statusClass(state)}`.trim();
+    liveStatus.textContent = statusText(state);
   }
   if (loadStatus) {
     loadStatus.textContent = state.connected ? "Live" : "Ready";
   }
   liveConnect.disabled = state.connected;
   liveDisconnect.disabled = !state.connected && !liveConnection;
+}
+
+function statusClass(state) {
+  if (state.status === "live" || state.connected) return "is-live";
+  if (state.status === "connecting") return "is-connecting";
+  if (state.status === "error") return "is-error";
+  return "";
+}
+
+function statusText(state) {
+  if (state.status === "live" || state.connected) return `● live · ${state.url || liveUrl.value}`;
+  if (state.status === "connecting") return `connecting... ${state.url || liveUrl.value}`;
+  if (state.status === "error") {
+    return state.detail?.message ? `connection error · ${state.detail.message}` : "connection error";
+  }
+  if (state.status === "disconnected") return "static replay";
+  return "static replay";
 }
 
 function setActiveButton(selector, active) {

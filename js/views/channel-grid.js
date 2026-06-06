@@ -3,10 +3,12 @@ import {
   getChannelFilter,
   getFrame,
   getIsPlaying,
+  getLiveState,
   getVisibleChannels,
   onChannelChange,
   onDisplayChange,
   onFrameChange,
+  onLiveChange,
   setChannel,
 } from "../state.js";
 import { ACTIVE_COLOR, CHART_BACKGROUND, MUTED_COLOR, colorScale, extent, formatNumber } from "./chart-utils.js";
@@ -38,13 +40,22 @@ export function initChannelGrid(data, tooltip) {
     const visible = new Set(getVisibleChannels(data));
     const filter = getChannelFilter();
     const frame = getFrame();
-    const useFrame = getIsPlaying() || frame > 0;
-    const rangeMin = useFrame ? minFramePower : minPower;
-    const rangeMax = useFrame ? maxFramePower : maxPower;
+    const live = getLiveState();
+    const liveFrame = live.history.at(-1);
+    const useLive = live.connected && liveFrame?.metrics;
+    const livePowers = useLive
+      ? data.meta.channels.map((channel) => liveFrame.metrics[channel]?.alpha_relative_power).filter((value) => Number.isFinite(Number(value)))
+      : [];
+    const useFrame = !useLive && (getIsPlaying() || frame > 0);
+    const [minLivePower, maxLivePower] = extent(livePowers);
+    const rangeMin = useLive ? minLivePower : (useFrame ? minFramePower : minPower);
+    const rangeMax = useLive ? maxLivePower : (useFrame ? maxFramePower : maxPower);
     const time = frameTimes[Math.min(frame, frameTimes.length - 1)] ?? 0;
 
     if (caption) {
-      caption.textContent = useFrame
+      caption.textContent = useLive
+        ? `live alpha power @ t=${formatNumber(liveFrame.time, 2)}s`
+        : useFrame
         ? `alpha power @ t=${formatNumber(time, 2)}s`
         : "10-20 layout | color: alpha rel. power";
     }
@@ -93,7 +104,10 @@ export function initChannelGrid(data, tooltip) {
       const item = byChannel.get(channel);
       const channelIndex = channelIndexByName.get(channel);
       const framePower = frameAlpha[channelIndex]?.[frame];
-      const power = useFrame && Number.isFinite(framePower)
+      const livePower = liveFrame?.metrics?.[channel]?.alpha_relative_power;
+      const power = useLive && Number.isFinite(Number(livePower))
+        ? Number(livePower)
+        : useFrame && Number.isFinite(framePower)
         ? framePower
         : item?.alpha_relative_power ?? 0;
       const isVisible = visible.has(channel);
@@ -130,7 +144,7 @@ export function initChannelGrid(data, tooltip) {
         tooltip.show(
           event.clientX,
           event.clientY,
-          `<strong>${channel}</strong><br>alpha rel. power ${formatNumber(power, 3)}<br>${useFrame ? `t=${formatNumber(time, 2)} sec<br>` : ""}${item?.region ?? ""} · ${item?.hemisphere ?? ""}<br>${item?.has_clear_alpha_peak ? "alpha peak marker" : "no alpha peak marker"}`,
+          `<strong>${channel}</strong><br>alpha rel. power ${formatNumber(power, 3)}<br>${useLive ? `live t=${formatNumber(liveFrame.time, 2)} sec<br>` : useFrame ? `t=${formatNumber(time, 2)} sec<br>` : ""}${item?.region ?? ""} · ${item?.hemisphere ?? ""}<br>${item?.has_clear_alpha_peak ? "alpha peak marker" : "no alpha peak marker"}`,
         );
       });
       group.addEventListener("mouseleave", tooltip.hide);
@@ -181,6 +195,7 @@ export function initChannelGrid(data, tooltip) {
   onChannelChange(render);
   onDisplayChange(render);
   onFrameChange(render);
+  onLiveChange(render);
   render();
 }
 

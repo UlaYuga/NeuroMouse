@@ -53,9 +53,39 @@ export function initPsdView(data, tooltip) {
   const heatMargins = { left: 70, right: 12, top: 18, bottom: 44 };
   const overlayMargins = { left: 46, right: 16, top: 42, bottom: 40 };
 
+  function activeHeatmap() {
+    const live = getLiveState();
+    const liveFrequencies = live.latestFrame?.frequency_hz;
+    const livePsdByChannel = live.latestFrame?.psd_by_channel;
+    if (Array.isArray(liveFrequencies) && livePsdByChannel && typeof livePsdByChannel === "object") {
+      const liveMatrix = channels.map((channel) => livePsdByChannel[channel]);
+      if (liveMatrix.every(Array.isArray)) {
+        const liveLogMatrix = liveMatrix.map((row) => row.map(log10));
+        const [liveLogMin, liveLogMax] = extent(liveLogMatrix);
+        return {
+          mode: "live",
+          frequencies: liveFrequencies.map(Number),
+          matrix: liveMatrix,
+          logMatrix: liveLogMatrix,
+          logMin: liveLogMin,
+          logMax: liveLogMax,
+        };
+      }
+    }
+    return {
+      mode: "static",
+      frequencies,
+      matrix: psd,
+      logMatrix,
+      logMin,
+      logMax,
+    };
+  }
+
   function drawHeatmap() {
     const { ctx, width, height } = resizeCanvas(heatmap);
     clear(ctx, width, height);
+    const source = activeHeatmap();
 
     const plotX = heatMargins.left;
     const plotY = heatMargins.top;
@@ -64,23 +94,23 @@ export function initPsdView(data, tooltip) {
     const visibleChannels = getVisibleChannels(data);
     const selectedChannel = getChannel();
     const selectedVisibleIndex = visibleChannels.indexOf(selectedChannel);
-    const xScale = scaleLinear(frequencies[0], frequencies.at(-1), plotX, plotX + plotW);
+    const xScale = scaleLinear(source.frequencies[0], source.frequencies.at(-1), plotX, plotX + plotW);
     const channelH = plotH / Math.max(1, visibleChannels.length);
 
     drawFrequencyBands(ctx, xScale, plotY, plotH, { labels: true });
 
     for (let visibleIndex = 0; visibleIndex < visibleChannels.length; visibleIndex += 1) {
       const channelIndex = channelIndexByName.get(visibleChannels[visibleIndex]);
-      for (let freqIndex = 0; freqIndex < frequencies.length; freqIndex += 1) {
+      for (let freqIndex = 0; freqIndex < source.frequencies.length; freqIndex += 1) {
         const f0 = freqIndex === 0
-          ? frequencies[freqIndex]
-          : (frequencies[freqIndex - 1] + frequencies[freqIndex]) / 2;
-        const f1 = freqIndex === frequencies.length - 1
-          ? frequencies[freqIndex]
-          : (frequencies[freqIndex] + frequencies[freqIndex + 1]) / 2;
+          ? source.frequencies[freqIndex]
+          : (source.frequencies[freqIndex - 1] + source.frequencies[freqIndex]) / 2;
+        const f1 = freqIndex === source.frequencies.length - 1
+          ? source.frequencies[freqIndex]
+          : (source.frequencies[freqIndex] + source.frequencies[freqIndex + 1]) / 2;
         const x0 = xScale(f0);
         const x1 = xScale(f1);
-        ctx.fillStyle = heatmapColor(logMatrix[channelIndex][freqIndex], logMin, logMax);
+        ctx.fillStyle = heatmapColor(source.logMatrix[channelIndex][freqIndex], source.logMin, source.logMax);
         ctx.fillRect(x0, plotY + visibleIndex * channelH, Math.max(1, x1 - x0 + 0.5), Math.ceil(channelH) + 0.5);
       }
     }
@@ -165,6 +195,7 @@ export function initPsdView(data, tooltip) {
   }
 
   function hitTest(event) {
+    const source = activeHeatmap();
     const point = canvasPoint(event, heatmap);
     const { width, height } = heatmap.getBoundingClientRect();
     const plotX = heatMargins.left;
@@ -176,8 +207,8 @@ export function initPsdView(data, tooltip) {
     }
     const visibleChannels = getVisibleChannels(data);
     const channelIndex = Math.min(visibleChannels.length - 1, Math.floor(((point.y - plotY) / plotH) * visibleChannels.length));
-    const frequency = invertLinear(frequencies[0], frequencies.at(-1), plotX, plotX + plotW)(point.x);
-    const freqIndex = nearestIndex(frequencies, frequency);
+    const frequency = invertLinear(source.frequencies[0], source.frequencies.at(-1), plotX, plotX + plotW)(point.x);
+    const freqIndex = nearestIndex(source.frequencies, frequency);
     return { channelIndex, freqIndex };
   }
 
@@ -190,10 +221,11 @@ export function initPsdView(data, tooltip) {
       return;
     }
     const visibleChannels = getVisibleChannels(data);
+    const source = activeHeatmap();
     const channel = visibleChannels[hit.channelIndex];
     const sourceIndex = channelIndexByName.get(channel);
-    const frequency = frequencies[hit.freqIndex];
-    tooltip.show(event.clientX, event.clientY, `<strong>${channel}</strong><br>${formatNumber(frequency, 2)} Hz<br>log PSD ${formatNumber(logMatrix[sourceIndex][hit.freqIndex], 2)}`);
+    const frequency = source.frequencies[hit.freqIndex];
+    tooltip.show(event.clientX, event.clientY, `<strong>${channel}</strong><br>${formatNumber(frequency, 2)} Hz · ${source.mode}<br>log PSD ${formatNumber(source.logMatrix[sourceIndex][hit.freqIndex], 2)}`);
     drawHeatmap();
   });
 
@@ -211,7 +243,7 @@ export function initPsdView(data, tooltip) {
   onChannelChange(render);
   onDisplayChange(render);
   onPsdScaleChange(render);
-  onLiveChange(drawOverlay);
+  onLiveChange(render);
   observeCanvas(heatmap, render);
   observeCanvas(overlay, render);
 }

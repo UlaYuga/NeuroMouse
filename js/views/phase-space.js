@@ -2,8 +2,10 @@ import {
   getChannel,
   getChannelIndex,
   getFrame,
+  getLiveState,
   onChannelChange,
   onFrameChange,
+  onLiveChange,
 } from "../state.js";
 import {
   ACTIVE_COLOR,
@@ -140,14 +142,15 @@ export function initPhaseSpace(root, data) {
     const selectedYMetric = metricLabel(yMetric);
     const xKey = mode === MODE_DELAY ? metric : xMetric;
     const yKey = mode === MODE_DELAY ? metric : yMetric;
-    const xValues = data.geometry[xKey]?.[channelIndex] ?? [];
-    const yValues = data.geometry[yKey]?.[channelIndex] ?? [];
+    const series = activeSeries(xKey, yKey, channelIndex);
+    const xValues = series.xValues;
+    const yValues = series.yValues;
     const points = phasePoints(xValues, yValues, tau);
     const displayTitle = mode === MODE_DELAY
       ? `Delay Embedding - ${channel} - ${selectedMetric.label}`
       : `Phase Space - ${channel} - ${selectedXMetric.label} vs ${selectedYMetric.label}`;
 
-    title.textContent = `${displayTitle} | tau ${tau}`;
+    title.textContent = `${displayTitle} | tau ${tau} | ${series.mode}`;
     canvas.setAttribute("aria-label", `${displayTitle}, tau ${tau}`);
 
     const margins = { left: 58, right: 18, top: 34, bottom: 48 };
@@ -174,7 +177,7 @@ export function initPhaseSpace(root, data) {
     drawTrajectory(ctx, points, xScale, yScale);
     drawStartDot(ctx, points[0], xScale, yScale);
     drawEndDot(ctx, points.at(-1), xScale, yScale);
-    drawPlaybackDot(ctx, points, xScale, yScale);
+    drawPlaybackDot(ctx, points, xScale, yScale, series.mode === "live");
     drawAxes(ctx, {
       plotX,
       plotY,
@@ -192,7 +195,25 @@ export function initPhaseSpace(root, data) {
   updateControls();
   onChannelChange(draw);
   onFrameChange(draw);
+  onLiveChange(draw);
   observeCanvas(canvas, draw);
+
+  function activeSeries(xKey, yKey, channelIndex) {
+    const live = getLiveState();
+    if (live.history.length > tau + 1) {
+      const channel = data.meta.channels[channelIndex];
+      return {
+        mode: "live",
+        xValues: live.history.map((frame) => frame.metrics[channel]?.[xKey]),
+        yValues: live.history.map((frame) => frame.metrics[channel]?.[yKey]),
+      };
+    }
+    return {
+      mode: "static",
+      xValues: data.geometry[xKey]?.[channelIndex] ?? [],
+      yValues: data.geometry[yKey]?.[channelIndex] ?? [],
+    };
+  }
 }
 
 function phasePoints(xValues, yValues, tau) {
@@ -281,8 +302,8 @@ function drawEndDot(ctx, point, xScale, yScale) {
   ctx.restore();
 }
 
-function drawPlaybackDot(ctx, points, xScale, yScale) {
-  const frame = getFrame();
+function drawPlaybackDot(ctx, points, xScale, yScale, isLive) {
+  const frame = isLive ? points.at(-1).index : getFrame();
   let nearest = points[0];
   let distance = Math.abs(frame - nearest.index);
   for (const point of points) {

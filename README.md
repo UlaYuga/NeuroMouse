@@ -1,6 +1,6 @@
 # SpeedMouse
 
-SpeedMouse is a zero-build browser dashboard for EEG spectral analysis exports and optional live spectral WebSocket frames. It translates exported Welch PSD, spectral centroid, sliding spectral geometry, and channel summary arrays into interactive canvas/SVG views.
+SpeedMouse is a zero-build browser dashboard for EEG spectral analysis exports and optional live raw EEG WebSocket frames. It translates exported Welch PSD, spectral centroid, sliding spectral geometry, channel summary arrays, and browser-computed live DSP into interactive canvas/SVG views.
 
 The dashboard stays browser-native: no Python in the browser, no framework, no CDN, and no required runtime service for static replay.
 
@@ -10,7 +10,7 @@ The dashboard stays browser-native: no Python in the browser, no framework, no C
 - Centroid Over Time: 32 channel lines with synchronized channel selection.
 - Geometry Stack: six sliding spectral metrics for the selected channel.
 - Channel Grid: 10-20 layout colored by alpha relative power.
-- Live Source: optional `ws://127.0.0.1:8766` spectral frames from the soulsyrup1 backend contract.
+- Live Source: optional `ws://127.0.0.1:8766` raw EEG frames from a soulsyrup1-style backend, analyzed in a browser Web Worker.
 
 Click a channel row, line, or electrode to update every view.
 
@@ -35,23 +35,15 @@ Open `http://localhost:8000/`.
 
 ## Live Mode
 
-Run the spectral backend separately, then use the dashboard's Live Source controls:
+Run the raw EEG backend separately, then use the dashboard's Live Source controls:
 
 ```bash
 python3 run_raw_and_spectral_backend_v4.py
 ```
 
-The dashboard expects WebSocket frames on `ws://127.0.0.1:8766` with:
+The dashboard accepts raw sample payloads on `ws://127.0.0.1:8766`, defaults to 32 channels at 256 Hz, and uses backend metadata when available. Supported payloads include Float32 binary frames, JSON one-sample arrays, JSON sample-major chunks under `samples`/`data`/`values`, and channel-major JSON objects under `samples_by_channel`.
 
-- `type: "spectral_analysis"`
-- `channel_names`
-- `metrics_by_channel[channel].spectral_centroid_hz`
-- `metrics_by_channel[channel].spectral_spread_hz`
-- `metrics_by_channel[channel].spectral_entropy_normalized`
-- `metrics_by_channel[channel].spectral_flatness`
-- `metrics_by_channel[channel].spectral_edge_95_hz`
-- `metrics_by_channel[channel].alpha_relative_power`
-- optional `frequency_hz` and `psd_by_channel` for live PSD overlay
+Live mode computes Welch PSD, centroid, spread, entropy, flatness, edge95, and alpha relative power in `js/workers/dsp-worker.js`. If the backend is unavailable or a payload cannot be parsed, the dashboard stays in static replay mode.
 
 ## Data Conversion
 

@@ -225,7 +225,16 @@ export function onLiveChange(fn) {
 
 export function liveMetric(frame, channel, key) {
   const metrics = frame?.metrics_by_channel?.[channel];
-  const value = metrics?.[key];
+  const aliases = {
+    centroid: ["centroid", "spectral_centroid_hz"],
+    spread: ["spread", "spectral_spread_hz"],
+    entropy: ["entropy", "spectral_entropy_normalized", "spectral_entropy"],
+    flatness: ["flatness", "spectral_flatness"],
+    edge95: ["edge95", "spectral_edge_95_hz", "edge95_hz"],
+    alpha_relative_power: ["alpha_relative_power"],
+  };
+  const keys = aliases[key] ?? [key];
+  const value = keys.map((candidate) => metrics?.[candidate]).find((candidate) => Number.isFinite(Number(candidate)));
   return Number.isFinite(Number(value)) ? Number(value) : null;
 }
 
@@ -238,7 +247,7 @@ function normalizeLiveFrame(frame) {
     metrics[channel] = {
       centroid: liveMetric(frame, channel, "spectral_centroid_hz"),
       spread: liveMetric(frame, channel, "spectral_spread_hz"),
-      entropy: liveMetric(frame, channel, "spectral_entropy_normalized"),
+      entropy: liveMetric(frame, channel, "entropy"),
       flatness: liveMetric(frame, channel, "spectral_flatness"),
       edge95: liveMetric(frame, channel, "spectral_edge_95_hz"),
       alpha_relative_power: liveMetric(frame, channel, "alpha_relative_power"),
