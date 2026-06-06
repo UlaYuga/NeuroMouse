@@ -110,6 +110,16 @@
           <canvas id="centroid-chart" class="chart chart-wide" width="1120" height="300" role="img" aria-label="Spectral centroid lines over time"></canvas>
         </section>
 
+        <section class="panel panel-playback" aria-labelledby="playback-title">
+          <div class="panel-head">
+            <div>
+              <h2 id="playback-title">Playback</h2>
+              <p>Animated alpha topomap and synchronized cursors</p>
+            </div>
+          </div>
+          <div id="playback-bar" class="playback-bar"></div>
+        </section>
+
         <section class="panel panel-geometry" aria-labelledby="geometry-title">
           <div class="panel-head">
             <div>
@@ -124,10 +134,20 @@
           <div class="panel-head">
             <div>
               <h2 id="grid-title">Channel Grid</h2>
-              <p>10-20 layout | color: alpha rel. power</p>
+              <p id="grid-caption">10-20 layout | color: alpha rel. power</p>
             </div>
           </div>
           <div id="channel-grid" class="channel-grid" aria-label="EEG 10-20 channel grid"></div>
+        </section>
+
+        <section class="panel panel-phase" aria-labelledby="phase-title">
+          <div class="panel-head">
+            <div>
+              <h2 id="phase-title">Phase Space</h2>
+              <p>Delay embedding and 2-metric trajectory for the selected channel</p>
+            </div>
+          </div>
+          <div id="phase-space" class="phase-space"></div>
         </section>
       </main>
 

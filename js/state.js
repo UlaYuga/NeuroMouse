@@ -3,12 +3,17 @@ const displayListeners = new Set();
 const psdScaleListeners = new Set();
 const timeHoverListeners = new Set();
 const liveListeners = new Set();
+const frameListeners = new Set();
 let selectedChannel = "Cz";
 let availableChannels = [];
 let channelFilter = "all";
 let channelSort = "layout";
 let psdScale = "log";
 let timeHover = null;
+let currentFrame = 0;
+let totalFrames = 420;
+let isPlaying = false;
+let playbackSpeed = 1;
 let liveState = {
   connected: false,
   status: "Static replay",
@@ -25,6 +30,12 @@ export function configureChannels(channels) {
   if (!availableChannels.includes(selectedChannel)) {
     selectedChannel = availableChannels[0] || "Cz";
   }
+}
+
+export function configurePlayback(total) {
+  totalFrames = Math.max(1, Math.round(Number(total) || 420));
+  currentFrame = Math.min(currentFrame, totalFrames - 1);
+  frameListeners.forEach((fn) => fn(currentFrame));
 }
 
 export function getChannel() {
@@ -100,6 +111,48 @@ export function onPsdScaleChange(fn) {
 export function onTimeHoverChange(fn) {
   timeHoverListeners.add(fn);
   return () => timeHoverListeners.delete(fn);
+}
+
+export function getFrame() {
+  return currentFrame;
+}
+
+export function getTotalFrames() {
+  return totalFrames;
+}
+
+export function getIsPlaying() {
+  return isPlaying;
+}
+
+export function getPlaybackSpeed() {
+  return playbackSpeed;
+}
+
+export function setFrame(frame) {
+  const nextFrame = Math.max(0, Math.min(totalFrames - 1, Math.round(Number(frame) || 0)));
+  if (nextFrame === currentFrame) return;
+  currentFrame = nextFrame;
+  frameListeners.forEach((fn) => fn(currentFrame));
+}
+
+export function setPlaying(nextPlaying) {
+  const playing = Boolean(nextPlaying);
+  if (playing === isPlaying) return;
+  isPlaying = playing;
+  frameListeners.forEach((fn) => fn(currentFrame));
+}
+
+export function setPlaybackSpeed(speed) {
+  const nextSpeed = [1, 2, 4].includes(Number(speed)) ? Number(speed) : 1;
+  if (nextSpeed === playbackSpeed) return;
+  playbackSpeed = nextSpeed;
+  frameListeners.forEach((fn) => fn(currentFrame));
+}
+
+export function onFrameChange(fn) {
+  frameListeners.add(fn);
+  return () => frameListeners.delete(fn);
 }
 
 export function getVisibleChannels(data) {

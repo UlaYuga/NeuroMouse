@@ -1,8 +1,10 @@
 import {
   getChannel,
+  getFrame,
   getLiveState,
   getTimeHover,
   onChannelChange,
+  onFrameChange,
   onLiveChange,
   onTimeHoverChange,
   setTimeHover,
@@ -125,6 +127,21 @@ export function initGeometryView(data, tooltip) {
     ctx.strokeStyle = "rgba(241,235,217,0.22)";
     ctx.strokeRect(g.plotX, g.plotY, g.plotW, g.plotH);
 
+    if (series.mode === "static") {
+      const frameIndex = Math.min(series.times.length - 1, getFrame());
+      const x = g.xScale(series.times[frameIndex]);
+      ctx.save();
+      ctx.strokeStyle = SECONDARY_COLOR;
+      ctx.globalAlpha = 0.72;
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 5]);
+      ctx.beginPath();
+      ctx.moveTo(x, g.plotY);
+      ctx.lineTo(x, g.plotY + g.plotH);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.fillStyle = MUTED_COLOR;
     ctx.font = "10px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
     ctx.textAlign = "center";
@@ -201,6 +218,7 @@ export function initGeometryView(data, tooltip) {
   });
 
   onChannelChange(draw);
+  onFrameChange(draw);
   onLiveChange(draw);
   onTimeHoverChange(draw);
   observeCanvas(canvas, draw);

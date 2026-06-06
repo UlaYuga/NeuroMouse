@@ -1,6 +1,7 @@
 import {
   clearLiveHistory,
   configureChannels,
+  configurePlayback,
   getChannel,
   getLiveState,
   liveMetric,
@@ -17,6 +18,8 @@ import { initPsdView } from "./views/psd-view.js";
 import { initCentroidView } from "./views/centroid-view.js";
 import { initGeometryView } from "./views/geometry-view.js";
 import { initChannelGrid } from "./views/channel-grid.js";
+import { initPlaybackBar } from "./views/playback-bar.js";
+import { initPhaseSpace } from "./views/phase-space.js";
 
 const dashboard = document.querySelector("#dashboard");
 const loadStatus = document.querySelector("#load-status");
@@ -40,14 +43,17 @@ async function init() {
     const data = await loadData();
     activeData = data;
     configureChannels(data.meta.channels);
+    configurePlayback(data.geometry.time.length);
     selectedChannel.textContent = getChannel();
     loadStatus.textContent = `${data.meta.n_channels} channels · ${data.meta.segment_duration_sec} sec · static JSON`;
     dashboard.setAttribute("aria-busy", "false");
 
     initPsdView(data, tooltip);
     initCentroidView(data, tooltip);
+    initPlaybackBar(document.querySelector("#playback-bar"), data);
     initGeometryView(data, tooltip);
     initChannelGrid(data, tooltip);
+    initPhaseSpace(document.querySelector("#phase-space"), data);
 
     onChannelChange((channel) => {
       selectedChannel.textContent = channel;

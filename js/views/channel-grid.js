@@ -1,9 +1,12 @@
 import {
   getChannel,
   getChannelFilter,
+  getFrame,
+  getIsPlaying,
   getVisibleChannels,
   onChannelChange,
   onDisplayChange,
+  onFrameChange,
   setChannel,
 } from "../state.js";
 import { ACTIVE_COLOR, SECONDARY_COLOR, colorScale, extent, formatNumber } from "./chart-utils.js";
@@ -21,14 +24,31 @@ const EEG_10_20 = {
 
 export function initChannelGrid(data, tooltip) {
   const root = document.querySelector("#channel-grid");
+  const caption = document.querySelector("#grid-caption");
   const summary = data.channel_summary;
   const byChannel = new Map(summary.map((item) => [item.channel, item]));
+  const channelIndexByName = new Map(data.meta.channels.map((channel, index) => [channel, index]));
+  const frameTimes = data.geometry.time;
+  const frameAlpha = data.geometry.alpha_relative_power;
   const [minPower, maxPower] = extent(summary.map((item) => item.alpha_relative_power));
+  const [minFramePower, maxFramePower] = extent(frameAlpha);
 
   function render() {
     const selected = getChannel();
     const visible = new Set(getVisibleChannels(data));
     const filter = getChannelFilter();
+    const frame = getFrame();
+    const useFrame = getIsPlaying() || frame > 0;
+    const rangeMin = useFrame ? minFramePower : minPower;
+    const rangeMax = useFrame ? maxFramePower : maxPower;
+    const time = frameTimes[Math.min(frame, frameTimes.length - 1)] ?? 0;
+
+    if (caption) {
+      caption.textContent = useFrame
+        ? `alpha power @ t=${formatNumber(time, 2)}s`
+        : "10-20 layout | color: alpha rel. power";
+    }
+
     root.innerHTML = "";
     const svg = element("svg", {
       viewBox: "0 0 420 460",
@@ -70,7 +90,11 @@ export function initChannelGrid(data, tooltip) {
 
     for (const [channel, [nx, ny]] of Object.entries(EEG_10_20)) {
       const item = byChannel.get(channel);
-      const power = item?.alpha_relative_power ?? 0;
+      const channelIndex = channelIndexByName.get(channel);
+      const framePower = frameAlpha[channelIndex]?.[frame];
+      const power = useFrame && Number.isFinite(framePower)
+        ? framePower
+        : item?.alpha_relative_power ?? 0;
       const isVisible = visible.has(channel);
       const group = element("g", {
         class: `electrode${isVisible ? "" : " is-muted"}`,
@@ -86,7 +110,7 @@ export function initChannelGrid(data, tooltip) {
           cx: x,
           cy: y,
           r: 14,
-          fill: colorScale(power, minPower, maxPower),
+          fill: colorScale(power, rangeMin, rangeMax),
           stroke: active ? "#ffffff" : "rgba(12,15,18,0.72)",
           "stroke-width": active ? 3 : 1.2,
           opacity: isVisible ? 1 : 0.22,
@@ -116,14 +140,14 @@ export function initChannelGrid(data, tooltip) {
         tooltip.show(
           event.clientX,
           event.clientY,
-          `<strong>${channel}</strong><br>alpha rel. power ${formatNumber(power, 3)}<br>${item?.region ?? ""} · ${item?.hemisphere ?? ""}<br>${item?.has_clear_alpha_peak ? "alpha peak marker" : "no alpha peak marker"}`,
+          `<strong>${channel}</strong><br>alpha rel. power ${formatNumber(power, 3)}<br>${useFrame ? `t=${formatNumber(time, 2)} sec<br>` : ""}${item?.region ?? ""} · ${item?.hemisphere ?? ""}<br>${item?.has_clear_alpha_peak ? "alpha peak marker" : "no alpha peak marker"}`,
         );
       });
       group.addEventListener("mouseleave", tooltip.hide);
       svg.append(group);
     }
 
-    svg.append(...colorbar(minPower, maxPower));
+    svg.append(...colorbar(rangeMin, rangeMax));
     root.append(svg);
   }
 
@@ -161,6 +185,7 @@ export function initChannelGrid(data, tooltip) {
 
   onChannelChange(render);
   onDisplayChange(render);
+  onFrameChange(render);
   render();
 }
 

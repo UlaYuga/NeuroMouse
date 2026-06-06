@@ -1,11 +1,13 @@
 import {
   getChannel,
   getChannelIndex,
+  getFrame,
   getLiveState,
   getTimeHover,
   getVisibleChannels,
   onChannelChange,
   onDisplayChange,
+  onFrameChange,
   onLiveChange,
   onTimeHoverChange,
   setChannel,
@@ -16,6 +18,7 @@ import {
   AXIS_COLOR,
   GRID_COLOR,
   MUTED_COLOR,
+  SECONDARY_COLOR,
   canvasPoint,
   clear,
   distanceToSegment,
@@ -126,6 +129,21 @@ export function initCentroidView(data, tooltip) {
       : [0, 20, 40, 60, 80, 100];
     drawBottomAxis(ctx, ticks.map((tick) => Number(tick.toFixed ? tick.toFixed(1) : tick)), g.xScale, g.plotY + g.plotH, series.mode === "live" ? "live sec" : "sec");
 
+    if (series.mode === "static") {
+      const frameIndex = Math.min(series.times.length - 1, Math.round(getFrame() / 2));
+      const x = g.xScale(series.times[frameIndex]);
+      ctx.save();
+      ctx.strokeStyle = SECONDARY_COLOR;
+      ctx.globalAlpha = 0.72;
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 5]);
+      ctx.beginPath();
+      ctx.moveTo(x, g.plotY);
+      ctx.lineTo(x, g.plotY + g.plotH);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     const sharedHover = getTimeHover();
     if (hover || sharedHover) {
       const hoverPoint = hover || sharedHover;
@@ -217,6 +235,7 @@ export function initCentroidView(data, tooltip) {
 
   onChannelChange(draw);
   onDisplayChange(draw);
+  onFrameChange(draw);
   onLiveChange(draw);
   onTimeHoverChange(draw);
   observeCanvas(canvas, draw);

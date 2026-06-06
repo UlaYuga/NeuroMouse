@@ -1,0 +1,367 @@
+import {
+  getChannel,
+  getChannelIndex,
+  getFrame,
+  onChannelChange,
+  onFrameChange,
+} from "../state.js";
+import {
+  ACTIVE_COLOR,
+  AXIS_COLOR,
+  GRID_COLOR,
+  MUTED_COLOR,
+  SECONDARY_COLOR,
+  clamp,
+  clear,
+  formatNumber,
+  observeCanvas,
+  paddedExtent,
+  resizeCanvas,
+  scaleLinear,
+} from "./chart-utils.js";
+
+const METRICS = [
+  ["centroid", "Spectral Centroid", "Hz"],
+  ["spread", "Spectral Spread", "Hz"],
+  ["entropy", "Spectral Entropy", ""],
+  ["flatness", "Spectral Flatness", ""],
+  ["edge95", "Edge Frequency 95%", "Hz"],
+  ["alpha_relative_power", "Alpha Relative Power", ""],
+];
+
+const MODE_DELAY = "delay";
+const MODE_SCATTER = "scatter";
+
+export function initPhaseSpace(root, data) {
+  if (!root) return;
+
+  const canvas = element("canvas", {
+    id: "phase-space-chart",
+    className: "chart chart-phase",
+    width: "620",
+    height: "400",
+    role: "img",
+    "aria-label": "Phase space trajectory for the selected channel",
+  });
+  const title = element("div", { className: "phase-title-line", "aria-live": "polite" });
+  const modeGroup = element("div", {
+    className: "phase-mode segmented",
+    role: "group",
+    "aria-label": "Phase space mode",
+  });
+  const delayButton = element("button", { type: "button", className: "is-active" }, "Delay Embedding");
+  const scatterButton = element("button", { type: "button" }, "2-Metric Scatter");
+  modeGroup.append(delayButton, scatterButton);
+
+  const primarySelect = metricSelect("centroid");
+  const xSelect = metricSelect("centroid");
+  const ySelect = metricSelect("spread");
+  const tauInput = element("input", {
+    type: "number",
+    name: "phase-tau",
+    inputmode: "numeric",
+    min: "1",
+    max: "20",
+    step: "1",
+    value: "5",
+    className: "phase-tau",
+    "aria-label": "Delay tau",
+  });
+
+  const primaryControl = labeledControl("Metric", primarySelect);
+  const xControl = labeledControl("X metric", xSelect);
+  const yControl = labeledControl("Y metric", ySelect);
+  const tauControl = labeledControl("Tau", tauInput);
+  const controls = element(
+    "div",
+    { className: "phase-controls" },
+    element("div", { className: "phase-control phase-control-mode" }, element("span", {}, "Mode"), modeGroup),
+    primaryControl,
+    xControl,
+    yControl,
+    tauControl,
+  );
+
+  root.innerHTML = "";
+  root.append(controls, title, canvas);
+
+  let mode = MODE_DELAY;
+  let metric = "centroid";
+  let xMetric = "centroid";
+  let yMetric = "spread";
+  let tau = 5;
+
+  delayButton.addEventListener("click", () => {
+    mode = MODE_DELAY;
+    updateControls();
+    draw();
+  });
+  scatterButton.addEventListener("click", () => {
+    mode = MODE_SCATTER;
+    updateControls();
+    draw();
+  });
+  primarySelect.addEventListener("change", () => {
+    metric = primarySelect.value;
+    draw();
+  });
+  xSelect.addEventListener("change", () => {
+    xMetric = xSelect.value;
+    draw();
+  });
+  ySelect.addEventListener("change", () => {
+    yMetric = ySelect.value;
+    draw();
+  });
+  tauInput.addEventListener("input", () => {
+    tau = clamp(Math.round(Number(tauInput.value) || 1), 1, 20);
+    tauInput.value = String(tau);
+    draw();
+  });
+
+  function updateControls() {
+    delayButton.classList.toggle("is-active", mode === MODE_DELAY);
+    scatterButton.classList.toggle("is-active", mode === MODE_SCATTER);
+    primaryControl.hidden = mode !== MODE_DELAY;
+    xControl.hidden = mode !== MODE_SCATTER;
+    yControl.hidden = mode !== MODE_SCATTER;
+  }
+
+  function draw() {
+    const { ctx, width, height } = resizeCanvas(canvas);
+    clear(ctx, width, height);
+
+    const channel = getChannel();
+    const channelIndex = getChannelIndex();
+    const selectedMetric = metricLabel(metric);
+    const selectedXMetric = metricLabel(xMetric);
+    const selectedYMetric = metricLabel(yMetric);
+    const xKey = mode === MODE_DELAY ? metric : xMetric;
+    const yKey = mode === MODE_DELAY ? metric : yMetric;
+    const xValues = data.geometry[xKey]?.[channelIndex] ?? [];
+    const yValues = data.geometry[yKey]?.[channelIndex] ?? [];
+    const points = phasePoints(xValues, yValues, tau);
+    const displayTitle = mode === MODE_DELAY
+      ? `Delay Embedding - ${channel} - ${selectedMetric.label}`
+      : `Phase Space - ${channel} - ${selectedXMetric.label} vs ${selectedYMetric.label}`;
+
+    title.textContent = `${displayTitle} | tau ${tau}`;
+    canvas.setAttribute("aria-label", `${displayTitle}, tau ${tau}`);
+
+    const margins = { left: 58, right: 18, top: 34, bottom: 48 };
+    const plotX = margins.left;
+    const plotY = margins.top;
+    const plotW = Math.max(80, width - margins.left - margins.right);
+    const plotH = Math.max(80, height - margins.top - margins.bottom);
+
+    if (points.length < 2) {
+      ctx.fillStyle = MUTED_COLOR;
+      ctx.font = "12px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Not enough finite points", width / 2, height / 2);
+      return;
+    }
+
+    const [minX, maxX] = paddedExtent([points.map((point) => point.xValue)], 0.08);
+    const [minY, maxY] = paddedExtent([points.map((point) => point.yValue)], 0.08);
+    const xScale = scaleLinear(minX, maxX, plotX, plotX + plotW);
+    const yScale = scaleLinear(minY, maxY, plotY + plotH, plotY);
+
+    drawGrid(ctx, plotX, plotY, plotW, plotH);
+    drawTrajectory(ctx, points, xScale, yScale);
+    drawEndpoint(ctx, points[0], xScale, yScale, ACTIVE_COLOR, "start");
+    drawEndpoint(ctx, points.at(-1), xScale, yScale, SECONDARY_COLOR, "end");
+    drawPlaybackDot(ctx, points, xScale, yScale);
+    drawAxes(ctx, {
+      plotX,
+      plotY,
+      plotW,
+      plotH,
+      minX,
+      maxX,
+      minY,
+      maxY,
+      xLabel: mode === MODE_DELAY ? "X(t)" : selectedXMetric.label,
+      yLabel: mode === MODE_DELAY ? `Y(t+${tau})` : `${selectedYMetric.label}(t+${tau})`,
+    });
+  }
+
+  updateControls();
+  onChannelChange(draw);
+  onFrameChange(draw);
+  observeCanvas(canvas, draw);
+}
+
+function phasePoints(xValues, yValues, tau) {
+  const count = Math.max(0, Math.min(xValues.length, yValues.length) - tau);
+  const points = [];
+  for (let index = 0; index < count; index += 1) {
+    const xValue = Number(xValues[index]);
+    const yValue = Number(yValues[index + tau]);
+    if (Number.isFinite(xValue) && Number.isFinite(yValue)) {
+      points.push({ index, xValue, yValue });
+    }
+  }
+  return points;
+}
+
+function drawGrid(ctx, plotX, plotY, plotW, plotH) {
+  ctx.strokeStyle = "rgba(241,235,217,0.22)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(plotX, plotY, plotW, plotH);
+
+  ctx.strokeStyle = GRID_COLOR;
+  for (let i = 1; i < 4; i += 1) {
+    const x = plotX + (plotW * i) / 4;
+    const y = plotY + (plotH * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(x, plotY);
+    ctx.lineTo(x, plotY + plotH);
+    ctx.moveTo(plotX, y);
+    ctx.lineTo(plotX + plotW, y);
+    ctx.stroke();
+  }
+}
+
+function drawTrajectory(ctx, points, xScale, yScale) {
+  ctx.save();
+  ctx.lineWidth = 1.8;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const t = index / (points.length - 1);
+    ctx.strokeStyle = gradientColor(t, 0.72);
+    ctx.beginPath();
+    ctx.moveTo(xScale(previous.xValue), yScale(previous.yValue));
+    ctx.lineTo(xScale(current.xValue), yScale(current.yValue));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawEndpoint(ctx, point, xScale, yScale, color, label) {
+  const x = xScale(point.xValue);
+  const y = yScale(point.yValue);
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "#f9f5e8";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = AXIS_COLOR;
+  ctx.font = "10px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, x + 8, y);
+  ctx.restore();
+}
+
+function drawPlaybackDot(ctx, points, xScale, yScale) {
+  const frame = getFrame();
+  let nearest = points[0];
+  let distance = Math.abs(frame - nearest.index);
+  for (const point of points) {
+    const nextDistance = Math.abs(frame - point.index);
+    if (nextDistance < distance) {
+      nearest = point;
+      distance = nextDistance;
+    }
+  }
+
+  const x = xScale(nearest.xValue);
+  const y = yScale(nearest.yValue);
+  ctx.save();
+  ctx.fillStyle = "#f9f5e8";
+  ctx.strokeStyle = SECONDARY_COLOR;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(x, y, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawAxes(ctx, g) {
+  ctx.save();
+  ctx.fillStyle = MUTED_COLOR;
+  ctx.font = "10px SFMono-Regular, Roboto Mono, Cascadia Mono, ui-monospace, monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+
+  const xTicks = [g.minX, (g.minX + g.maxX) / 2, g.maxX];
+  xTicks.forEach((tick) => {
+    const x = scaleLinear(g.minX, g.maxX, g.plotX, g.plotX + g.plotW)(tick);
+    ctx.strokeStyle = "rgba(241,235,217,0.12)";
+    ctx.beginPath();
+    ctx.moveTo(x, g.plotY + g.plotH);
+    ctx.lineTo(x, g.plotY + g.plotH + 5);
+    ctx.stroke();
+    ctx.fillText(formatNumber(tick, 2), x, g.plotY + g.plotH + 9);
+  });
+  ctx.fillText(g.xLabel, g.plotX + g.plotW / 2, g.plotY + g.plotH + 30);
+
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  const yTicks = [g.minY, (g.minY + g.maxY) / 2, g.maxY];
+  yTicks.forEach((tick) => {
+    const y = scaleLinear(g.minY, g.maxY, g.plotY + g.plotH, g.plotY)(tick);
+    ctx.strokeStyle = "rgba(241,235,217,0.12)";
+    ctx.beginPath();
+    ctx.moveTo(g.plotX - 5, y);
+    ctx.lineTo(g.plotX, y);
+    ctx.stroke();
+    ctx.fillText(formatNumber(tick, 2), g.plotX - 8, y);
+  });
+
+  ctx.save();
+  ctx.translate(15, g.plotY + g.plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.fillText(g.yLabel, 0, 0);
+  ctx.restore();
+  ctx.restore();
+}
+
+function gradientColor(t, alpha) {
+  const start = [51, 222, 192];
+  const end = [229, 170, 47];
+  const rgb = start.map((value, index) => Math.round(value + (end[index] - value) * t));
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+}
+
+function metricLabel(key) {
+  const row = METRICS.find(([metric]) => metric === key) ?? METRICS[0];
+  return { key: row[0], label: row[1], unit: row[2] };
+}
+
+function metricSelect(value) {
+  const select = element("select");
+  METRICS.forEach(([key, label]) => {
+    select.append(element("option", { value: key }, label));
+  });
+  select.value = value;
+  return select;
+}
+
+function labeledControl(label, control) {
+  return element("label", { className: "phase-control" }, element("span", {}, label), control);
+}
+
+function element(name, attrs = {}, ...children) {
+  const node = document.createElement(name);
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (key === "className") node.className = value;
+    else if (value === true) node.setAttribute(key, "");
+    else if (value !== false && value != null) node.setAttribute(key, value);
+  });
+  children.flat().forEach((child) => {
+    if (child == null) return;
+    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+  });
+  return node;
+}
