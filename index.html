@@ -3,9 +3,9 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="SpeedMouse static EEG spectral explorer dashboard.">
+    <meta name="description" content="SpeedMouse dashboard.">
     <meta name="theme-color" content="#111113">
-    <title>SpeedMouse EEG Spectral Explorer</title>
+    <title>SpeedMouse</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="./style.css">
   </head>
@@ -14,30 +14,11 @@
     <div class="app-shell">
       <header class="app-header">
         <div class="brand-block">
-          <p class="eyebrow">EEG spectral explorer</p>
           <h1>SpeedMouse</h1>
-          <p class="lede">PSD, centroid, geometry, channel grid, and live spectral frames for quick inspection.</p>
-        </div>
-        <div class="header-instruments" aria-live="polite">
-          <div class="status-panel">
-            <span class="status-label">Selected channel</span>
-            <strong id="selected-channel">Cz</strong>
-            <span id="load-status">Loading data…</span>
-          </div>
-          <div class="readout-strip" aria-label="Dataset summary">
-            <span><b>32</b> channels</span>
-            <span><b>8766</b> live port</span>
-            <span><b>10-20</b> layout</span>
-          </div>
         </div>
       </header>
 
       <section class="control-panel" aria-label="Dashboard controls">
-        <div class="control-panel-head">
-          <span class="control-kicker">Analysis controls</span>
-          <span id="live-status" class="live-status">Static replay · live off</span>
-        </div>
-
         <div class="control-panel-body">
           <div class="control-group control-group-filter">
             <span class="control-label">Filter</span>
@@ -79,12 +60,6 @@
           </div>
         </div>
 
-        <div class="live-metrics" aria-live="polite">
-          <span><strong id="live-frames">0</strong> frames</span>
-          <span><strong id="live-time">—</strong> time</span>
-          <span><strong id="live-compute">—</strong> compute</span>
-          <span><strong id="live-alpha">—</strong> alpha</span>
-        </div>
       </section>
 
       <main id="dashboard" class="dashboard" aria-busy="true" tabindex="-1">

@@ -16,7 +16,7 @@ let isPlaying = false;
 let playbackSpeed = 1;
 let liveState = {
   connected: false,
-  status: "Static replay",
+  status: "Ready",
   url: "",
   frameCount: 0,
   latestFrame: null,

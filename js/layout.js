@@ -44,8 +44,8 @@ async function init() {
     activeData = data;
     configureChannels(data.meta.channels);
     configurePlayback(data.geometry.time.length);
-    selectedChannel.textContent = getChannel();
-    loadStatus.textContent = `${data.meta.n_channels} channels · ${data.meta.segment_duration_sec} sec · static JSON`;
+    if (selectedChannel) selectedChannel.textContent = getChannel();
+    if (loadStatus) loadStatus.textContent = "Ready";
     dashboard.setAttribute("aria-busy", "false");
 
     initPsdView(data, tooltip);
@@ -56,15 +56,17 @@ async function init() {
     initPhaseSpace(document.querySelector("#phase-space"), data);
 
     onChannelChange((channel) => {
-      selectedChannel.textContent = channel;
+      if (selectedChannel) selectedChannel.textContent = channel;
       updateLiveMetrics(getLiveState());
     });
     bindControls();
     onLiveChange(updateLiveMetrics);
   } catch (error) {
     dashboard.setAttribute("aria-busy", "false");
-    loadStatus.textContent = error.message;
-    loadStatus.style.color = "#ff786d";
+    if (loadStatus) {
+      loadStatus.textContent = error.message;
+      loadStatus.style.color = "#ff786d";
+    }
   }
 }
 
@@ -99,8 +101,10 @@ function startLive(url) {
   updateLiveStatus({ connected: false, status: "Connecting", url });
   liveConnect.disabled = true;
   liveDisconnect.disabled = false;
-  liveStatus.className = "live-status";
-  liveStatus.textContent = `Connecting ${url}`;
+  if (liveStatus) {
+    liveStatus.className = "live-status";
+    liveStatus.textContent = `Connecting ${url}`;
+  }
 
   liveConnection = connectLive(url, {
     onFrame(frame) {
@@ -117,8 +121,10 @@ function startLive(url) {
     },
     onError(message) {
       updateLiveStatus({ connected: false, status: message, url });
-      liveStatus.className = "live-status is-error";
-      liveStatus.textContent = message;
+      if (liveStatus) {
+        liveStatus.className = "live-status is-error";
+        liveStatus.textContent = message;
+      }
       liveConnect.disabled = false;
       liveDisconnect.disabled = false;
     },
@@ -131,7 +137,7 @@ function stopLive() {
     liveConnection = null;
   }
   clearLiveHistory();
-  updateLiveStatus({ connected: false, status: "Static replay", url: liveUrl.value.trim() });
+  updateLiveStatus({ connected: false, status: "Ready", url: liveUrl.value.trim() });
   liveConnect.disabled = false;
   liveDisconnect.disabled = true;
 }
@@ -139,25 +145,27 @@ function stopLive() {
 function updateLiveMetrics(state) {
   const frame = state.latestFrame;
   const channel = getChannel();
-  liveFrames.textContent = String(state.frameCount);
-  liveTime.textContent = frame?.window_start_time_sec == null ? "—" : `${Number(frame.window_start_time_sec).toFixed(2)}s`;
-  liveCompute.textContent = frame?.compute_ms == null ? "—" : `${Number(frame.compute_ms).toFixed(1)}ms`;
+  if (liveFrames) liveFrames.textContent = String(state.frameCount);
+  if (liveTime) liveTime.textContent = frame?.window_start_time_sec == null ? "—" : `${Number(frame.window_start_time_sec).toFixed(2)}s`;
+  if (liveCompute) liveCompute.textContent = frame?.compute_ms == null ? "—" : `${Number(frame.compute_ms).toFixed(1)}ms`;
   const alpha = liveMetric(frame, channel, "alpha_relative_power");
-  liveAlpha.textContent = alpha == null ? "—" : alpha.toFixed(4);
+  if (liveAlpha) liveAlpha.textContent = alpha == null ? "—" : alpha.toFixed(4);
 
   const liveText = state.connected ? "is-live" : "";
-  if (!liveStatus.classList.contains("is-error")) {
+  if (liveStatus && !liveStatus.classList.contains("is-error")) {
     liveStatus.className = `live-status ${liveText}`.trim();
   }
   const psdNote = state.latestFrame && !state.latestFrame.psd_by_channel
     ? " · PSD frame not included"
     : "";
-  liveStatus.textContent = state.connected
-    ? `${state.status} · ${state.url || liveUrl.value}${psdNote}`
-    : `${state.status} · live off`;
-  loadStatus.textContent = state.connected
-    ? `${activeData.meta.n_channels} channels · live spectral frames`
-    : `${activeData.meta.n_channels} channels · ${activeData.meta.segment_duration_sec} sec · static JSON`;
+  if (liveStatus) {
+    liveStatus.textContent = state.connected
+      ? `${state.status} · ${state.url || liveUrl.value}${psdNote}`
+      : state.status;
+  }
+  if (loadStatus) {
+    loadStatus.textContent = state.connected ? "Live" : "Ready";
+  }
   liveConnect.disabled = state.connected;
   liveDisconnect.disabled = !state.connected && !liveConnection;
 }
