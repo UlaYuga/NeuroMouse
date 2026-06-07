@@ -77,7 +77,7 @@ export function initMonitorView(root, data) {
   const stateText = element("strong", { className: "monitor-state is-idle" }, "● IDLE");
   const progressFill = element("div", { className: "progress-fill" });
   const progressTrack = element("div", { className: "progress-track", "aria-hidden": "true" }, progressFill);
-  const progressText = element("span", { className: "monitor-progress-text" }, "Waiting...");
+  const progressText = element("span", { className: "monitor-progress-text" }, "Waiting…");
   const currentText = element("div", { className: "monitor-current" }, "Current metric unavailable");
   const status = element("div", { className: "monitor-status", "aria-live": "polite" },
     element("div", { className: "monitor-status-row" },
@@ -257,7 +257,7 @@ export function initMonitorView(root, data) {
     } else if (state === "TRIGGERED") {
       progressText.textContent = `${formatNumber(duration, 1)} s condition met`;
     } else {
-      progressText.textContent = "Waiting...";
+      progressText.textContent = "Waiting…";
     }
 
     currentText.textContent = `${metric} · ${condition.channel} = ${valueLabel}`;

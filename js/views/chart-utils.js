@@ -1,19 +1,19 @@
 export const ACTIVE_COLOR = "#00D4A0";
 export const SECONDARY_COLOR = "#00D4A0";
-export const GRID_COLOR = "rgba(255,255,255,0.04)";
-export const AXIS_COLOR = "#8A9BA8";
-export const MUTED_COLOR = "#8A8A90";
-export const CHART_BACKGROUND = "#1C1C1E";
-export const PLOT_BORDER_COLOR = "rgba(255,255,255,0.08)";
+export const GRID_COLOR = "rgba(255,255,255,0.055)";
+export const AXIS_COLOR = "#91A2AD";
+export const MUTED_COLOR = "#737D88";
+export const CHART_BACKGROUND = "#0D1014";
+export const PLOT_BORDER_COLOR = "rgba(255,255,255,0.1)";
 export const PLAYBACK_CURSOR_COLOR = "rgba(0,212,160,0.6)";
 export const ACTIVE_GLOW_COLOR = "rgba(0,212,160,0.4)";
 export const MONO_FONT = "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace";
 export const FREQUENCY_BANDS = [
   { label: "delta", min: 1, max: 4, color: "rgba(10,132,255,0.08)" },
-  { label: "theta", min: 4, max: 8, color: "rgba(0,212,160,0.07)" },
-  { label: "alpha", min: 8, max: 13, color: "rgba(0,212,160,0.14)" },
-  { label: "beta", min: 13, max: 30, color: "rgba(0,255,191,0.06)" },
-  { label: "gamma", min: 30, max: 55, color: "rgba(10,132,255,0.06)" },
+  { label: "theta", min: 4, max: 8, color: "rgba(0,212,160,0.075)" },
+  { label: "alpha", min: 8, max: 13, color: "rgba(242,184,75,0.13)" },
+  { label: "beta", min: 13, max: 30, color: "rgba(0,212,160,0.055)" },
+  { label: "gamma", min: 30, max: 55, color: "rgba(10,132,255,0.07)" },
 ];
 
 const VIRIDIS = [

@@ -10,6 +10,9 @@ The dashboard stays browser-native: no Python in the browser, no framework, and 
 - Centroid Over Time: 32 channel lines with synchronized channel selection.
 - Geometry Stack: six sliding spectral metrics for the selected channel.
 - Channel Grid: 10-20 layout colored by alpha relative power.
+- Playback: synchronized scrubber and speed controls for animated replay.
+- Phase Space: delay embedding and two-metric trajectories for the selected channel.
+- Advanced views: polar alpha chronomap, Kuramoto phase animation, channel network, TDA persistence, and closed-loop monitor when the backing data exists.
 - Live Source: optional `ws://127.0.0.1:8766` raw EEG frames from a soulsyrup1-style backend, analyzed in a browser Web Worker.
 
 Click a channel row, line, or electrode to update every view.
@@ -24,6 +27,7 @@ Click a channel row, line, or electrode to update every view.
 - Centroid hover shows top and bottom channel rankings at that timestamp.
 - Channel grid marks channels with a clear alpha peak.
 - Session comparison imports up to six ZIP datasets and supports overlay, split, and delta views.
+- Collapsible panels keep dense analysis sections reachable without flooding the first viewport.
 
 ## Run Locally
 
@@ -54,10 +58,6 @@ The converter expects two local source archives in the ignored source data folde
 - `spectral_centroid_export.zip`
 
 It writes `data/data.json`, which is committed for static hosting.
-
-## Roadmap
-
-- Phase-space / attractor views once exported arrays are available.
 
 ## Attribution
 

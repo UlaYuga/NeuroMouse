@@ -147,7 +147,7 @@ function startLive(url) {
   liveDisconnect.disabled = false;
   if (liveStatus) {
     liveStatus.className = "live-status is-connecting";
-    liveStatus.textContent = `connecting... ${url}`;
+    liveStatus.textContent = `connecting… ${url}`;
   }
 
   liveConnection = setSource(createLiveSource(url, { referenceData: activeData }));
@@ -224,7 +224,7 @@ function statusClass(state) {
 
 function statusText(state) {
   if (state.status === "live" || state.connected) return `● live · ${state.url || liveUrl.value}`;
-  if (state.status === "connecting") return `connecting... ${state.url || liveUrl.value}`;
+  if (state.status === "connecting") return `connecting… ${state.url || liveUrl.value}`;
   if (state.status === "error") {
     return state.detail?.message ? `connection error · ${state.detail.message}` : "connection error";
   }

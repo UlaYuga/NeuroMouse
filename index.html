@@ -7,14 +7,20 @@
     <meta name="theme-color" content="#111113">
     <title>SpeedMouse</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./style.css?v=compact-20260607">
+    <link rel="stylesheet" href="./style.css?v=workstation-20260607">
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
     <div class="app-shell">
       <header class="app-header">
         <div class="brand-block">
+          <span class="brand-kicker">EEG Spectral Workstation</span>
           <h1>SpeedMouse</h1>
+        </div>
+        <div class="header-status" aria-label="Dashboard dataset summary">
+          <span><strong>32</strong> channels</span>
+          <span><strong>420</strong> frames</span>
+          <span><strong>GX</strong> dataset</span>
         </div>
       </header>
 
@@ -151,8 +157,11 @@
           </div><!-- #home-views -->
 
           <!-- ── Advanced Analysis Toggle ───────────────────────────── -->
-          <button id="advanced-toggle" class="advanced-toggle-btn" type="button">
-            Advanced Analysis
+          <button id="advanced-toggle" class="advanced-toggle-btn" type="button" aria-expanded="false" aria-controls="advanced-views">
+            <span>
+              <strong>Advanced Analysis</strong>
+              <small>phase space, network, topology, monitor</small>
+            </span>
             <span class="toggle-chevron">▾</span>
           </button>
 
@@ -274,26 +283,59 @@
     <script>
       (function () {
         // ── Collapsible panels ──────────────────────────────────────────
-        document.querySelectorAll('.panel-collapsible .panel-head').forEach(function (head) {
-          head.addEventListener('click', function () {
-            var panel = head.closest('.panel');
+        document.querySelectorAll('.panel-collapsible').forEach(function (panel, index) {
+          var head = panel.querySelector('.panel-head');
+          var body = panel.querySelector('.panel-body');
+          var icon = panel.querySelector('.panel-toggle-icon');
+          var title = panel.querySelector('h2');
+          if (!head || !body || !icon) return;
+
+          if (!body.id) {
+            body.id = (title && title.id ? title.id : 'panel-' + index) + '-body';
+          }
+
+          var toggle = document.createElement('button');
+          toggle.type = 'button';
+          toggle.className = 'panel-collapse-toggle';
+          toggle.setAttribute('aria-controls', body.id);
+          icon.replaceWith(toggle);
+          toggle.append(icon);
+
+          function syncPanelState() {
+            var expanded = panel.classList.contains('is-expanded');
+            var label = title ? title.textContent.trim() : 'panel';
+            icon.textContent = expanded ? '−' : '+';
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            toggle.setAttribute('aria-label', (expanded ? 'Collapse ' : 'Expand ') + label);
+            body.inert = !expanded;
+            body.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+          }
+
+          toggle.addEventListener('click', function () {
             var expanded = panel.classList.toggle('is-expanded');
-            var icon = head.querySelector('.panel-toggle-icon');
-            if (icon) icon.textContent = expanded ? '−' : '+';
-            // Notify views of resize after animation settles
+            syncPanelState();
+            // Notify views of resize after animation settles.
             if (expanded) {
               setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 320);
             }
           });
+          syncPanelState();
         });
 
         // ── Advanced Analysis toggle ────────────────────────────────────
         var advBtn = document.getElementById('advanced-toggle');
         var advSection = document.getElementById('advanced-views');
+        function setAdvancedOpen(open) {
+          advSection.style.display = open ? 'grid' : 'none';
+          advBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          advBtn.querySelector('.toggle-chevron').textContent = open ? '▴' : '▾';
+          if (open) {
+            setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 50);
+          }
+        }
         advBtn.addEventListener('click', function () {
           var open = advSection.style.display !== 'none';
-          advSection.style.display = open ? 'none' : 'grid';
-          advBtn.querySelector('.toggle-chevron').textContent = open ? '▾' : '▴';
+          setAdvancedOpen(!open);
         });
       }());
     </script>
