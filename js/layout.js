@@ -365,7 +365,7 @@ function setSessionMessage(message, isError = false) {
 function createTooltip(node) {
   return {
     show(x, y, html) {
-      node.innerHTML = html;
+      node.replaceChildren(sanitizeTooltipHtml(html));
       node.hidden = false;
       const rect = node.getBoundingClientRect();
       const left = Math.min(window.innerWidth - rect.width - 12, x + 14);
@@ -377,6 +377,26 @@ function createTooltip(node) {
       node.hidden = true;
     },
   };
+}
+
+function sanitizeTooltipHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const allowedTags = new Set(["BR", "SPAN", "STRONG"]);
+  const elements = Array.from(template.content.querySelectorAll("*"));
+
+  elements.forEach((elementNode) => {
+    if (!allowedTags.has(elementNode.nodeName)) {
+      elementNode.replaceWith(document.createTextNode(elementNode.textContent ?? ""));
+      return;
+    }
+
+    Array.from(elementNode.attributes).forEach((attribute) => {
+      elementNode.removeAttribute(attribute.name);
+    });
+  });
+
+  return template.content;
 }
 
 function element(name, attrs = {}, ...children) {

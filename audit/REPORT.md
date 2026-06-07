@@ -1,31 +1,36 @@
 # SpeedMouse - Audit Report
 
-Generated: 2026-06-06 21:38:03 MSK
-Base Commit: `c929c5db4eb43cd3c21f56f7266a8d8fc8456a27`
-Scope: post-fix audit after closing the original 22 warnings.
+Generated: 2026-06-07 16:47:27 MSK
+Audited Base Commit: `7c786efbcdd3ef5a4fdd6f4a8205100d056dd599`
+Scope: maximum post-design audit after the workstation UI and panel-hit-area deployment.
 
 ## Executive Summary
 
 | Domain | Status | Critical | Warning | OK |
 |--------|--------|----------|---------|----|
-| Code Quality | PASS | 0 | 0 | 9 |
-| Memory & Performance | PASS | 0 | 0 | 7 |
-| Data Integrity | PASS | 0 | 0 | 55 |
-| Functional Coverage | PASS | 0 | 0 | 37 |
-| Integration | PASS | 0 | 0 | 5 |
-| Security & Privacy | PASS | 0 | 0 | 8 |
-| UX & Accessibility | PASS | 0 | 0 | 7 |
-| Regression | PASS | 0 | 0 | 8 |
+| Code Quality | PASS | 0 | 0 | 10 |
+| Memory & Performance | PASS | 0 | 0 | 8 |
+| Data Integrity | PASS | 0 | 0 | 83 |
+| Functional Coverage | PASS | 0 | 0 | 40 |
+| Integration | PASS | 0 | 0 | 8 |
+| Security & Privacy | PASS | 0 | 0 | 10 |
+| UX & Accessibility | PASS | 0 | 0 | 10 |
+| Regression | PASS | 0 | 0 | 10 |
 
 Overall: PASS
 
 ## Critical Issues
 
-No open Critical issues.
+No open Critical issues after this remediation pass.
 
 ## Warnings
 
-No open Warning issues after the remediation pass.
+No open Warning issues after this remediation pass.
+
+## Findings Closed In This Pass
+
+- Panel headers: the previous hit-area fix made `.panel-head` clickable by mouse, but not keyboard-operable. The header is now the single accessible control with `role="button"`, `tabindex="0"`, `aria-controls`, synchronized `aria-expanded`, and Enter/Space support.
+- Tooltip HTML: tooltip markup previously used direct `innerHTML` with caller-provided HTML. Tooltips now pass through a central sanitizer that allows only `strong`, `span`, and `br`, removes all attributes, and replaces unsupported elements with text before insertion.
 
 ## Warning Remediation Summary
 
@@ -41,21 +46,39 @@ No open Warning issues after the remediation pass.
 - Contrast/font-size: tertiary text contrast and sub-10px text sizes were corrected.
 - Responsive overflow: shell sizing no longer creates horizontal overflow.
 - Repository hygiene: `source-data/`, `node_modules/`, `.env`, and `.env.*` are ignored; local `source-data/` was moved outside the repo.
+- Panel interaction: Advanced analysis subpanels support mouse, keyboard, focus-visible styling, and correct ARIA state without nested interactive controls.
+- Tooltip hardening: imported or malicious session/channel labels cannot inject active tooltip elements or event handler attributes.
 
 ## Verification
 
 ```bash
-find js/ -name "*.js" | sort | xargs -n1 node --check && echo "ALL OK"
+git diff --check
+find js/ -name "*.js" | sort | xargs -n1 node --check && echo "JS syntax OK"
 node tools/verify_data.mjs
-node --test tests/*.test.mjs 2>&1
-python3 -c "import json; d=json.load(open('data/data.json')); print('data.json OK, channels:', len(d['meta']['channels']))"
+node --test tests/*.test.mjs
+python3 -m py_compile tools/compute_phase2.py tools/compute_phase3.py tools/convert_data.py
+python3 -c "import csv, json; json.load(open('data/data.json')); print('data.json parse OK'); print('dandi rows', len(list(csv.DictReader(open('data/dandi-kinematic-dandisets.csv')))))"
 ```
 
 Browser smoke at `http://127.0.0.1:8777/`:
 
 - No console error/warn entries.
-- `window.JSZip` is not present on initial load.
-- `scrollWidth === clientWidth` after the shell sizing fix.
+- Desktop `1440x1000` and mobile `390x900` have no horizontal overflow.
+- No unnamed buttons or unlabeled inputs/selects.
+- Advanced panels open by mouse click on the full header and by Enter/Space on the focused header.
+- Panel headers expose `role="button"`, `tabindex="0"`, `aria-controls`, and synchronized `aria-expanded`.
+- Phase Space canvas renders after header expansion.
+- Tooltip sanitizer regression uses a malicious channel label containing `<img onerror>` and inline attributes; the live tooltip contains no injected image, no event attributes, and no side-effect flag.
+
+Additional data sanity:
+
+- `meta.channels`: 32
+- `geometry.time`: 420 frames
+- `welch_psd.psd`: 32 x 217
+- `geometry.*` time-series metrics: 32 x 420
+- `centroid.values`: 32 x 210
+- `geometry.area_normalized_psd.psd`: 32 x 173
+- `channel_network` matrices: 32 x 32
 
 ## Full Agent Reports
 

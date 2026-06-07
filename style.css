@@ -1641,8 +1641,14 @@ input[type="number"]:focus-visible {
   user-select: none;
 }
 
-.panel-collapsible .panel-head:hover {
+.panel-collapsible .panel-head:hover,
+.panel-collapsible .panel-head:focus-visible {
   background: var(--bg-2);
+}
+
+.panel-collapsible .panel-head:focus-visible {
+  outline: 2px solid rgba(0, 212, 160, 0.45);
+  outline-offset: -2px;
 }
 
 .panel-body {
@@ -1684,7 +1690,8 @@ input[type="number"]:focus-visible {
   pointer-events: none;
 }
 
-.panel-collapse-toggle:hover {
+.panel-collapsible .panel-head:hover .panel-collapse-toggle,
+.panel-collapsible .panel-head:focus-visible .panel-collapse-toggle {
   background: var(--bg-3);
   color: var(--text-primary);
 }

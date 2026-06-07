@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#111113">
     <title>SpeedMouse</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./style.css?v=workstation-20260607-panel-hitarea">
+    <link rel="stylesheet" href="./style.css?v=workstation-20260607-panel-a11y">
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
@@ -294,19 +294,17 @@
             body.id = (title && title.id ? title.id : 'panel-' + index) + '-body';
           }
 
-          var toggle = document.createElement('button');
-          toggle.type = 'button';
-          toggle.className = 'panel-collapse-toggle';
-          toggle.setAttribute('aria-controls', body.id);
-          icon.replaceWith(toggle);
-          toggle.append(icon);
+          icon.classList.add('panel-collapse-toggle');
+          head.setAttribute('role', 'button');
+          head.setAttribute('tabindex', '0');
+          head.setAttribute('aria-controls', body.id);
 
           function syncPanelState() {
             var expanded = panel.classList.contains('is-expanded');
             var label = title ? title.textContent.trim() : 'panel';
             icon.textContent = expanded ? '−' : '+';
-            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-            toggle.setAttribute('aria-label', (expanded ? 'Collapse ' : 'Expand ') + label);
+            head.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            head.setAttribute('aria-label', (expanded ? 'Collapse ' : 'Expand ') + label);
             body.inert = !expanded;
             body.setAttribute('aria-hidden', expanded ? 'false' : 'true');
           }
@@ -320,15 +318,15 @@
             }
           }
 
-          toggle.addEventListener('click', function (event) {
-            event.stopPropagation();
-            togglePanel();
-          });
-
           head.addEventListener('click', function (event) {
             var target = event.target;
             if (target && target.nodeType !== 1) target = target.parentElement;
-            if (target && target.closest('button, a, input, select, textarea, label')) return;
+            if (target && target.closest('a, input, select, textarea, label')) return;
+            togglePanel();
+          });
+          head.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
             togglePanel();
           });
           syncPanelState();
