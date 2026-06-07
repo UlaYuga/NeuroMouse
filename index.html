@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#111113">
     <title>SpeedMouse</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./style.css?v=workstation-20260607">
+    <link rel="stylesheet" href="./style.css?v=workstation-20260607-panel-hitarea">
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
@@ -311,13 +311,25 @@
             body.setAttribute('aria-hidden', expanded ? 'false' : 'true');
           }
 
-          toggle.addEventListener('click', function () {
+          function togglePanel() {
             var expanded = panel.classList.toggle('is-expanded');
             syncPanelState();
             // Notify views of resize after animation settles.
             if (expanded) {
               setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 320);
             }
+          }
+
+          toggle.addEventListener('click', function (event) {
+            event.stopPropagation();
+            togglePanel();
+          });
+
+          head.addEventListener('click', function (event) {
+            var target = event.target;
+            if (target && target.nodeType !== 1) target = target.parentElement;
+            if (target && target.closest('button, a, input, select, textarea, label')) return;
+            togglePanel();
           });
           syncPanelState();
         });

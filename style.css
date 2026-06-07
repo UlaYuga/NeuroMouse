@@ -1637,6 +1637,7 @@ input[type="number"]:focus-visible {
 /* ── Panel collapse system ────────────────────────────────────── */
 
 .panel-collapsible .panel-head {
+  cursor: pointer;
   user-select: none;
 }
 
