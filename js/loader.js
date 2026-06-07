@@ -73,7 +73,7 @@ export async function loadZip(file) {
   throw new Error(`${file.name} is not a complete SpeedMouse dataset ZIP`);
 }
 
-export async function loadZipFiles(files) {
+export async function loadDatasetFiles(files) {
   const datasets = [];
   const errors = [];
   const welchArchives = [];
@@ -81,6 +81,18 @@ export async function loadZipFiles(files) {
 
   for (const file of files) {
     try {
+      if (file.name.toLowerCase().endsWith(".json")) {
+        const data = JSON.parse(await file.text());
+        validateData(data);
+        datasets.push({ name: file.name, data });
+        continue;
+      }
+
+      if (!file.name.toLowerCase().endsWith(".zip")) {
+        errors.push(`${file.name}: drop SpeedMouse data.json or ZIP exports`);
+        continue;
+      }
+
       const archive = await readZip(file);
       const dataJson = findDataJson(archive.zip);
       if (dataJson) {
@@ -130,6 +142,10 @@ export async function loadZipFiles(files) {
   });
 
   return { datasets, errors };
+}
+
+export async function loadZipFiles(files) {
+  return loadDatasetFiles(files);
 }
 
 export function setSource(source) {

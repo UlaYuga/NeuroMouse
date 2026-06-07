@@ -3,24 +3,27 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="SpeedMouse dashboard.">
+    <meta name="description" content="SpeedMouse neural signal analysis workbench for offline and live EEG comparison.">
     <meta name="theme-color" content="#111113">
-    <title>SpeedMouse</title>
+    <title>SpeedMouse Neural Workbench</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./style.css?v=workstation-20260607-panel-a11y">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css?v=workbench-20260607-font-pass">
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
     <div class="app-shell">
       <header class="app-header">
         <div class="brand-block">
-          <span class="brand-kicker">EEG Spectral Workstation</span>
-          <h1>SpeedMouse</h1>
+          <span class="brand-kicker">Neural Signal Product Lab</span>
+          <h1>SpeedMouse Workbench</h1>
         </div>
         <div class="header-status" aria-label="Dashboard dataset summary">
           <span><strong>32</strong> channels</span>
           <span><strong>420</strong> frames</span>
-          <span><strong>GX</strong> dataset</span>
+          <span><strong>offline</strong> toolbox</span>
         </div>
       </header>
 
@@ -77,6 +80,86 @@
 
       <div class="app-body">
         <main id="dashboard" class="dashboard" aria-busy="true" tabindex="-1">
+
+          <section class="workbench" aria-labelledby="workbench-title">
+            <div class="workbench-head">
+              <div class="workbench-title-block">
+                <span class="workbench-kicker">Dashboard + toolbox</span>
+                <h2 id="workbench-title">Neural signal analysis workbench</h2>
+                <p>
+                  Drop saved neural data, run a curated analysis set, compare cohorts or training runs,
+                  and export a research-ready summary without opening Python for the first pass.
+                </p>
+              </div>
+              <div class="workbench-actions" aria-label="Workbench actions">
+                <button id="workbench-import" class="primary-action" type="button">Import Data</button>
+                <button id="workbench-report" type="button">Download Report</button>
+              </div>
+            </div>
+
+            <div class="pipeline-strip" aria-label="Analysis pipeline">
+              <div class="pipeline-step is-ready">
+                <span>01</span>
+                <strong>Ingest</strong>
+                <small>data.json or CSV ZIP</small>
+              </div>
+              <div class="pipeline-step is-ready">
+                <span>02</span>
+                <strong>Normalize</strong>
+                <small>channels, windows, metrics</small>
+              </div>
+              <div class="pipeline-step">
+                <span>03</span>
+                <strong>Compare</strong>
+                <small>baseline, split, delta</small>
+              </div>
+              <div class="pipeline-step">
+                <span>04</span>
+                <strong>Report</strong>
+                <small>markdown export</small>
+              </div>
+            </div>
+
+            <div class="workbench-grid">
+              <button id="workbench-drop-zone" class="workbench-drop-zone" type="button" aria-label="Import saved neural signal datasets">
+                <span class="drop-rail">Supported Now</span>
+                <strong>Drop SpeedMouse data.json, combined CSV ZIP, or Welch + geometry ZIP pair</strong>
+                <small>Imports feed the same comparison engine as the plots below.</small>
+              </button>
+
+              <div class="cohort-console" aria-label="Cohort comparison setup">
+                <div class="console-head">
+                  <span>Comparison Goal</span>
+                  <select id="workbench-scenario" aria-label="Comparison goal">
+                    <option value="trained-vs-naive">Trained vs untrained neurons</option>
+                    <option value="healthy-vs-diagnosed">Healthy vs diagnosed patients</option>
+                    <option value="baseline-vs-treatment">Baseline vs treatment</option>
+                    <option value="session-repeatability">Repeatability check</option>
+                  </select>
+                </div>
+                <div id="workbench-status" class="workbench-status" aria-live="polite">Loading analysis workspace…</div>
+                <div id="workbench-comparisons" class="comparison-readout"></div>
+                <button id="workbench-open-comparison" class="console-link" type="button">Open Comparison Suite</button>
+              </div>
+
+              <div class="toolbox-console" aria-label="Curated toolbox">
+                <div class="toolbox-head">
+                  <span>Curated Toolbox</span>
+                  <strong>Python depth, browser access</strong>
+                </div>
+                <div class="toolbox-list">
+                  <span>Spectral PSD</span>
+                  <span>Channel geometry</span>
+                  <span>Alpha chronology</span>
+                  <span>Phase synchrony</span>
+                  <span>Topology scan</span>
+                  <span>Condition monitor</span>
+                </div>
+              </div>
+
+              <div id="workbench-metrics" class="workbench-metrics" aria-label="Workbench metrics"></div>
+            </div>
+          </section>
 
           <!-- PSD Heatmap — full width, top -->
           <section class="panel panel-psd panel-collapsible is-expanded" aria-labelledby="psd-title">
@@ -240,11 +323,11 @@
                 <h2>Sessions</h2>
                 <span id="session-count">0/6</span>
               </div>
-              <button id="session-drop-zone" class="drop-zone" type="button" aria-label="Add SpeedMouse ZIP sessions">
-                <strong>Drop ZIP here</strong>
-                <span>or click to add</span>
+              <button id="session-drop-zone" class="drop-zone" type="button" aria-label="Add SpeedMouse datasets">
+                <strong>Drop datasets here</strong>
+                <span>data.json or ZIP exports</span>
               </button>
-              <input id="session-file-input" name="session-files" type="file" accept=".zip" multiple aria-label="SpeedMouse ZIP session files" hidden>
+              <input id="session-file-input" name="session-files" type="file" accept=".json,.zip,application/json,application/zip" multiple aria-label="SpeedMouse dataset files" hidden>
               <p id="session-message" class="session-message" aria-live="polite">Add sessions to compare</p>
               <div id="session-list" class="session-list"></div>
               <div class="session-controls">

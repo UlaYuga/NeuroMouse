@@ -14,7 +14,7 @@ import {
   updateLiveStatus,
 } from "./state.js";
 import { createDisposables } from "./disposables.js";
-import { createLiveSource, createStaticSource, loadData, loadZipFiles, setSource } from "./loader.js";
+import { createLiveSource, createStaticSource, loadData, loadDatasetFiles, setSource } from "./loader.js";
 import {
   MAX_SESSIONS,
   addSession,
@@ -39,6 +39,12 @@ import { initPolarChronomap } from "./views/polar-chronomap.js";
 import { initKuramotoView } from "./views/kuramoto.js";
 import { initChannelNetwork } from "./views/channel-network.js";
 import { initTdaView } from "./views/tda-view.js";
+import {
+  buildWorkbenchState,
+  formatSignedNumber,
+  formatSignedPercent,
+  generateWorkbenchReport,
+} from "./workbench.js";
 
 const dashboard = document.querySelector("#dashboard");
 const loadStatus = document.querySelector("#load-status");
@@ -58,9 +64,18 @@ const sessionList = document.querySelector("#session-list");
 const sessionMessage = document.querySelector("#session-message");
 const sessionCount = document.querySelector("#session-count");
 const baselineSelect = document.querySelector("#baseline-select");
+const workbenchImport = document.querySelector("#workbench-import");
+const workbenchReport = document.querySelector("#workbench-report");
+const workbenchDropZone = document.querySelector("#workbench-drop-zone");
+const workbenchScenario = document.querySelector("#workbench-scenario");
+const workbenchStatus = document.querySelector("#workbench-status");
+const workbenchComparisons = document.querySelector("#workbench-comparisons");
+const workbenchMetrics = document.querySelector("#workbench-metrics");
+const workbenchOpenComparison = document.querySelector("#workbench-open-comparison");
 let liveConnection = null;
 let activeData = null;
 let monitorView = null;
+let activeScenarioId = workbenchScenario?.value ?? "trained-vs-naive";
 const appDisposables = createDisposables();
 
 init();
@@ -72,11 +87,13 @@ async function init() {
     configureChannels(data.meta.channels);
     configurePlayback(data.geometry.time.length);
     updateSelectedChannelLabel(getChannel());
+    await waitForFonts();
     if (loadStatus) loadStatus.textContent = "Ready";
     dashboard.setAttribute("aria-busy", "false");
 
     bindSessionControls();
     renderSessionSidebar();
+    renderWorkbench();
     appDisposables.add(initPsdView(data, tooltip));
     appDisposables.add(initCentroidView(data, tooltip));
     appDisposables.add(initPlaybackBar(document.querySelector("#playback-bar"), data));
@@ -102,6 +119,7 @@ async function init() {
     appDisposables.add(onSessionsChange(() => {
       syncSessionState();
       renderSessionSidebar();
+      renderWorkbench();
       updateLiveMetrics(getLiveState());
     }));
     appDisposables.listen(window, "pagehide", () => appDisposables.dispose(), { once: true });
@@ -238,7 +256,36 @@ function setActiveButton(selector, active) {
   });
 }
 
+async function waitForFonts() {
+  if (!document.fonts?.ready) return;
+  await Promise.race([
+    document.fonts.ready,
+    new Promise((resolve) => setTimeout(resolve, 1500)),
+  ]);
+}
+
 function bindSessionControls() {
+  appDisposables.listen(workbenchImport, "click", () => sessionFileInput?.click());
+  appDisposables.listen(workbenchReport, "click", downloadWorkbenchReport);
+  appDisposables.listen(workbenchOpenComparison, "click", openComparisonSuite);
+  appDisposables.listen(workbenchScenario, "change", () => {
+    activeScenarioId = workbenchScenario.value;
+    renderWorkbench();
+  });
+  appDisposables.listen(workbenchDropZone, "click", () => sessionFileInput?.click());
+  appDisposables.listen(workbenchDropZone, "dragover", (event) => {
+    event.preventDefault();
+    workbenchDropZone.classList.add("drag-over");
+  });
+  appDisposables.listen(workbenchDropZone, "dragleave", () => {
+    workbenchDropZone.classList.remove("drag-over");
+  });
+  appDisposables.listen(workbenchDropZone, "drop", async (event) => {
+    event.preventDefault();
+    workbenchDropZone.classList.remove("drag-over");
+    await handleSessionFiles(Array.from(event.dataTransfer.files));
+  });
+
   appDisposables.listen(sessionDropZone, "click", () => sessionFileInput?.click());
   appDisposables.listen(sessionDropZone, "dragover", (event) => {
     event.preventDefault();
@@ -267,14 +314,13 @@ function bindSessionControls() {
 }
 
 async function handleSessionFiles(files) {
-  const zipFiles = files.filter((file) => file.name.toLowerCase().endsWith(".zip"));
-  if (!zipFiles.length) {
-    setSessionMessage("Drop ZIP files only", true);
+  if (!files.some((file) => /\.(json|zip)$/i.test(file.name))) {
+    setSessionMessage("Drop SpeedMouse data.json or ZIP exports", true);
     return;
   }
 
-  setSessionMessage("Loading ZIP…");
-  const { datasets, errors } = await loadZipFiles(zipFiles);
+  setSessionMessage("Loading datasets…");
+  const { datasets, errors } = await loadDatasetFiles(files);
   let added = 0;
   for (const dataset of datasets) {
     try {
@@ -293,6 +339,78 @@ async function handleSessionFiles(files) {
   } else {
     setSessionMessage(errors[0] ?? "No datasets found", true);
   }
+}
+
+function renderWorkbench() {
+  if (!workbenchMetrics || !activeData) return;
+  const state = buildWorkbenchState({
+    sessions: getSessions(),
+    fallbackData: activeData,
+    baselineId: getBaselineId(),
+    scenarioId: activeScenarioId,
+  });
+
+  if (workbenchStatus) {
+    workbenchStatus.textContent = state.status;
+  }
+
+  workbenchMetrics.innerHTML = "";
+  state.metrics.forEach((metric) => {
+    workbenchMetrics.append(element("div", { className: "metric-tile" },
+      element("span", {}, metric.label),
+      element("strong", {}, metric.value),
+      element("small", {}, metric.detail),
+    ));
+  });
+
+  if (workbenchComparisons) {
+    workbenchComparisons.innerHTML = "";
+    if (!state.comparisons.length) {
+      workbenchComparisons.append(element("p", { className: "empty-comparison" },
+        `${state.scenario.baselineLabel} -> ${state.scenario.targetLabel}`,
+      ));
+    } else {
+      state.comparisons.slice(0, 3).forEach((row) => {
+        workbenchComparisons.append(element("div", { className: "comparison-row" },
+          element("span", { className: "comparison-name" }, row.name),
+          element("span", {}, `alpha ${formatSignedPercent(row.alphaChange)}`),
+          element("span", {}, `centroid ${formatSignedNumber(row.centroidShiftHz, 2)} Hz`),
+          element("strong", {}, `${row.separationScore}/100`),
+        ));
+      });
+    }
+  }
+}
+
+function downloadWorkbenchReport() {
+  const report = generateWorkbenchReport({
+    sessions: getSessions(),
+    fallbackData: activeData,
+    baselineId: getBaselineId(),
+    scenarioId: activeScenarioId,
+    generatedAt: new Date(),
+  });
+  const blob = new Blob([report], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = element("a", {
+    href: url,
+    download: `speedmouse-analysis-report-${new Date().toISOString().slice(0, 10)}.md`,
+  });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function openComparisonSuite() {
+  const advancedButton = document.querySelector("#advanced-toggle");
+  const advancedViews = document.querySelector("#advanced-views");
+  if (advancedButton?.getAttribute("aria-expanded") !== "true") {
+    advancedButton?.click();
+  } else if (advancedViews) {
+    advancedViews.style.display = "grid";
+  }
+  document.querySelector(".session-sidebar")?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function syncSessionState() {

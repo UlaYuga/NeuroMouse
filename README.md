@@ -1,11 +1,12 @@
 # SpeedMouse
 
-SpeedMouse is a zero-build browser dashboard for EEG spectral analysis exports and optional live raw EEG WebSocket frames. It translates exported Welch PSD, spectral centroid, sliding spectral geometry, channel summary arrays, and browser-computed live DSP into interactive canvas/SVG views.
+SpeedMouse is a zero-build browser workbench for EEG and neural signal analysis exports, cohort comparison, report generation, and optional live raw EEG WebSocket frames. It translates saved `data.json` files, exported Welch PSD, spectral centroid, sliding spectral geometry, channel summary arrays, and browser-computed live DSP into interactive canvas/SVG views.
 
 The dashboard stays browser-native: no Python in the browser, no framework, and no required runtime service for static replay. ZIP session import uses JSZip from CDN.
 
 ## Views
 
+- Neural Workbench: file import, curated toolbox coverage, cohort comparison goal, analysis pipeline, summary metrics, and markdown report export.
 - PSD Heatmap: Welch PSD by frequency and channel, plus a selected-channel overlay.
 - Centroid Over Time: 32 channel lines with synchronized channel selection.
 - Geometry Stack: six sliding spectral metrics for the selected channel.
@@ -26,7 +27,8 @@ Click a channel row, line, or electrode to update every view.
 - Centroid and geometry hover crosshairs are synchronized.
 - Centroid hover shows top and bottom channel rankings at that timestamp.
 - Channel grid marks channels with a clear alpha peak.
-- Session comparison imports up to six ZIP datasets and supports overlay, split, and delta views.
+- Session comparison imports up to six saved datasets and supports overlay, split, and delta views.
+- Offline import accepts SpeedMouse `data.json`, combined CSV export ZIP, or a paired Welch + geometry ZIP set.
 - Collapsible panels keep dense analysis sections reachable without flooding the first viewport.
 
 ## Run Locally

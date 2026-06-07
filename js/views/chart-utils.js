@@ -7,7 +7,7 @@ export const CHART_BACKGROUND = "#0D1014";
 export const PLOT_BORDER_COLOR = "rgba(255,255,255,0.1)";
 export const PLAYBACK_CURSOR_COLOR = "rgba(0,212,160,0.6)";
 export const ACTIVE_GLOW_COLOR = "rgba(0,212,160,0.4)";
-export const MONO_FONT = "\"SF Mono\", \"Menlo\", \"Monaco\", \"Courier New\", monospace";
+export const MONO_FONT = "\"IBM Plex Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace";
 export const FREQUENCY_BANDS = [
   { label: "delta", min: 1, max: 4, color: "rgba(10,132,255,0.08)" },
   { label: "theta", min: 4, max: 8, color: "rgba(0,212,160,0.075)" },
