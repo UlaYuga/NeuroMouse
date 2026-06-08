@@ -24,3 +24,7 @@ test("session store caps datasets at six with unique colors", () => {
   assert.equal(new Set(getSessions().map((session) => session.color)).size, 6);
   assert.throws(() => addSession("session_7.zip", data), /Maximum 6 sessions/);
 });
+
+test("session store rejects duplicate dataset names", () => {
+  assert.throws(() => addSession("session_0.zip", data), /already loaded/);
+});

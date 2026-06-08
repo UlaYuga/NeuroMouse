@@ -40,11 +40,14 @@ import { initKuramotoView } from "./views/kuramoto.js";
 import { initChannelNetwork } from "./views/channel-network.js";
 import { initTdaView } from "./views/tda-view.js";
 import {
+  buildImportReceipt,
   buildWorkbenchState,
+  createDemoDatasetPair,
   formatNumber,
   formatPercent,
   formatSignedNumber,
   formatSignedPercent,
+  generateWorkbenchReportPreview,
   generateWorkbenchReport,
 } from "./workbench.js";
 
@@ -67,8 +70,10 @@ const sessionMessage = document.querySelector("#session-message");
 const sessionCount = document.querySelector("#session-count");
 const baselineSelect = document.querySelector("#baseline-select");
 const workbenchImport = document.querySelector("#workbench-import");
+const workbenchDemo = document.querySelector("#workbench-demo");
 const workbenchReport = document.querySelector("#workbench-report");
 const workbenchDropZone = document.querySelector("#workbench-drop-zone");
+const workbenchImportLog = document.querySelector("#workbench-import-log");
 const workbenchScenario = document.querySelector("#workbench-scenario");
 const workbenchStatus = document.querySelector("#workbench-status");
 const workbenchComparisons = document.querySelector("#workbench-comparisons");
@@ -76,8 +81,14 @@ const workbenchMetrics = document.querySelector("#workbench-metrics");
 const workbenchOpenComparison = document.querySelector("#workbench-open-comparison");
 const workbenchScenarioDetail = document.querySelector("#workbench-scenario-detail");
 const workbenchBaselineSummary = document.querySelector("#workbench-baseline-summary");
+const workbenchBaselineSelect = document.querySelector("#workbench-baseline-select");
 const workbenchReadiness = document.querySelector("#workbench-readiness");
 const workbenchQuality = document.querySelector("#workbench-quality");
+const workbenchReportDialog = document.querySelector("#workbench-report-dialog");
+const workbenchReportPreview = document.querySelector("#workbench-report-preview");
+const workbenchReportDownload = document.querySelector("#workbench-report-download");
+const workbenchReportClose = document.querySelector("#workbench-report-close");
+const workbenchReportDismiss = document.querySelector("#workbench-report-dismiss");
 let liveConnection = null;
 let activeData = null;
 let monitorView = null;
@@ -272,7 +283,8 @@ async function waitForFonts() {
 
 function bindSessionControls() {
   appDisposables.listen(workbenchImport, "click", () => sessionFileInput?.click());
-  appDisposables.listen(workbenchReport, "click", downloadWorkbenchReport);
+  appDisposables.listen(workbenchDemo, "click", loadDemoPair);
+  appDisposables.listen(workbenchReport, "click", openReportPreview);
   appDisposables.listen(workbenchOpenComparison, "click", openComparisonSuite);
   appDisposables.listen(workbenchScenario, "change", () => {
     activeScenarioId = workbenchScenario.value;
@@ -317,34 +329,90 @@ function bindSessionControls() {
   appDisposables.listen(baselineSelect, "change", () => {
     setBaseline(baselineSelect.value);
   });
+  appDisposables.listen(workbenchBaselineSelect, "change", () => {
+    setBaseline(workbenchBaselineSelect.value);
+  });
+  appDisposables.listen(workbenchReportDownload, "click", downloadWorkbenchReport);
+  appDisposables.listen(workbenchReportClose, "click", closeReportPreview);
+  appDisposables.listen(workbenchReportDismiss, "click", closeReportPreview);
+  appDisposables.listen(workbenchReportDialog, "click", (event) => {
+    if (event.target === workbenchReportDialog) closeReportPreview();
+  });
 }
 
 async function handleSessionFiles(files) {
-  if (!files.some((file) => /\.(json|zip)$/i.test(file.name))) {
+  const supportedFiles = files.filter((file) => /\.(json|zip)$/i.test(file.name));
+  if (!supportedFiles.length) {
+    renderImportReceipt(buildImportReceipt({
+      rejected: files.length
+        ? files.map((file) => `${file.name}: unsupported format`)
+        : ["No file selected"],
+    }));
     setSessionMessage("Drop SpeedMouse data.json or ZIP exports", true);
     return;
   }
 
   setSessionMessage("Loading datasets…");
-  const { datasets, errors } = await loadDatasetFiles(files);
-  let added = 0;
+  const { datasets, errors } = await loadDatasetFiles(supportedFiles);
+  const accepted = [];
+  const skipped = [];
+  const rejected = [...errors];
+
   for (const dataset of datasets) {
     try {
       addSession(dataset.name, dataset.data);
-      added += 1;
+      accepted.push(`${dataset.name}: added`);
     } catch (error) {
-      errors.push(error.message);
-      break;
+      const message = `${dataset.name}: ${error.message}`;
+      if (/already loaded|Maximum \d+ sessions/i.test(error.message)) {
+        skipped.push(message);
+      } else {
+        rejected.push(message);
+      }
+      if (/Maximum \d+ sessions/i.test(error.message)) break;
     }
   }
 
-  if (added > 0 && errors.length) {
-    setSessionMessage(`Added ${added}; ${errors[0]}`, true);
-  } else if (added > 0) {
-    setSessionMessage(`Added ${added} session${added === 1 ? "" : "s"}`);
+  const receipt = buildImportReceipt({ accepted, skipped, rejected });
+  renderImportReceipt(receipt);
+
+  if (receipt.acceptedCount > 0) {
+    setSessionMessage(receipt.headline, receipt.rejectedCount > 0);
   } else {
-    setSessionMessage(errors[0] ?? "No datasets found", true);
+    setSessionMessage(receipt.rows[0]?.message ?? "No datasets found", true);
   }
+}
+
+function loadDemoPair() {
+  if (!activeData) return;
+  const accepted = [];
+  const skipped = [];
+  const rejected = [];
+  let baselineId = null;
+
+  createDemoDatasetPair(activeData).forEach((session) => {
+    try {
+      const added = addSession(session.name, session.data);
+      accepted.push(`${session.name}: added`);
+      if (!baselineId) baselineId = added.id;
+    } catch (error) {
+      const message = `${session.name}: ${error.message}`;
+      if (/already loaded|Maximum \d+ sessions/i.test(error.message)) {
+        skipped.push(message);
+      } else {
+        rejected.push(message);
+      }
+    }
+  });
+
+  if (baselineId) {
+    setBaseline(baselineId);
+    setViewMode("overlay");
+  }
+
+  const receipt = buildImportReceipt({ accepted, skipped, rejected });
+  renderImportReceipt(receipt);
+  setSessionMessage(receipt.headline, receipt.rejectedCount > 0 && receipt.acceptedCount === 0);
 }
 
 function renderWorkbench() {
@@ -453,12 +521,96 @@ function renderQualityFlags(state) {
   });
 }
 
+function renderImportReceipt(receipt) {
+  if (!workbenchImportLog || !workbenchDropZone) return;
+  workbenchImportLog.innerHTML = "";
+  workbenchDropZone.classList.toggle("has-import-log", receipt.rows.length > 0);
+  if (!receipt.rows.length) return;
+
+  workbenchImportLog.append(element("span", { className: "import-headline" }, receipt.headline));
+  receipt.rows.slice(0, 4).forEach((row) => {
+    workbenchImportLog.append(element("span", { className: `import-row is-${row.status}` },
+      element("strong", {}, row.status),
+      element("span", {}, row.message),
+    ));
+  });
+  if (receipt.rows.length > 4) {
+    workbenchImportLog.append(element("span", { className: "import-row is-more" },
+      element("strong", {}, `+${receipt.rows.length - 4}`),
+      element("span", {}, "more import events"),
+    ));
+  }
+}
+
 function formatPrimaryValue(row) {
   if (row.primaryMetric === "alphaChange") return formatSignedPercent(row.primaryValue);
   if (row.primaryMetric === "centroidShiftHz") return `${formatSignedNumber(row.primaryValue, 2)} Hz`;
   if (row.primaryMetric === "entropyShift" || row.primaryMetric === "flatnessShift") return formatSignedNumber(row.primaryValue, 4);
   if (row.primaryMetric === "driftScore") return `${Math.round(Number(row.primaryValue) || 0)}/100`;
   return formatSignedNumber(row.primaryValue, 2);
+}
+
+function openReportPreview() {
+  if (!workbenchReportPreview || !workbenchReportDialog) return;
+  const preview = generateWorkbenchReportPreview({
+    sessions: getSessions(),
+    fallbackData: activeData,
+    baselineId: getBaselineId(),
+    scenarioId: activeScenarioId,
+    generatedAt: new Date(),
+  });
+  renderReportPreview(preview);
+  if (typeof workbenchReportDialog.showModal === "function") {
+    workbenchReportDialog.showModal();
+  } else {
+    workbenchReportDialog.setAttribute("open", "");
+  }
+  workbenchReportDownload?.focus();
+}
+
+function closeReportPreview() {
+  if (!workbenchReportDialog) return;
+  if (typeof workbenchReportDialog.close === "function") {
+    workbenchReportDialog.close();
+  } else {
+    workbenchReportDialog.removeAttribute("open");
+  }
+}
+
+function renderReportPreview(preview) {
+  if (!workbenchReportPreview) return;
+  workbenchReportPreview.innerHTML = "";
+  workbenchReportPreview.append(
+    element("div", { className: `report-preview-status ${preview.ready ? "is-ready" : "is-draft"}` },
+      element("span", {}, preview.ready ? "Ready for export" : "Draft"),
+      element("strong", {}, preview.status),
+    ),
+    element("div", { className: "report-preview-grid" },
+      element("section", { className: "report-preview-section" },
+        element("span", {}, "Scenario"),
+        element("strong", {}, preview.scenario.label),
+        element("p", {}, preview.scenario.description),
+      ),
+      element("section", { className: "report-preview-section" },
+        element("span", {}, "Baseline"),
+        element("strong", {}, preview.baseline?.name ?? "Static demo dataset"),
+        element("p", {}, preview.baseline
+          ? `${preview.baseline.channels} channels · ${preview.baseline.frames} frames`
+          : "Import a baseline to compare saved sessions."),
+      ),
+      element("section", { className: "report-preview-section" },
+        element("span", {}, "Datasets"),
+        element("strong", {}, String(preview.datasets.length)),
+        element("p", {}, `${preview.comparisons.length} comparison${preview.comparisons.length === 1 ? "" : "s"} in scope`),
+      ),
+      element("section", { className: "report-preview-section" },
+        element("span", {}, "Quality checks"),
+        element("strong", {}, String(preview.qualityFlags.length)),
+        element("p", {}, preview.qualityFlags.slice(0, 2).map((flag) => flag.message).join(" · ") || "No flags"),
+      ),
+    ),
+    element("pre", { className: "report-markdown", tabIndex: 0 }, preview.markdown),
+  );
 }
 
 function downloadWorkbenchReport() {
@@ -538,19 +690,30 @@ function renderSessionSidebar() {
     });
   }
 
-  if (baselineSelect) {
-    baselineSelect.innerHTML = "";
-    const baselineId = getBaselineId();
-    sessions.forEach((session) => {
-      baselineSelect.append(element("option", {
-        value: session.id,
-        selected: session.id === baselineId,
-      }, session.name));
-    });
-    baselineSelect.disabled = sessions.length === 0;
-  }
+  renderBaselineOptions(baselineSelect, sessions, "No imported baselines");
+  renderBaselineOptions(workbenchBaselineSelect, sessions, "Demo dataset");
 
   if (!sessions.length) setSessionMessage("Add sessions to compare");
+}
+
+function renderBaselineOptions(select, sessions, emptyLabel) {
+  if (!select) return;
+  select.innerHTML = "";
+  const baselineId = getBaselineId();
+
+  if (!sessions.length) {
+    select.append(element("option", { value: "", selected: true }, emptyLabel));
+    select.disabled = true;
+    return;
+  }
+
+  sessions.forEach((session) => {
+    select.append(element("option", {
+      value: session.id,
+      selected: session.id === baselineId,
+    }, session.name));
+  });
+  select.disabled = false;
 }
 
 function setSessionMessage(message, isError = false) {

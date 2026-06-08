@@ -19,6 +19,9 @@ let viewMode = "overlay";
 let baselineId = null;
 
 export function addSession(name, data) {
+  if (sessions.some((session) => session.name === name)) {
+    throw new Error(`${name} is already loaded`);
+  }
   if (sessions.length >= MAX_SESSIONS) {
     throw new Error(`Maximum ${MAX_SESSIONS} sessions`);
   }

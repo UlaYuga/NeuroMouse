@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./style.css?v=workbench-20260608-research-console">
+    <link rel="stylesheet" href="./style.css?v=workbench-20260608-product-flow">
   </head>
   <body>
     <a class="skip-link" href="#dashboard">Skip to dashboard</a>
@@ -93,7 +93,8 @@
               </div>
               <div class="workbench-actions" aria-label="Workbench actions">
                 <button id="workbench-import" class="primary-action" type="button">Import Data</button>
-                <button id="workbench-report" type="button">Download Report</button>
+                <button id="workbench-demo" type="button">Load Demo Pair</button>
+                <button id="workbench-report" type="button">Preview Report</button>
               </div>
             </div>
 
@@ -130,6 +131,7 @@
                   <span>CSV ZIP</span>
                   <span>Welch + geometry</span>
                 </span>
+                <span id="workbench-import-log" class="import-log" aria-live="polite"></span>
               </button>
 
               <div class="cohort-console" aria-label="Cohort comparison setup">
@@ -144,6 +146,10 @@
                 </div>
                 <p id="workbench-scenario-detail" class="scenario-detail">Compare trained neural cultures against untrained controls using spectral geometry and synchrony markers.</p>
                 <div id="workbench-baseline-summary" class="baseline-summary" aria-label="Selected baseline"></div>
+                <label class="workbench-baseline-control" for="workbench-baseline-select">
+                  <span>Baseline</span>
+                  <select id="workbench-baseline-select" aria-label="Workbench baseline"></select>
+                </label>
                 <div id="workbench-status" class="workbench-status" aria-live="polite">Loading analysis workspace…</div>
                 <div id="workbench-comparisons" class="comparison-readout"></div>
                 <button id="workbench-open-comparison" class="console-link" type="button">Open Comparison Suite</button>
@@ -369,6 +375,23 @@
         <a href="https://github.com/MikMikMiller/SpeedMouse">MikMikMiller/SpeedMouse</a>.
       </footer>
     </div>
+
+    <dialog id="workbench-report-dialog" class="report-dialog" aria-labelledby="report-dialog-title">
+      <div class="report-dialog-shell">
+        <div class="report-dialog-head">
+          <div>
+            <span>Report Preview</span>
+            <h2 id="report-dialog-title">SpeedMouse Analysis Report</h2>
+          </div>
+          <button id="workbench-report-close" class="report-close" type="button" aria-label="Close report preview">×</button>
+        </div>
+        <div id="workbench-report-preview" class="report-preview"></div>
+        <div class="report-dialog-actions">
+          <button id="workbench-report-download" class="primary-action" type="button">Download Markdown</button>
+          <button id="workbench-report-dismiss" type="button">Close</button>
+        </div>
+      </div>
+    </dialog>
 
     <div id="tooltip" class="tooltip" hidden></div>
     <script type="module" src="./js/layout.js"></script>

@@ -199,6 +199,69 @@ export function generateWorkbenchReport({
   return `${lines.join("\n")}\n`;
 }
 
+export function generateWorkbenchReportPreview(options = {}) {
+  const state = buildWorkbenchState(options);
+  return {
+    title: "SpeedMouse Neural Signal Analysis Report",
+    ready: state.reportReadiness.ready,
+    status: state.status,
+    scenario: state.scenario,
+    baseline: state.baseline && state.baselineSummary
+      ? {
+        id: state.baseline.id,
+        name: state.baseline.name,
+        ...state.baselineSummary,
+      }
+      : null,
+    datasets: state.datasets,
+    comparisons: state.comparisons,
+    qualityFlags: state.qualityFlags,
+    markdown: generateWorkbenchReport(options),
+  };
+}
+
+export function createDemoDatasetPair(data) {
+  if (!data) return [];
+  return [
+    {
+      id: "demo-baseline",
+      name: "Demo baseline",
+      data: cloneDataset(data),
+      active: true,
+    },
+    {
+      id: "demo-target",
+      name: "Demo trained response",
+      data: shiftDemoDataset(data),
+      active: true,
+    },
+  ];
+}
+
+export function buildImportReceipt({ accepted = [], skipped = [], rejected = [] } = {}) {
+  const rows = [
+    ...accepted.map((message) => ({ status: "accepted", message })),
+    ...skipped.map((message) => ({ status: "skipped", message })),
+    ...rejected.map((message) => ({ status: "rejected", message })),
+  ];
+  const acceptedCount = accepted.length;
+  const skippedCount = skipped.length;
+  const rejectedCount = rejected.length;
+  const parts = [];
+  if (acceptedCount) parts.push(`${acceptedCount} accepted`);
+  if (skippedCount) parts.push(`${skippedCount} skipped`);
+  if (rejectedCount) parts.push(`${rejectedCount} rejected`);
+
+  return {
+    acceptedCount,
+    skippedCount,
+    rejectedCount,
+    hasProblems: skippedCount > 0 || rejectedCount > 0,
+    headline: parts.length ? parts.join(" · ") : "No files processed",
+    rows,
+  };
+}
+
 export function formatNumber(value, digits = 2) {
   const number = finiteNumber(value);
   return number == null ? "--" : numberFormatter(digits).format(number);
@@ -377,6 +440,67 @@ function interpretationText(scenario, name, baselineName, score, primaryValue) {
   return `${name} is close to ${baselineName}; use the detailed plots before treating this as a separated cohort.`;
 }
 
+function shiftDemoDataset(data) {
+  const shifted = cloneDataset(data);
+  shifted.meta = {
+    ...shifted.meta,
+    source: `${shifted.meta?.source ?? "SpeedMouse dataset"} · demo comparison target`,
+    source_files: {
+      ...(shifted.meta?.source_files ?? {}),
+      demo_pair: "synthetic browser demo target",
+    },
+  };
+
+  shifted.channel_summary = shifted.channel_summary.map((channel, index) => ({
+    ...channel,
+    alpha_relative_power: scaleByIndex(channel.alpha_relative_power, 1.14, index),
+    sliding_alpha_relative_mean: scaleByIndex(channel.sliding_alpha_relative_mean, 1.16, index),
+    spectral_centroid_hz: addByIndex(channel.spectral_centroid_hz, 1.15, index),
+    spectral_entropy: addByIndex(channel.spectral_entropy, 0.018, index, 0.2, 1),
+    spectral_flatness: addByIndex(channel.spectral_flatness, 0.012, index, 0, 1),
+  }));
+
+  if (shifted.geometry?.alpha_relative_power) {
+    shifted.geometry.alpha_relative_power = shifted.geometry.alpha_relative_power.map((row, channelIndex) => (
+      row.map((value, timeIndex) => scaleByIndex(value, 1.1 + (timeIndex % 5) * 0.004, channelIndex))
+    ));
+  }
+  if (shifted.geometry?.centroid) {
+    shifted.geometry.centroid = shifted.geometry.centroid.map((row, channelIndex) => (
+      row.map((value, timeIndex) => addByIndex(value, 0.75 + (timeIndex % 4) * 0.05, channelIndex))
+    ));
+  }
+  if (shifted.geometry?.entropy) {
+    shifted.geometry.entropy = shifted.geometry.entropy.map((row, channelIndex) => (
+      row.map((value) => addByIndex(value, 0.012, channelIndex, 0, 1))
+    ));
+  }
+  if (shifted.centroid?.values) {
+    shifted.centroid.values = shifted.centroid.values.map((row, channelIndex) => (
+      row.map((value, timeIndex) => addByIndex(value, 0.75 + (timeIndex % 4) * 0.05, channelIndex))
+    ));
+  }
+
+  return shifted;
+}
+
+function cloneDataset(data) {
+  return JSON.parse(JSON.stringify(data));
+}
+
+function scaleByIndex(value, multiplier, index) {
+  const number = finiteNumber(value);
+  if (number == null) return value;
+  return round(number * (multiplier + (index % 4) * 0.012), 6);
+}
+
+function addByIndex(value, amount, index, min = -Infinity, max = Infinity) {
+  const number = finiteNumber(value);
+  if (number == null) return value;
+  const next = number + amount + (index % 5) * amount * 0.08;
+  return round(Math.min(max, Math.max(min, next)), 6);
+}
+
 function durationSeconds(data, timeAxis) {
   const metaDuration = finiteNumber(data?.meta?.segment_duration_sec);
   if (metaDuration != null && metaDuration > 0) return metaDuration;
@@ -431,4 +555,9 @@ function numberFormatter(digits) {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
+}
+
+function round(value, digits) {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
 }

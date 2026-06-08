@@ -4,7 +4,10 @@ import { readFile } from "node:fs/promises";
 
 import {
   buildWorkbenchState,
+  buildImportReceipt,
+  createDemoDatasetPair,
   generateWorkbenchReport,
+  generateWorkbenchReportPreview,
   summarizeDataset,
 } from "../js/workbench.js";
 
@@ -71,6 +74,37 @@ test("buildWorkbenchState applies scenario-specific scoring and readiness", () =
   assert.equal(state.qualityFlags.some((flag) => flag.level === "ready"), true);
 });
 
+test("buildImportReceipt summarizes accepted, skipped, and rejected files", () => {
+  const receipt = buildImportReceipt({
+    accepted: ["baseline.json", "target.zip"],
+    skipped: ["baseline.json: already loaded"],
+    rejected: ["notes.txt: unsupported format"],
+  });
+
+  assert.equal(receipt.acceptedCount, 2);
+  assert.equal(receipt.skippedCount, 1);
+  assert.equal(receipt.rejectedCount, 1);
+  assert.equal(receipt.hasProblems, true);
+  assert.match(receipt.headline, /2 accepted/);
+  assert.equal(receipt.rows[0].status, "accepted");
+});
+
+test("createDemoDatasetPair returns comparison-ready baseline and target data", () => {
+  const sessions = createDemoDatasetPair(data);
+  const state = buildWorkbenchState({
+    sessions,
+    baselineId: "demo-baseline",
+    scenarioId: "trained-vs-naive",
+  });
+
+  assert.equal(sessions.length, 2);
+  assert.equal(sessions[0].name, "Demo baseline");
+  assert.equal(sessions[1].name, "Demo trained response");
+  assert.equal(state.comparisons.length, 1);
+  assert.equal(state.reportReadiness.ready, true);
+  assert.equal(state.comparisons[0].score > 0, true);
+});
+
 test("generateWorkbenchReport emits a reusable markdown report", () => {
   const report = generateWorkbenchReport({
     sessions: [
@@ -90,4 +124,23 @@ test("generateWorkbenchReport emits a reusable markdown report", () => {
   assert.match(report, /## Data Quality/);
   assert.match(report, /## Reproducibility/);
   assert.match(report, /Scenario interpretation/);
+});
+
+test("generateWorkbenchReportPreview exposes executive and quality sections", () => {
+  const preview = generateWorkbenchReportPreview({
+    sessions: createDemoDatasetPair(data),
+    baselineId: "demo-baseline",
+    scenarioId: "baseline-vs-treatment",
+    generatedAt: new Date("2026-06-08T18:00:00.000Z"),
+  });
+
+  assert.equal(preview.ready, true);
+  assert.match(preview.title, /SpeedMouse/);
+  assert.equal(preview.baseline.name, "Demo baseline");
+  assert.equal(preview.baseline.channels, 32);
+  assert.equal(preview.baseline.frames, 420);
+  assert.equal(preview.datasets.length, 2);
+  assert.equal(preview.comparisons.length, 1);
+  assert.equal(preview.qualityFlags.length >= 4, true);
+  assert.match(preview.markdown, /## Executive Readout/);
 });
