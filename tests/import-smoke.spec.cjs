@@ -18,7 +18,7 @@ test("imports saved sessions and previews the workbench report", async ({ page }
     if (message.type() === "error") consoleErrors.push(message.text());
   });
 
-  await page.goto(`${baseUrl}/?smoke=demo`, { waitUntil: "networkidle" });
+  await page.goto(`${baseUrl}/?smoke=demo`, { waitUntil: "domcontentloaded" });
   await expect(page.locator("#dashboard")).toHaveAttribute("aria-busy", "false");
   await page.locator("#workbench-demo").click();
   await expect(page.locator("#session-count")).toHaveText("2/6");
@@ -27,7 +27,7 @@ test("imports saved sessions and previews the workbench report", async ({ page }
   await expect(page.locator("#workbench-report-dialog[open] .report-preview-status")).toContainText("Ready for export");
   await page.locator("#workbench-report-dismiss").click();
 
-  await page.goto(`${baseUrl}/?smoke=import`, { waitUntil: "networkidle" });
+  await page.goto(`${baseUrl}/?smoke=import`, { waitUntil: "domcontentloaded" });
   await expect(page.locator("#dashboard")).toHaveAttribute("aria-busy", "false");
   await page.locator("#session-file-input").setInputFiles([
     sourcePath,
