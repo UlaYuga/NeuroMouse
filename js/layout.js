@@ -41,6 +41,8 @@ import { initChannelNetwork } from "./views/channel-network.js";
 import { initTdaView } from "./views/tda-view.js";
 import {
   buildWorkbenchState,
+  formatNumber,
+  formatPercent,
   formatSignedNumber,
   formatSignedPercent,
   generateWorkbenchReport,
@@ -72,6 +74,10 @@ const workbenchStatus = document.querySelector("#workbench-status");
 const workbenchComparisons = document.querySelector("#workbench-comparisons");
 const workbenchMetrics = document.querySelector("#workbench-metrics");
 const workbenchOpenComparison = document.querySelector("#workbench-open-comparison");
+const workbenchScenarioDetail = document.querySelector("#workbench-scenario-detail");
+const workbenchBaselineSummary = document.querySelector("#workbench-baseline-summary");
+const workbenchReadiness = document.querySelector("#workbench-readiness");
+const workbenchQuality = document.querySelector("#workbench-quality");
 let liveConnection = null;
 let activeData = null;
 let monitorView = null;
@@ -350,8 +356,15 @@ function renderWorkbench() {
     scenarioId: activeScenarioId,
   });
 
+  renderPipelineState(state);
+  renderScenarioSummary(state);
+  renderBaselineSummary(state);
+  renderReadiness(state);
+  renderQualityFlags(state);
+
   if (workbenchStatus) {
     workbenchStatus.textContent = state.status;
+    workbenchStatus.className = `workbench-status ${state.reportReadiness.ready ? "is-ready" : "is-draft"}`;
   }
 
   workbenchMetrics.innerHTML = "";
@@ -373,13 +386,79 @@ function renderWorkbench() {
       state.comparisons.slice(0, 3).forEach((row) => {
         workbenchComparisons.append(element("div", { className: "comparison-row" },
           element("span", { className: "comparison-name" }, row.name),
-          element("span", {}, `alpha ${formatSignedPercent(row.alphaChange)}`),
-          element("span", {}, `centroid ${formatSignedNumber(row.centroidShiftHz, 2)} Hz`),
-          element("strong", {}, `${row.separationScore}/100`),
+          element("span", {}, `${row.primaryLabel} ${formatPrimaryValue(row)}`),
+          element("span", {}, `${row.scoreLabel} ${row.score}/100`),
+          element("strong", {}, row.interpretation),
         ));
       });
     }
   }
+}
+
+function renderPipelineState(state) {
+  document.querySelectorAll("[data-pipeline-step]").forEach((step) => {
+    const key = step.dataset.pipelineStep;
+    const ready = key === "ingest" ||
+      key === "normalize" ||
+      (key === "compare" && state.comparisons.length > 0) ||
+      (key === "report" && state.reportReadiness.ready);
+    step.classList.toggle("is-ready", ready);
+  });
+}
+
+function renderScenarioSummary(state) {
+  if (workbenchScenarioDetail) {
+    workbenchScenarioDetail.textContent = state.scenario.description;
+  }
+}
+
+function renderBaselineSummary(state) {
+  if (!workbenchBaselineSummary) return;
+  workbenchBaselineSummary.innerHTML = "";
+  if (!state.baseline || !state.baselineSummary) {
+    workbenchBaselineSummary.append(element("span", {}, "No baseline selected"));
+    return;
+  }
+
+  workbenchBaselineSummary.append(
+    element("span", { className: "baseline-label" }, state.scenario.baselineLabel),
+    element("strong", {}, state.baseline.name),
+    element("div", { className: "baseline-facts" },
+      element("span", {}, `${state.baselineSummary.channels} ch`),
+      element("span", {}, `${state.baselineSummary.frames} frames`),
+      element("span", {}, `${formatNumber(state.baselineSummary.centroidMeanHz, 1)} Hz centroid`),
+      element("span", {}, `${formatPercent(state.baselineSummary.clearAlphaRatio)} alpha clear`),
+    ),
+  );
+}
+
+function renderReadiness(state) {
+  if (!workbenchReadiness) return;
+  workbenchReadiness.innerHTML = "";
+  workbenchReadiness.className = `readiness-panel ${state.reportReadiness.ready ? "is-ready" : "is-draft"}`;
+  workbenchReadiness.append(
+    element("span", {}, state.reportReadiness.ready ? "Report ready" : "Report draft"),
+    element("strong", {}, state.reportReadiness.message),
+  );
+}
+
+function renderQualityFlags(state) {
+  if (!workbenchQuality) return;
+  workbenchQuality.innerHTML = "";
+  state.qualityFlags.forEach((flag) => {
+    workbenchQuality.append(element("div", { className: `quality-item is-${flag.level}` },
+      element("span", {}, flag.label),
+      element("strong", {}, flag.message),
+    ));
+  });
+}
+
+function formatPrimaryValue(row) {
+  if (row.primaryMetric === "alphaChange") return formatSignedPercent(row.primaryValue);
+  if (row.primaryMetric === "centroidShiftHz") return `${formatSignedNumber(row.primaryValue, 2)} Hz`;
+  if (row.primaryMetric === "entropyShift" || row.primaryMetric === "flatnessShift") return formatSignedNumber(row.primaryValue, 4);
+  if (row.primaryMetric === "driftScore") return `${Math.round(Number(row.primaryValue) || 0)}/100`;
+  return formatSignedNumber(row.primaryValue, 2);
 }
 
 function downloadWorkbenchReport() {

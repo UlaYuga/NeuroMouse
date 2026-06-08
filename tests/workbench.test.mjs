@@ -52,6 +52,25 @@ test("buildWorkbenchState compares active sessions against baseline", () => {
   assert.equal(state.comparisons[0].separationScore > 0, true);
 });
 
+test("buildWorkbenchState applies scenario-specific scoring and readiness", () => {
+  const sessions = [
+    { id: "baseline", name: "run-a.json", data, active: true },
+    { id: "target", name: "run-b.json", data: shiftedData(), active: true },
+  ];
+  const state = buildWorkbenchState({
+    sessions,
+    baselineId: "baseline",
+    scenarioId: "session-repeatability",
+  });
+
+  assert.equal(state.scenario.id, "session-repeatability");
+  assert.equal(state.comparisons[0].scoreLabel, "Stability");
+  assert.equal(state.comparisons[0].primaryLabel, "Drift");
+  assert.match(state.comparisons[0].interpretation, /drift|stable/i);
+  assert.equal(state.reportReadiness.ready, true);
+  assert.equal(state.qualityFlags.some((flag) => flag.level === "ready"), true);
+});
+
 test("generateWorkbenchReport emits a reusable markdown report", () => {
   const report = generateWorkbenchReport({
     sessions: [
@@ -67,4 +86,8 @@ test("generateWorkbenchReport emits a reusable markdown report", () => {
   assert.match(report, /Workflow: Healthy vs diagnosed/);
   assert.match(report, /diagnosed\.zip/);
   assert.match(report, /Toolbox Coverage/);
+  assert.match(report, /## Executive Readout/);
+  assert.match(report, /## Data Quality/);
+  assert.match(report, /## Reproducibility/);
+  assert.match(report, /Scenario interpretation/);
 });

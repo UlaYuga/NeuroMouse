@@ -5,6 +5,10 @@ export const SCENARIOS = [
     baselineLabel: "Untrained baseline",
     targetLabel: "Trained cohort",
     focus: "learning evidence",
+    scoreLabel: "Separation",
+    primaryLabel: "Alpha gain",
+    primaryMetric: "alphaChange",
+    goodThreshold: 28,
     description: "Compare trained neural cultures against untrained controls using spectral geometry and synchrony markers.",
   },
   {
@@ -13,6 +17,10 @@ export const SCENARIOS = [
     baselineLabel: "Healthy reference",
     targetLabel: "Diagnosed cohort",
     focus: "phenotype separation",
+    scoreLabel: "Phenotype distance",
+    primaryLabel: "Entropy shift",
+    primaryMetric: "entropyShift",
+    goodThreshold: 24,
     description: "Summarize cohort-level differences for clinical or translational EEG review.",
   },
   {
@@ -21,6 +29,10 @@ export const SCENARIOS = [
     baselineLabel: "Pre-intervention",
     targetLabel: "Post-intervention",
     focus: "treatment response",
+    scoreLabel: "Response",
+    primaryLabel: "Alpha response",
+    primaryMetric: "alphaChange",
+    goodThreshold: 18,
     description: "Track whether a stimulation, drug, or protocol changed spectral activity after intervention.",
   },
   {
@@ -29,6 +41,11 @@ export const SCENARIOS = [
     baselineLabel: "Reference run",
     targetLabel: "Repeat run",
     focus: "stability and drift",
+    scoreLabel: "Stability",
+    primaryLabel: "Drift",
+    primaryMetric: "driftScore",
+    goodThreshold: 74,
+    scoreMode: "stability",
     description: "Check whether repeated recordings preserve expected spectral geometry and signal shape.",
   },
 ];
@@ -91,9 +108,12 @@ export function buildWorkbenchState({
   const comparisons = baseline && datasets.length > 1
     ? datasets.filter((session) => session.id !== baseline.id).map((session) => {
       const sessionSummary = summarizeDataset(session.data);
-      return compareSummaries(session, sessionSummary, baseline, baselineSummary);
+      return compareSummaries(session, sessionSummary, baseline, baselineSummary, scenario);
     })
     : [];
+  const topComparison = rankComparisons(comparisons, scenario)[0] ?? null;
+  const qualityFlags = buildQualityFlags(datasets, baselineSummary, comparisons);
+  const reportReadiness = buildReportReadiness(datasets, comparisons, qualityFlags);
 
   return {
     scenario,
@@ -101,8 +121,11 @@ export function buildWorkbenchState({
     baselineSummary,
     datasets,
     comparisons,
-    metrics: buildMetricTiles(datasets, fallbackData, baselineSummary, comparisons),
-    status: comparisonStatus(datasets, baseline, comparisons, scenario),
+    topComparison,
+    qualityFlags,
+    reportReadiness,
+    metrics: buildMetricTiles(datasets, fallbackData, baselineSummary, comparisons, reportReadiness, scenario),
+    status: comparisonStatus(datasets, baseline, comparisons, scenario, topComparison),
   };
 }
 
@@ -122,6 +145,13 @@ export function generateWorkbenchReport({
     `Workflow: ${state.scenario.label}`,
     `Purpose: ${state.scenario.focus}`,
     "",
+    "## Executive Readout",
+    "",
+    `- Baseline: ${state.baseline ? escapePipe(state.baseline.name) : "not selected"}`,
+    `- Dataset count: ${state.datasets.length}`,
+    `- Report readiness: ${state.reportReadiness.ready ? "ready" : state.reportReadiness.message}`,
+    `- Scenario interpretation: ${state.topComparison ? state.topComparison.interpretation : state.status}`,
+    "",
     "## Dataset Summary",
     "",
     "| Dataset | Channels | Frames | Duration | Mean alpha | Mean centroid | Clear alpha |",
@@ -140,9 +170,14 @@ export function generateWorkbenchReport({
     lines.push("| Target | Baseline | Alpha change | Centroid shift | Entropy shift | Separation |");
     lines.push("| --- | --- | ---: | ---: | ---: | ---: |");
     state.comparisons.forEach((row) => {
-      lines.push(`| ${escapePipe(row.name)} | ${escapePipe(row.baselineName)} | ${formatSignedPercent(row.alphaChange)} | ${formatSignedNumber(row.centroidShiftHz, 2)} Hz | ${formatSignedNumber(row.entropyShift, 4)} | ${row.separationScore}/100 |`);
+      lines.push(`| ${escapePipe(row.name)} | ${escapePipe(row.baselineName)} | ${formatSignedPercent(row.alphaChange)} | ${formatSignedNumber(row.centroidShiftHz, 2)} Hz | ${formatSignedNumber(row.entropyShift, 4)} | ${row.scoreLabel}: ${row.score}/100 |`);
     });
   }
+
+  lines.push("", "## Data Quality", "");
+  state.qualityFlags.forEach((flag) => {
+    lines.push(`- ${flag.label}: ${flag.message}`);
+  });
 
   lines.push(
     "",
@@ -152,6 +187,13 @@ export function generateWorkbenchReport({
     "- Live monitoring: WebSocket raw EEG source remains available for real-time checks.",
     "- Comparative analysis: overlay, split, and delta modes use the selected baseline.",
     "- Export: this report preserves the dataset names, comparison goal, and numeric readout.",
+    "",
+    "## Reproducibility",
+    "",
+    "- Source files: SpeedMouse data.json, combined CSV ZIP, or paired Welch + geometry ZIP.",
+    "- Baseline rule: active baseline selected in the comparison suite at export time.",
+    "- Browser runtime: static HTML, CSS, and vanilla ES modules; no server-side computation is required for saved datasets.",
+    "- Numeric readout: alpha change is relative to baseline; centroid, entropy, and flatness shifts are absolute deltas.",
   );
 
   return `${lines.join("\n")}\n`;
@@ -190,9 +232,9 @@ export function formatDuration(seconds) {
   return `${minutes}m ${remainder}s`;
 }
 
-function buildMetricTiles(datasets, fallbackData, baselineSummary, comparisons) {
+function buildMetricTiles(datasets, fallbackData, baselineSummary, comparisons, reportReadiness, scenario) {
   const loadedSummary = baselineSummary ?? (fallbackData ? summarizeDataset(fallbackData) : null);
-  const topComparison = comparisons[0] ?? null;
+  const topComparison = rankComparisons(comparisons, scenario)[0] ?? null;
   return [
     {
       label: "Datasets",
@@ -210,14 +252,19 @@ function buildMetricTiles(datasets, fallbackData, baselineSummary, comparisons) 
       detail: loadedSummary ? `mean ${formatNumber(loadedSummary.alphaMean, 4)}` : "no summary",
     },
     {
-      label: "Separation",
-      value: topComparison ? `${topComparison.separationScore}` : "--",
+      label: topComparison?.scoreLabel ?? scenario.scoreLabel,
+      value: topComparison ? `${topComparison.score}` : "--",
       detail: topComparison ? `${topComparison.name} vs baseline` : "needs two datasets",
+    },
+    {
+      label: "Report",
+      value: reportReadiness.ready ? "Ready" : "Draft",
+      detail: reportReadiness.message,
     },
   ];
 }
 
-function compareSummaries(session, summary, baseline, baselineSummary) {
+function compareSummaries(session, summary, baseline, baselineSummary, scenario) {
   const alphaChange = relativeChange(summary.alphaMean, baselineSummary.alphaMean);
   const centroidShiftHz = nullableDiff(summary.centroidMeanHz, baselineSummary.centroidMeanHz);
   const entropyShift = nullableDiff(summary.entropyMean, baselineSummary.entropyMean);
@@ -228,6 +275,16 @@ function compareSummaries(session, summary, baseline, baselineSummary) {
     Math.abs(entropyShift ?? 0) * 140 +
     Math.abs(flatnessShift ?? 0) * 90,
   ));
+  const driftScore = Math.max(0, 100 - separationScore);
+  const score = scenario.scoreMode === "stability" ? driftScore : separationScore;
+  const primaryValue = scenario.primaryMetric === "driftScore"
+    ? 100 - driftScore
+    : {
+      alphaChange,
+      centroidShiftHz,
+      entropyShift,
+      flatnessShift,
+    }[scenario.primaryMetric];
 
   return {
     id: session.id,
@@ -239,17 +296,85 @@ function compareSummaries(session, summary, baseline, baselineSummary) {
     entropyShift,
     flatnessShift,
     separationScore,
+    driftScore,
+    score,
+    scoreLabel: scenario.scoreLabel,
+    primaryLabel: scenario.primaryLabel,
+    primaryMetric: scenario.primaryMetric,
+    primaryValue,
+    interpretation: interpretationText(scenario, session.name, baseline.name, score, primaryValue),
   };
 }
 
-function comparisonStatus(datasets, baseline, comparisons, scenario) {
+function comparisonStatus(datasets, baseline, comparisons, scenario, topComparison) {
   if (!datasets.length) return "Drop saved neural data to start offline analysis.";
   if (!baseline) return "Choose a baseline dataset before comparing cohorts.";
   if (!comparisons.length) {
     return `Loaded ${baseline.name}. Add a ${scenario.targetLabel.toLowerCase()} dataset to calculate deltas.`;
   }
-  const top = comparisons.slice().sort((a, b) => b.separationScore - a.separationScore)[0];
-  return `${top.name} is ${top.separationScore}/100 separated from ${top.baselineName} for ${scenario.focus}.`;
+  const top = topComparison ?? rankComparisons(comparisons, scenario)[0];
+  return `${top.name}: ${top.scoreLabel.toLowerCase()} ${top.score}/100 for ${scenario.focus}. ${top.interpretation}`;
+}
+
+function buildQualityFlags(datasets, baselineSummary, comparisons) {
+  return [
+    {
+      level: datasets.length > 1 ? "ready" : "waiting",
+      label: "Cohort depth",
+      message: datasets.length > 1 ? `${datasets.length} active datasets` : "Add a second dataset for cohort deltas",
+    },
+    {
+      level: baselineSummary?.channels >= 16 ? "ready" : "warn",
+      label: "Channel coverage",
+      message: baselineSummary ? `${baselineSummary.channels} channels, ${baselineSummary.frames} frames` : "No baseline summary available",
+    },
+    {
+      level: baselineSummary?.clearAlphaRatio >= 0.5 ? "ready" : "warn",
+      label: "Alpha markers",
+      message: baselineSummary ? `${formatPercent(baselineSummary.clearAlphaRatio)} channels with clear alpha peak` : "Alpha markers not available",
+    },
+    {
+      level: comparisons.length ? "ready" : "waiting",
+      label: "Comparison",
+      message: comparisons.length ? `${comparisons.length} target readout${comparisons.length === 1 ? "" : "s"}` : "Waiting for target dataset",
+    },
+  ];
+}
+
+function buildReportReadiness(datasets, comparisons, qualityFlags) {
+  if (!datasets.length) {
+    return { ready: false, message: "waiting for saved data" };
+  }
+  if (!comparisons.length) {
+    return { ready: false, message: "needs target dataset" };
+  }
+  const warnCount = qualityFlags.filter((flag) => flag.level === "warn").length;
+  return {
+    ready: true,
+    message: warnCount ? `${warnCount} quality warning${warnCount === 1 ? "" : "s"}` : "ready for export",
+  };
+}
+
+function rankComparisons(comparisons, scenario) {
+  return comparisons.slice().sort((a, b) => {
+    if (scenario.scoreMode === "stability") return b.score - a.score;
+    return b.separationScore - a.separationScore;
+  });
+}
+
+function interpretationText(scenario, name, baselineName, score, primaryValue) {
+  if (scenario.scoreMode === "stability") {
+    if (score >= scenario.goodThreshold) {
+      return `${name} is stable against ${baselineName}; drift stays in the expected repeatability band.`;
+    }
+    return `${name} shows drift against ${baselineName}; review channel alignment and acquisition conditions before pooling.`;
+  }
+
+  const primary = Math.abs(finiteNumber(primaryValue) ?? 0);
+  if (score >= scenario.goodThreshold && primary > 0) {
+    return `${name} carries measurable ${scenario.focus}; promote it to the detailed overlay and delta views.`;
+  }
+  return `${name} is close to ${baselineName}; use the detailed plots before treating this as a separated cohort.`;
 }
 
 function durationSeconds(data, timeAxis) {
