@@ -70,7 +70,7 @@ export async function loadZip(file) {
     return buildDataFromCsvArchives(zip, zip, file.name);
   }
 
-  throw new Error(`${file.name} is not a complete SpeedMouse dataset ZIP`);
+  throw new Error(`${file.name} is not a complete NeuroMouse dataset ZIP`);
 }
 
 export async function loadDatasetFiles(files) {
@@ -89,7 +89,7 @@ export async function loadDatasetFiles(files) {
       }
 
       if (!file.name.toLowerCase().endsWith(".zip")) {
-        errors.push(`${file.name}: drop SpeedMouse data.json or ZIP exports`);
+        errors.push(`${file.name}: drop NeuroMouse data.json or ZIP exports`);
         continue;
       }
 

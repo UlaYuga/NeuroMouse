@@ -54,7 +54,7 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`SpeedMouse listening on ${host}:${port}`);
+  console.log(`NeuroMouse listening on ${host}:${port}`);
 });
 
 async function resolveRequestPath(pathname) {

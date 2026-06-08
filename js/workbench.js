@@ -80,7 +80,7 @@ export function summarizeDataset(data) {
       summary.filter((item) => item.has_clear_alpha_peak).length,
       summary.length,
     ),
-    source: data?.meta?.source ?? "SpeedMouse dataset",
+    source: data?.meta?.source ?? "NeuroMouse dataset",
   };
 }
 
@@ -139,7 +139,7 @@ export function generateWorkbenchReport({
   const state = buildWorkbenchState({ sessions, fallbackData, baselineId, scenarioId });
   const date = generatedAt instanceof Date ? generatedAt.toISOString() : String(generatedAt);
   const lines = [
-    "# SpeedMouse Neural Signal Analysis Report",
+    "# NeuroMouse Neural Signal Analysis Report",
     "",
     `Generated: ${date}`,
     `Workflow: ${state.scenario.label}`,
@@ -183,14 +183,14 @@ export function generateWorkbenchReport({
     "",
     "## Toolbox Coverage",
     "",
-    "- Offline file import: SpeedMouse data.json, combined CSV export ZIP, or paired Welch + geometry ZIP.",
+    "- Offline file import: NeuroMouse data.json, combined CSV export ZIP, or paired Welch + geometry ZIP.",
     "- Live monitoring: WebSocket raw EEG source remains available for real-time checks.",
     "- Comparative analysis: overlay, split, and delta modes use the selected baseline.",
     "- Export: this report preserves the dataset names, comparison goal, and numeric readout.",
     "",
     "## Reproducibility",
     "",
-    "- Source files: SpeedMouse data.json, combined CSV ZIP, or paired Welch + geometry ZIP.",
+    "- Source files: NeuroMouse data.json, combined CSV ZIP, or paired Welch + geometry ZIP.",
     "- Baseline rule: active baseline selected in the comparison suite at export time.",
     "- Browser runtime: static HTML, CSS, and vanilla ES modules; no server-side computation is required for saved datasets.",
     "- Numeric readout: alpha change is relative to baseline; centroid, entropy, and flatness shifts are absolute deltas.",
@@ -202,7 +202,7 @@ export function generateWorkbenchReport({
 export function generateWorkbenchReportPreview(options = {}) {
   const state = buildWorkbenchState(options);
   return {
-    title: "SpeedMouse Neural Signal Analysis Report",
+    title: "NeuroMouse Neural Signal Analysis Report",
     ready: state.reportReadiness.ready,
     status: state.status,
     scenario: state.scenario,
@@ -444,7 +444,7 @@ function shiftDemoDataset(data) {
   const shifted = cloneDataset(data);
   shifted.meta = {
     ...shifted.meta,
-    source: `${shifted.meta?.source ?? "SpeedMouse dataset"} · demo comparison target`,
+    source: `${shifted.meta?.source ?? "NeuroMouse dataset"} · demo comparison target`,
     source_files: {
       ...(shifted.meta?.source_files ?? {}),
       demo_pair: "synthetic browser demo target",

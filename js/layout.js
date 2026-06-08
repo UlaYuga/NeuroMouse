@@ -348,7 +348,7 @@ async function handleSessionFiles(files) {
         ? files.map((file) => `${file.name}: unsupported format`)
         : ["No file selected"],
     }));
-    setSessionMessage("Drop SpeedMouse data.json or ZIP exports", true);
+    setSessionMessage("Drop NeuroMouse data.json or ZIP exports", true);
     return;
   }
 
@@ -625,7 +625,7 @@ function downloadWorkbenchReport() {
   const url = URL.createObjectURL(blob);
   const link = element("a", {
     href: url,
-    download: `speedmouse-analysis-report-${new Date().toISOString().slice(0, 10)}.md`,
+    download: `neuromouse-analysis-report-${new Date().toISOString().slice(0, 10)}.md`,
   });
   document.body.append(link);
   link.click();

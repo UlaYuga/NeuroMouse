@@ -6,7 +6,7 @@ import { loadDatasetFiles } from "../js/loader.js";
 
 const dataText = await readFile(new URL("../data/data.json", import.meta.url), "utf8");
 
-test("loadDatasetFiles accepts direct SpeedMouse data.json files", async () => {
+test("loadDatasetFiles accepts direct NeuroMouse data.json files", async () => {
   const file = new File([dataText], "data.json", { type: "application/json" });
 
   const { datasets, errors } = await loadDatasetFiles([file]);
@@ -24,5 +24,5 @@ test("loadDatasetFiles reports unsupported saved-data formats", async () => {
 
   assert.deepEqual(datasets, []);
   assert.equal(errors.length, 1);
-  assert.match(errors[0], /drop SpeedMouse data\.json or ZIP exports/);
+  assert.match(errors[0], /drop NeuroMouse data\.json or ZIP exports/);
 });

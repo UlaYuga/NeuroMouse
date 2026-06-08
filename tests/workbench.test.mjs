@@ -116,7 +116,7 @@ test("generateWorkbenchReport emits a reusable markdown report", () => {
     generatedAt: new Date("2026-06-07T17:30:00.000Z"),
   });
 
-  assert.match(report, /# SpeedMouse Neural Signal Analysis Report/);
+  assert.match(report, /# NeuroMouse Neural Signal Analysis Report/);
   assert.match(report, /Workflow: Healthy vs diagnosed/);
   assert.match(report, /diagnosed\.zip/);
   assert.match(report, /Toolbox Coverage/);
@@ -135,7 +135,7 @@ test("generateWorkbenchReportPreview exposes executive and quality sections", ()
   });
 
   assert.equal(preview.ready, true);
-  assert.match(preview.title, /SpeedMouse/);
+  assert.match(preview.title, /NeuroMouse/);
   assert.equal(preview.baseline.name, "Demo baseline");
   assert.equal(preview.baseline.channels, 32);
   assert.equal(preview.baseline.frames, 420);

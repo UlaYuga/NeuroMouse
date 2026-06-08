@@ -7,7 +7,6 @@ Spectral analysis: soulsyrup1/Complete-Neural-Signal-Analysis
 CC BY-SA 4.0, Synthetic Intelligence Labs  
 https://github.com/soulsyrup1/Complete-Neural-Signal-Analysis
 
-Visualization: MikMikMiller/SpeedMouse  
+Visualization: UlaYuga/SpeedMouse  
 CC BY-SA 4.0  
-https://github.com/MikMikMiller/SpeedMouse
-
+https://github.com/UlaYuga/SpeedMouse

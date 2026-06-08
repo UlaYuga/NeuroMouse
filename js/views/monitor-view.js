@@ -337,7 +337,7 @@ function exportCSV(log) {
   const url = URL.createObjectURL(blob);
   const link = Object.assign(document.createElement("a"), {
     href: url,
-    download: `speedmouse-triggers-${Date.now()}.csv`,
+    download: `neuromouse-triggers-${Date.now()}.csv`,
   });
   link.click();
   URL.revokeObjectURL(url);

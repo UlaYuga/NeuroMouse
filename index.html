@@ -3,9 +3,9 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="SpeedMouse neural signal analysis workbench for offline and live EEG comparison.">
+    <meta name="description" content="NeuroMouse neural signal analysis workbench for offline and live EEG comparison.">
     <meta name="theme-color" content="#111113">
-    <title>SpeedMouse Neural Workbench</title>
+    <title>NeuroMouse Neural Workbench</title>
     <link rel="icon" href="data:,">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,7 +18,7 @@
       <header class="app-header">
         <div class="brand-block">
           <span class="brand-kicker">Neural Signal Product Lab</span>
-          <h1>SpeedMouse Workbench</h1>
+          <h1>NeuroMouse Workbench</h1>
         </div>
         <div class="header-status" aria-label="Dashboard dataset summary">
           <span><strong>32</strong> channels</span>
@@ -124,7 +124,7 @@
             <div class="workbench-grid">
               <button id="workbench-drop-zone" class="workbench-drop-zone" type="button" aria-label="Import saved neural signal datasets">
                 <span class="drop-rail">Supported Now</span>
-                <strong>Drop SpeedMouse data.json, combined CSV ZIP, or Welch + geometry ZIP pair</strong>
+                <strong>Drop NeuroMouse data.json, combined CSV ZIP, or Welch + geometry ZIP pair</strong>
                 <small>Imports feed the same baseline, overlay, split, delta, and report engine as the plots below.</small>
                 <span class="drop-formats" aria-hidden="true">
                   <span>JSON</span>
@@ -338,11 +338,11 @@
                 <h2>Sessions</h2>
                 <span id="session-count">0/6</span>
               </div>
-              <button id="session-drop-zone" class="drop-zone" type="button" aria-label="Add SpeedMouse datasets">
+              <button id="session-drop-zone" class="drop-zone" type="button" aria-label="Add NeuroMouse datasets">
                 <strong>Drop datasets here</strong>
                 <span>data.json or ZIP exports</span>
               </button>
-              <input id="session-file-input" name="session-files" type="file" accept=".json,.zip,application/json,application/zip" multiple aria-label="SpeedMouse dataset files" hidden>
+              <input id="session-file-input" name="session-files" type="file" accept=".json,.zip,application/json,application/zip" multiple aria-label="NeuroMouse dataset files" hidden>
               <p id="session-message" class="session-message" aria-live="polite">Add sessions to compare</p>
               <div id="session-list" class="session-list"></div>
               <div class="session-controls">
@@ -372,7 +372,7 @@
         Spectral analysis:
         <a href="https://github.com/soulsyrup1/Complete-Neural-Signal-Analysis">soulsyrup1/Complete-Neural-Signal-Analysis</a>.
         Visualization:
-        <a href="https://github.com/MikMikMiller/SpeedMouse">MikMikMiller/SpeedMouse</a>.
+        <a href="https://github.com/UlaYuga/SpeedMouse">UlaYuga/SpeedMouse</a>.
       </footer>
     </div>
 
@@ -381,7 +381,7 @@
         <div class="report-dialog-head">
           <div>
             <span>Report Preview</span>
-            <h2 id="report-dialog-title">SpeedMouse Analysis Report</h2>
+            <h2 id="report-dialog-title">NeuroMouse Analysis Report</h2>
           </div>
           <button id="workbench-report-close" class="report-close" type="button" aria-label="Close report preview">×</button>
         </div>
