@@ -1,8 +1,8 @@
 # Repository Metadata
 
 Canonical repository: https://github.com/UlaYuga/NeuroMouse
-Production host: https://neuromouse.ai
-Railway fallback: managed in Railway until the custom domain DNS is connected.
+Production host: https://neuromouse.up.railway.app
+Custom domain target: https://neuromouse.ai
 
 ## GitHub About
 
@@ -12,7 +12,7 @@ NeuroMouse is a Railway-hosted browser workbench for EEG and neural signal analy
 
 Homepage:
 
-https://neuromouse.ai
+https://neuromouse.up.railway.app
 
 Topics:
 

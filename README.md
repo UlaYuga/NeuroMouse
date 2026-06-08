@@ -4,9 +4,9 @@ NeuroMouse is a zero-build browser workbench for EEG and neural signal analysis 
 
 The dashboard stays browser-native: no Python in the browser, no framework, and no required runtime service for static replay. ZIP session import uses JSZip from CDN.
 
-Production: https://neuromouse.ai
+Production: https://neuromouse.up.railway.app
 
-Railway fallback: managed in Railway until the custom domain DNS is connected.
+Custom domain target: https://neuromouse.ai
 
 ## Views
 
