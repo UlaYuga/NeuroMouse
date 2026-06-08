@@ -1,0 +1,11 @@
+.git
+.github
+.claude
+.DS_Store
+node_modules
+test-results
+source-data
+audit
+tests
+tools
+*.log

@@ -1,5 +1,6 @@
 source-data/
 node_modules/
+test-results/
 .env
 .env.*
 .DS_Store
