@@ -48,7 +48,7 @@ Result: all 7 tests passed.
 ## ATTRIBUTION.md
 - [OK] GX dataset attribution present.
 - [OK] soulsyrup1 attribution present.
-- [OK] MikMikMiller/SpeedMouse attribution present.
+- [OK] MikMikMiller/NeuroMouse attribution present.
 
 ## .gitignore
 - [OK] `source-data/` present.

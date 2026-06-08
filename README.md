@@ -6,7 +6,7 @@ The dashboard stays browser-native: no Python in the browser, no framework, and 
 
 Production: https://neuromouse.ai
 
-Railway fallback: https://speedmouse-production.up.railway.app
+Railway fallback: managed in Railway until the custom domain DNS is connected.
 
 ## Views
 

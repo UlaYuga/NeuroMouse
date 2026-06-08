@@ -1,8 +1,8 @@
 # Repository Metadata
 
-Canonical repository: https://github.com/UlaYuga/SpeedMouse
+Canonical repository: https://github.com/UlaYuga/NeuroMouse
 Production host: https://neuromouse.ai
-Railway fallback: https://speedmouse-production.up.railway.app
+Railway fallback: managed in Railway until the custom domain DNS is connected.
 
 ## GitHub About
 
@@ -24,10 +24,10 @@ Topics:
 
 ## Migration Note
 
-The previous SpeedMouse repository was checked before deletion on 2026-06-08. Its GitHub About metadata was empty:
+The previous NeuroMouse repository was checked before deletion on 2026-06-08. Its GitHub About metadata was empty:
 
 - description: not set
 - homepage: not set
 - topics: none
 
-The description above was derived from the project README and saved on the canonical `UlaYuga/SpeedMouse` repository.
+The description above was derived from the project README and saved on the canonical `UlaYuga/NeuroMouse` repository.

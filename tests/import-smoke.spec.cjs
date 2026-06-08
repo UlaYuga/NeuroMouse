@@ -3,7 +3,7 @@ const { readFile, writeFile } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 
-const baseUrl = process.env.NEUROMOUSE_SMOKE_URL ?? process.env.SPEEDMOUSE_SMOKE_URL ?? "http://127.0.0.1:4173";
+const baseUrl = process.env.NEUROMOUSE_SMOKE_URL ?? "http://127.0.0.1:4173";
 const sourcePath = join(__dirname, "../data/data.json");
 
 test.use({

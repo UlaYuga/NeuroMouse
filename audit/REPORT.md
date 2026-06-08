@@ -1,4 +1,4 @@
-# SpeedMouse - Audit Report
+# NeuroMouse - Audit Report
 
 Generated: 2026-06-07 16:47:27 MSK
 Audited Base Commit: `7c786efbcdd3ef5a4fdd6f4a8205100d056dd599`

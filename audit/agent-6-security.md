@@ -19,7 +19,7 @@ Post-fix security/privacy audit.
 
 ## source-data
 - [OK] `.gitignore` includes `source-data/`.
-- [OK] Local `source-data/` was moved out of the repo to `/Users/axel/Documents/SpeedMouse-source-data-backup-20260606-212553`.
+- [OK] Local `source-data/` was moved out of the repo to `/Users/axel/Documents/NeuroMouse-source-data-backup-20260606-212553`.
 
 ## PII Scan
 - [OK] `data/data.json` PII keyword count is 0.
