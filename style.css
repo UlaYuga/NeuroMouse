@@ -2411,6 +2411,21 @@ input[type="number"]:focus-visible {
   border-color: rgba(255, 133, 133, 0.4);
 }
 
+.explain-ask {
+  margin: var(--s2) var(--s4) 0;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.explain-ask::placeholder {
+  color: var(--text-tertiary);
+}
+
 .report-preview-status {
   display: grid;
   gap: 5px;

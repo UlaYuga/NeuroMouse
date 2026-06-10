@@ -93,6 +93,7 @@ const workbenchReportClose = document.querySelector("#workbench-report-close");
 const workbenchReportDismiss = document.querySelector("#workbench-report-dismiss");
 const workbenchExplainBtn = document.querySelector("#workbench-explain-btn");
 const workbenchExplain = document.querySelector("#workbench-explain");
+const workbenchExplainQuestion = document.querySelector("#workbench-explain-q");
 let lastReportMarkdown = "";
 let liveConnection = null;
 let activeData = null;
@@ -368,7 +369,7 @@ async function handleSessionFiles(files) {
   for (const dataset of datasets) {
     try {
       addSession(dataset.name, dataset.data);
-      accepted.push(`${dataset.name}: added`);
+      accepted.push(`${dataset.name}: added · ${describeMontage(dataset.data)}`);
     } catch (error) {
       const message = `${dataset.name}: ${error.message}`;
       if (/already loaded|Maximum \d+ sessions/i.test(error.message)) {
@@ -400,7 +401,7 @@ function loadDemoPair() {
   createDemoDatasetPair(activeData).forEach((session) => {
     try {
       const added = addSession(session.name, session.data);
-      accepted.push(`${session.name}: added`);
+      accepted.push(`${session.name}: added · ${describeMontage(session.data)}`);
       if (!baselineId) baselineId = added.id;
     } catch (error) {
       const message = `${session.name}: ${error.message}`;
@@ -586,6 +587,7 @@ function resetExplain() {
   workbenchExplain.textContent = "";
   workbenchExplain.classList.remove("is-error");
   if (workbenchExplainBtn) workbenchExplainBtn.disabled = false;
+  if (workbenchExplainQuestion) workbenchExplainQuestion.value = "";
 }
 
 async function requestExplanation() {
@@ -596,15 +598,18 @@ async function requestExplanation() {
     workbenchExplain.textContent = "Load datasets and a comparison first.";
     return;
   }
+  const question = workbenchExplainQuestion?.value.trim() ?? "";
   workbenchExplainBtn.disabled = true;
   workbenchExplain.hidden = false;
   workbenchExplain.classList.remove("is-error");
-  workbenchExplain.textContent = "Generating a plain-language explanation… this can take up to a minute.";
+  workbenchExplain.textContent = question
+    ? "Answering your question… this can take up to a minute."
+    : "Generating a plain-language explanation… this can take up to a minute.";
   try {
     const result = await fetch("/api/explain", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ context: { report: lastReportMarkdown } }),
+      body: JSON.stringify({ context: { report: lastReportMarkdown }, question }),
     });
     const data = await result.json().catch(() => ({}));
     if (!result.ok) {
@@ -709,6 +714,12 @@ function updateHeaderStatus(data) {
   const frameCount = data?.geometry?.time?.length ?? 0;
   if (headerChannels) headerChannels.textContent = channelCount ? String(channelCount) : "--";
   if (headerFrames) headerFrames.textContent = frameCount ? String(frameCount) : "--";
+}
+
+function describeMontage(data) {
+  const channelCount = data?.meta?.channels?.length ?? 0;
+  const frameCount = data?.geometry?.time?.length ?? 0;
+  return `${channelCount} ch, ${frameCount} frames`;
 }
 
 function updateSelectedChannelLabel(channel) {
