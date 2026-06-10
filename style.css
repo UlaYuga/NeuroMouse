@@ -2392,6 +2392,25 @@ input[type="number"]:focus-visible {
   padding: var(--s4);
 }
 
+.explain-output {
+  margin: 0 var(--s4);
+  padding: var(--s3);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.explain-output.is-error {
+  color: #ff8585;
+  border-color: rgba(255, 133, 133, 0.4);
+}
+
 .report-preview-status {
   display: grid;
   gap: 5px;

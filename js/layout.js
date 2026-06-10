@@ -91,6 +91,9 @@ const workbenchReportPreview = document.querySelector("#workbench-report-preview
 const workbenchReportDownload = document.querySelector("#workbench-report-download");
 const workbenchReportClose = document.querySelector("#workbench-report-close");
 const workbenchReportDismiss = document.querySelector("#workbench-report-dismiss");
+const workbenchExplainBtn = document.querySelector("#workbench-explain-btn");
+const workbenchExplain = document.querySelector("#workbench-explain");
+let lastReportMarkdown = "";
 let liveConnection = null;
 let activeData = null;
 let monitorView = null;
@@ -336,6 +339,7 @@ function bindSessionControls() {
     setBaseline(workbenchBaselineSelect.value);
   });
   appDisposables.listen(workbenchReportDownload, "click", downloadWorkbenchReport);
+  appDisposables.listen(workbenchExplainBtn, "click", requestExplanation);
   appDisposables.listen(workbenchReportClose, "click", closeReportPreview);
   appDisposables.listen(workbenchReportDismiss, "click", closeReportPreview);
   appDisposables.listen(workbenchReportDialog, "click", (event) => {
@@ -566,12 +570,53 @@ function openReportPreview() {
     generatedAt: new Date(),
   });
   renderReportPreview(preview);
+  lastReportMarkdown = preview.markdown ?? "";
+  resetExplain();
   if (typeof workbenchReportDialog.showModal === "function") {
     workbenchReportDialog.showModal();
   } else {
     workbenchReportDialog.setAttribute("open", "");
   }
   workbenchReportDownload?.focus();
+}
+
+function resetExplain() {
+  if (!workbenchExplain) return;
+  workbenchExplain.hidden = true;
+  workbenchExplain.textContent = "";
+  workbenchExplain.classList.remove("is-error");
+  if (workbenchExplainBtn) workbenchExplainBtn.disabled = false;
+}
+
+async function requestExplanation() {
+  if (!workbenchExplain || !workbenchExplainBtn) return;
+  if (!lastReportMarkdown) {
+    workbenchExplain.hidden = false;
+    workbenchExplain.classList.add("is-error");
+    workbenchExplain.textContent = "Load datasets and a comparison first.";
+    return;
+  }
+  workbenchExplainBtn.disabled = true;
+  workbenchExplain.hidden = false;
+  workbenchExplain.classList.remove("is-error");
+  workbenchExplain.textContent = "Generating a plain-language explanation… this can take up to a minute.";
+  try {
+    const result = await fetch("/api/explain", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ context: { report: lastReportMarkdown } }),
+    });
+    const data = await result.json().catch(() => ({}));
+    if (!result.ok) {
+      throw new Error(data.error ?? `Request failed (${result.status})`);
+    }
+    workbenchExplain.textContent = data.text ?? "No explanation returned.";
+  } catch (error) {
+    workbenchExplain.classList.add("is-error");
+    workbenchExplain.textContent = `Could not generate explanation: ${error.message}`;
+  } finally {
+    workbenchExplainBtn.disabled = false;
+  }
 }
 
 function closeReportPreview() {
