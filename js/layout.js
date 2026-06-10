@@ -459,6 +459,9 @@ function renderWorkbench() {
           element("strong", {}, row.interpretation),
         ));
       });
+      workbenchComparisons.append(element("p", { className: "comparison-disclaimer" },
+        "Score is a heuristic ranking aid (0-100), not a statistical test. Read the deltas and detailed plots as the evidence.",
+      ));
     }
   }
 }

@@ -37,20 +37,17 @@ Click a channel row, line, or electrode to update every view.
 
 ## Run Locally
 
+The committed `data/data.json` is enough to run the dashboard — no conversion step is needed for the demo dataset.
+
 ```bash
-python3 tools/convert_data.py
-python3 -m http.server 8000
+npm start
 ```
 
-Open `http://localhost:8000/`.
+This runs `node server.mjs` (the same runtime used in production) and serves on `http://localhost:8080`. Any static file server also works, for example `python3 -m http.server 8000`.
 
 ## Live Mode
 
-Run the raw EEG backend separately, then use the dashboard's Live Source controls:
-
-```bash
-python3 run_raw_and_spectral_backend_v4.py
-```
+Live mode is optional. Run a soulsyrup1-style raw EEG backend separately that emits frames on `ws://127.0.0.1:8766`, then enable the dashboard's Live Source controls.
 
 The dashboard accepts raw sample payloads on `ws://127.0.0.1:8766`, defaults to 32 channels at 256 Hz, and uses backend metadata when available. Supported payloads include Float32 binary frames, JSON one-sample arrays, JSON sample-major chunks under `samples`/`data`/`values`, and channel-major JSON objects under `samples_by_channel`.
 

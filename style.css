@@ -994,6 +994,13 @@ input[type="number"]:focus-visible {
   line-height: 1.4;
 }
 
+.comparison-disclaimer {
+  margin: var(--s2) 0 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .console-link {
   width: fit-content;
   border-color: rgba(10, 132, 255, 0.32);

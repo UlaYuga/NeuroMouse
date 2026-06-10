@@ -172,6 +172,10 @@ export function generateWorkbenchReport({
     state.comparisons.forEach((row) => {
       lines.push(`| ${escapePipe(row.name)} | ${escapePipe(row.baselineName)} | ${formatSignedPercent(row.alphaChange)} | ${formatSignedNumber(row.centroidShiftHz, 2)} Hz | ${formatSignedNumber(row.entropyShift, 4)} | ${row.scoreLabel}: ${row.score}/100 |`);
     });
+    lines.push(
+      "",
+      `> The ${state.scenario.scoreLabel.toLowerCase()} score (0-100) is a heuristic indicator that weights the absolute alpha, centroid, entropy, and flatness deltas above. It is a triage aid for ranking datasets, not a statistical test: it carries no significance value, confidence interval, or sample size. Treat the underlying deltas and the detailed plots as the evidence before drawing conclusions.`,
+    );
   }
 
   lines.push("", "## Data Quality", "");
