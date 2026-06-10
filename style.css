@@ -31,6 +31,18 @@
   --accent-amber-dim: rgba(242, 184, 75, 0.12);
   --danger: #ff453a;
 
+  /* Canvas/SVG plot palette — read by js/views/chart-utils.js at load.
+     Change these to recolor every chart; the DOM picks up the same tokens. */
+  --chart-active: #00D4A0;
+  --chart-secondary: #00D4A0;
+  --chart-grid: rgba(255, 255, 255, 0.055);
+  --chart-axis: #91A2AD;
+  --chart-muted: #737D88;
+  --chart-bg: #0D1014;
+  --chart-plot-border: rgba(255, 255, 255, 0.1);
+  --chart-cursor: rgba(0, 212, 160, 0.6);
+  --chart-active-glow: rgba(0, 212, 160, 0.4);
+
   --shadow-xs: 0 0 0 0.5px rgba(0, 0, 0, 0.55);
   --shadow-sm: 0 0 0 0.5px rgba(0, 0, 0, 0.55), 0 1px 8px rgba(0, 0, 0, 0.38);
   --shadow-md: 0 0 0 0.5px rgba(0, 0, 0, 0.6), 0 8px 24px rgba(0, 0, 0, 0.48);

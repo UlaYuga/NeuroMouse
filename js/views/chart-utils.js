@@ -1,12 +1,22 @@
-export const ACTIVE_COLOR = "#00D4A0";
-export const SECONDARY_COLOR = "#00D4A0";
-export const GRID_COLOR = "rgba(255,255,255,0.055)";
-export const AXIS_COLOR = "#91A2AD";
-export const MUTED_COLOR = "#737D88";
-export const CHART_BACKGROUND = "#0D1014";
-export const PLOT_BORDER_COLOR = "rgba(255,255,255,0.1)";
-export const PLAYBACK_CURSOR_COLOR = "rgba(0,212,160,0.6)";
-export const ACTIVE_GLOW_COLOR = "rgba(0,212,160,0.4)";
+// Plot colors resolve from CSS custom properties (defined in style.css :root)
+// so a redesign can recolor every canvas/SVG view by editing tokens in one
+// place. Each falls back to its original value if the token is absent, so
+// rendering is unchanged when the stylesheet has not defined the token.
+function token(name, fallback) {
+  if (typeof document === "undefined" || !document.documentElement) return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+export const ACTIVE_COLOR = token("--chart-active", "#00D4A0");
+export const SECONDARY_COLOR = token("--chart-secondary", "#00D4A0");
+export const GRID_COLOR = token("--chart-grid", "rgba(255,255,255,0.055)");
+export const AXIS_COLOR = token("--chart-axis", "#91A2AD");
+export const MUTED_COLOR = token("--chart-muted", "#737D88");
+export const CHART_BACKGROUND = token("--chart-bg", "#0D1014");
+export const PLOT_BORDER_COLOR = token("--chart-plot-border", "rgba(255,255,255,0.1)");
+export const PLAYBACK_CURSOR_COLOR = token("--chart-cursor", "rgba(0,212,160,0.6)");
+export const ACTIVE_GLOW_COLOR = token("--chart-active-glow", "rgba(0,212,160,0.4)");
 export const MONO_FONT = "\"IBM Plex Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace";
 export const FREQUENCY_BANDS = [
   { label: "delta", min: 1, max: 4, color: "rgba(10,132,255,0.08)" },
