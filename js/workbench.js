@@ -321,7 +321,7 @@ function buildMetricTiles(datasets, fallbackData, baselineSummary, comparisons, 
     {
       label: topComparison?.scoreLabel ?? scenario.scoreLabel,
       value: topComparison ? `${topComparison.score}` : "--",
-      detail: topComparison ? `${topComparison.name} vs baseline` : "needs two datasets",
+      detail: topComparison ? `${topComparison.name} vs baseline · heuristic 0-100` : "needs two datasets",
     },
     {
       label: "Report",

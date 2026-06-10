@@ -60,6 +60,8 @@ const liveConnect = document.querySelector("#live-connect");
 const liveDisconnect = document.querySelector("#live-disconnect");
 const liveStatus = document.querySelector("#live-status");
 const liveFrames = document.querySelector("#live-frames");
+const headerChannels = document.querySelector("#header-channels");
+const headerFrames = document.querySelector("#header-frames");
 const liveTime = document.querySelector("#live-time");
 const liveCompute = document.querySelector("#live-compute");
 const liveAlpha = document.querySelector("#live-alpha");
@@ -103,6 +105,7 @@ async function init() {
     activeData = data;
     configureChannels(data.meta.channels);
     configurePlayback(data.geometry.time.length);
+    updateHeaderStatus(data);
     updateSelectedChannelLabel(getChannel());
     await waitForFonts();
     if (loadStatus) loadStatus.textContent = "Ready";
@@ -652,7 +655,15 @@ function syncSessionState() {
   if (!primary?.data) return;
   configureChannels(primary.data.meta.channels);
   configurePlayback(primary.data.geometry.time.length);
+  updateHeaderStatus(primary.data);
   updateSelectedChannelLabel(getChannel());
+}
+
+function updateHeaderStatus(data) {
+  const channelCount = data?.meta?.channels?.length ?? 0;
+  const frameCount = data?.geometry?.time?.length ?? 0;
+  if (headerChannels) headerChannels.textContent = channelCount ? String(channelCount) : "--";
+  if (headerFrames) headerFrames.textContent = frameCount ? String(frameCount) : "--";
 }
 
 function updateSelectedChannelLabel(channel) {

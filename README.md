@@ -4,6 +4,8 @@ NeuroMouse is a zero-build browser workbench for EEG and neural signal analysis 
 
 The dashboard stays browser-native: no Python in the browser, no framework, and no required runtime service for static replay. ZIP session import uses JSZip from CDN.
 
+The viewer is montage-agnostic: any channel count and channel names are accepted. The data interface between a Python backend and this viewer is documented in [DATA_CONTRACT.md](./DATA_CONTRACT.md).
+
 Production: https://neuromouse.up.railway.app
 
 Custom domain target: https://neuromouse.ai
@@ -12,9 +14,9 @@ Custom domain target: https://neuromouse.ai
 
 - Neural Workbench: file import, curated toolbox coverage, cohort comparison goal, analysis pipeline, summary metrics, and markdown report export.
 - PSD Heatmap: Welch PSD by frequency and channel, plus a selected-channel overlay.
-- Centroid Over Time: 32 channel lines with synchronized channel selection.
+- Centroid Over Time: one line per channel with synchronized channel selection.
 - Geometry Stack: six sliding spectral metrics for the selected channel.
-- Channel Grid: 10-20 layout colored by alpha relative power.
+- Channel Grid: 10-20 head map when channel names match it, otherwise a generic grid, colored by alpha relative power.
 - Playback: synchronized scrubber and speed controls for animated replay.
 - Phase Space: delay embedding and two-metric trajectories for the selected channel.
 - Advanced views: polar alpha chronomap, Kuramoto phase animation, channel network, TDA persistence, and closed-loop monitor when the backing data exists.
