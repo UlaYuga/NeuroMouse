@@ -8,6 +8,7 @@ COPY package.json server.mjs ./
 COPY index.html style.css ./
 COPY data ./data
 COPY js ./js
+COPY assets ./assets
 
 EXPOSE 8080
 

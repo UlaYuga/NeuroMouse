@@ -69,4 +69,13 @@
     var open = advSection.style.display !== 'none';
     setAdvancedOpen(!open);
   });
+
+  // ── Hero "Enter Workbench" → scroll to the dashboard ────────────
+  var heroEnter = document.querySelector('.nm-hero-enter');
+  var dashboard = document.getElementById('dashboard');
+  if (heroEnter && dashboard) {
+    heroEnter.addEventListener('click', function () {
+      dashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
 }());
