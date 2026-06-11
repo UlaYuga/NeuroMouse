@@ -33,6 +33,7 @@ class OutputSpec:
 
 class Method(Protocol[ParamsT]):
     name: str
+    version: str
     params_type: type[ParamsT]
     required_inputs: tuple[str, ...]
     output: OutputSpec

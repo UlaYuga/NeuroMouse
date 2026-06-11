@@ -14,6 +14,7 @@ class MyMethodParams:
 
 class MyMethod:
     name = "my_method"
+    version = "0.0.0"
     params_type = MyMethodParams
     required_inputs = ("meta.channels", "welch_psd.frequencies", "welch_psd.psd")
     output = OutputSpec(

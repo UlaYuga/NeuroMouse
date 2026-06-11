@@ -17,6 +17,7 @@ class BandPowerParams:
 
 class BandPowerSummary:
     name = "band_power_summary"
+    version = "0.0.0"
     params_type = BandPowerParams
     required_inputs = ("meta.channels", "welch_psd.frequencies", "welch_psd.psd")
     output = OutputSpec(

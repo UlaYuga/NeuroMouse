@@ -13,6 +13,7 @@ GOLDEN_PATH = ROOT / "datasets" / "golden" / "data.json"
 
 def test_band_power_example_exposes_the_author_surface() -> None:
     assert band_power_summary.name == "band_power_summary"
+    assert band_power_summary.version == "0.0.0"
     assert band_power_summary.params_type is BandPowerParams
     assert band_power_summary.required_inputs == (
         "meta.channels",
