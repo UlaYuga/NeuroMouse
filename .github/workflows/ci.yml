@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  quality-gate:
+    name: Linux Quality Gate (py${{ matrix.python-version }} / node${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+        node-version: ["22"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Cache uv artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: ${{ runner.os }}-uv-${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-${{ matrix.python-version }}-
+
+      - name: Cache npm artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+          key: ${{ runner.os }}-npm-${{ matrix.node-version }}-${{ hashFiles('tests/property/package-lock.json', 'tests/fuzz/package-lock.json', 'packages/sdk-ts/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-${{ matrix.node-version }}-
+
+      - name: Sync Python dependencies
+        run: uv sync
+
+      - name: Install property fuzz dependencies
+        run: |
+          npm ci --prefix tests/property
+          npm ci --prefix tests/fuzz
+          npm ci --prefix packages/sdk-ts
+
+      - name: Run pytest
+        run: uv run pytest
+
+      - name: Run Ruff
+        run: uv run ruff check
+
+      - name: Run Ty
+        run: uv run ty check
+
+      - name: Run Node tests
+        run: node --test tests/*.test.mjs
+
+      - name: "Run property fuzz: validate-data (bounded)"
+        env:
+          PROPERTY_BASE_CASES: "128"
+          PROPERTY_DRY_RUNS: "4"
+          PROPERTY_MAX_CASES: "1024"
+        run: node --test tests/property/validate-data.property.test.mjs
+
+      - name: "Run property fuzz: import-csv-zip (bounded)"
+        env:
+          PROPERTY_BASE_CASES: "128"
+          PROPERTY_DRY_RUNS: "4"
+          PROPERTY_MAX_CASES: "1024"
+        run: node --test tests/property/import-csv-zip.property.test.mjs
+
+      - name: Run deep fuzz suite (bounded)
+        run: FUZZ_RUNS=20000 DSP_FUZZ_RUNS=5000 node tests/fuzz/live-payload.fuzz.mjs
+
+      - name: TypeScript contract check
+        working-directory: packages/sdk-ts
+        run: NODE_OPTIONS=--max-old-space-size=4096 npx tsc --noEmit
+
+      - name: Run sdk-ts tests
+        run: npm --prefix packages/sdk-ts run test
+
+      - name: Benchmarks (informational)
+        continue-on-error: true
+        run: |
+          uv run python -m bench.perf_harness --help
