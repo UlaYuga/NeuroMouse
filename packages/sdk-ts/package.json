@@ -1,0 +1,25 @@
+{
+  "name": "@neuromouse/sdk-ts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "gen": "node scripts/generate-types.mjs",
+    "test": "npm run build && node --test dist/test/*.test.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "fast-check": "^3.23.2",
+    "json-schema-to-typescript": "^15.0.4",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.3"
+  }
+}
