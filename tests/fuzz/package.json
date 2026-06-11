@@ -5,6 +5,11 @@
   "scripts": {
     "test": "node live-payload.fuzz.mjs",
     "fuzz": "node live-payload.fuzz.mjs",
+    "fuzz:mea-adapter": "node mea-adapter.fuzz.mjs",
+    "fuzz:run-engine": "node run-engine.fuzz.mjs",
+    "fuzz:backend-jobs": "node backend-jobs.fuzz.mjs",
+    "fuzz:sorter-seam": "node sorter-seam.fuzz.mjs",
+    "fuzz:new-targets": "npm run fuzz:mea-adapter && npm run fuzz:run-engine && npm run fuzz:backend-jobs && npm run fuzz:sorter-seam",
     "fuzz:quick": "FUZZ_RUNS=10000 DSP_FUZZ_RUNS=1000 node live-payload.fuzz.mjs",
     "fuzz:deep": "FUZZ_RUNS=2000000 DSP_FUZZ_RUNS=50000 node live-payload.fuzz.mjs"
   },
