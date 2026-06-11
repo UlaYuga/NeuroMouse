@@ -45,6 +45,7 @@ export function createLiveSource(wsUrl, options = {}) {
   let sequence = 0;
   let computePending = false;
   let startedAt = 0;
+  let channelWidthLocked = Boolean(options.channels ?? referenceData?.meta?.channels);
 
   function createRingBuffer() {
     return new RingBuffer(nChannels, nextPow2(Math.round(WINDOW_SEC * samplingRate)));
@@ -52,6 +53,10 @@ export function createLiveSource(wsUrl, options = {}) {
 
   function applyMetadata(metadata) {
     let changed = false;
+    const metadataWidth = metadata.channels?.length ?? metadata.nChannels ?? null;
+    if (metadataWidth && channelWidthLocked && metadataWidth !== nChannels) {
+      throw new Error(`Live channel width is locked at ${nChannels}; received ${metadataWidth}`);
+    }
     if (metadata.channels?.length && metadata.channels.join("\u0000") !== channels.join("\u0000")) {
       channels = metadata.channels.slice();
       nChannels = channels.length;
@@ -65,6 +70,7 @@ export function createLiveSource(wsUrl, options = {}) {
       history = createHistory(channels);
       changed = true;
     }
+    if (metadataWidth) channelWidthLocked = true;
     if (metadata.samplingRate && metadata.samplingRate !== samplingRate) {
       samplingRate = metadata.samplingRate;
       changed = true;
@@ -306,6 +312,9 @@ export class RingBuffer {
 
 function parseFrame(payload, context) {
   if (payload instanceof ArrayBuffer) {
+    if (payload.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
+      throw new Error("Live binary payload byte length is not aligned to Float32 samples");
+    }
     return {
       samples: parseFlatSamples(new Float32Array(payload), context.nChannels),
     };
@@ -321,14 +330,19 @@ function parseFrame(payload, context) {
   const samplePayload = extractSamplePayload(message);
   return {
     ...metadata,
-    samples: samplePayload == null ? [] : normalizeSamplePayload(samplePayload, nChannels, metadata.channels ?? context.channels),
+    samples: samplePayload == null
+      ? []
+      : normalizeSamplePayload(samplePayload.payload, nChannels, metadata.channels ?? context.channels, samplePayload.orientation),
   };
 }
 
 function extractMetadata(message) {
   const source = message?.meta && typeof message.meta === "object" ? { ...message, ...message.meta } : message;
   const channels = normalizeChannels(source?.channel_names ?? source?.channels);
-  const nChannels = positiveInteger(source?.n_channels ?? source?.nChannels ?? source?.channel_count);
+  const nChannels = strictPositiveInteger(firstDefined(source?.n_channels, source?.nChannels, source?.channel_count), "n_channels");
+  if (channels?.length && nChannels && channels.length !== nChannels) {
+    throw new Error(`Live metadata channels length ${channels.length} conflicts with n_channels ${nChannels}`);
+  }
   const samplingRate = positiveNumber(
     source?.sampling_rate_hz ??
     source?.sample_rate_hz ??
@@ -346,51 +360,58 @@ function extractMetadata(message) {
 }
 
 function extractSamplePayload(message) {
-  if (Array.isArray(message)) return message;
+  if (Array.isArray(message)) return { payload: message, orientation: "auto" };
   if (!message || typeof message !== "object") return null;
-  return (
-    message.samples ??
-    message.sample ??
-    message.frame ??
-    message.frames ??
-    message.data ??
-    message.values ??
-    message.raw ??
-    message.eeg ??
-    message.eeg_data ??
-    message.samples_by_channel ??
-    message.data_by_channel ??
-    null
-  );
+  for (const key of ["samples", "sample", "frame", "frames", "data", "values", "raw", "eeg", "eeg_data"]) {
+    if (message[key] != null) return { payload: message[key], orientation: "sample-major" };
+  }
+  if (message.samples_by_channel != null) return { payload: message.samples_by_channel, orientation: "channel-major" };
+  if (message.data_by_channel != null) return { payload: message.data_by_channel, orientation: "channel-major" };
+  return null;
 }
 
-function normalizeSamplePayload(payload, nChannels, channels) {
+function normalizeSamplePayload(payload, nChannels, channels, orientation) {
+  assertPositiveInteger(nChannels, "channel count");
   if (ArrayBuffer.isView(payload)) return parseFlatSamples(payload, nChannels);
 
   if (Array.isArray(payload)) {
     if (!Array.isArray(payload[0])) {
       return parseFlatSamples(payload, nChannels);
     }
-    const rows = payload.map((row) => row.map(Number));
-    if (rows.length === nChannels && rows.some((row) => row.length !== nChannels)) {
+    const rows = payload.map((row) => {
+      if (!Array.isArray(row)) throw new Error("Live JSON sample chunk rows must be arrays");
+      return row.map(toFiniteSample);
+    });
+    if (orientation === "channel-major") {
+      if (rows.length !== nChannels) {
+        throw new Error(`Live channel-major chunk has ${rows.length} rows for ${nChannels} channels`);
+      }
       return transposeChannelMajor(rows);
     }
-    if (rows.every((row) => row.length === nChannels)) {
+    if (orientation === "sample-major") {
+      if (!rows.every((row) => row.length === nChannels)) {
+        throw new Error(`Live sample-major chunk rows must match ${nChannels} channels`);
+      }
       return rows;
     }
+    if (rows.length === nChannels && rows.every((row) => row.length === nChannels)) {
+      throw new Error("Live 2D sample orientation is ambiguous without an explicit payload key");
+    }
+    if (rows.every((row) => row.length === nChannels)) return rows;
     throw new Error(`Live JSON sample chunk does not match ${nChannels} channels`);
   }
 
   if (payload && typeof payload === "object") {
     const channelRows = channels.map((channel) => payload[channel]);
-    if (channelRows.every(Array.isArray)) return transposeChannelMajor(channelRows.map((row) => row.map(Number)));
+    if (channelRows.every(Array.isArray)) return transposeChannelMajor(channelRows.map((row) => row.map(toFiniteSample)));
   }
 
   throw new Error("Live JSON frame has no supported raw samples");
 }
 
 function parseFlatSamples(values, nChannels) {
-  const numeric = Array.from(values, Number);
+  assertPositiveInteger(nChannels, "channel count");
+  const numeric = Array.from(values, toFiniteSample);
   if (numeric.length % nChannels !== 0) {
     throw new Error(`Live sample count ${numeric.length} is not divisible by ${nChannels} channels`);
   }
@@ -402,10 +423,14 @@ function parseFlatSamples(values, nChannels) {
 }
 
 function transposeChannelMajor(rows) {
-  const sampleCount = Math.min(...rows.map((row) => row.length));
+  if (!rows.length) return [];
+  const sampleCount = rows[0].length;
+  if (!rows.every((row) => row.length === sampleCount)) {
+    throw new Error("Live channel-major chunk rows must have equal sample counts");
+  }
   const samples = [];
   for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
-    samples.push(rows.map((row) => Number(row[sampleIndex]) || 0));
+    samples.push(rows.map((row) => toFiniteSample(row[sampleIndex])));
   }
   return samples;
 }
@@ -448,9 +473,31 @@ function positiveNumber(value) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
-function positiveInteger(value) {
-  const number = Math.round(Number(value));
-  return Number.isFinite(number) && number > 0 ? number : null;
+function firstDefined(...values) {
+  return values.find((value) => value != null);
+}
+
+function strictPositiveInteger(value, label) {
+  if (value == null) return null;
+  const number = Number(value);
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new Error(`Live metadata ${label} must be a positive integer`);
+  }
+  return number;
+}
+
+function assertPositiveInteger(value, label) {
+  if (!Number.isInteger(Number(value)) || Number(value) <= 0) {
+    throw new Error(`Live ${label} must be a positive integer`);
+  }
+}
+
+function toFiniteSample(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error("Live samples must be finite numbers");
+  }
+  return number;
 }
 
 function finite(value) {

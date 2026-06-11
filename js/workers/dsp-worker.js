@@ -11,8 +11,13 @@ self.addEventListener("message", (event) => {
       throw new Error("DSP worker requires a positive sampling_rate");
     }
 
+    if (!Array.isArray(data.buffers)) {
+      throw new Error("DSP worker requires buffers to be an array");
+    }
+
     const channelResults = data.buffers.map((buffer) => {
       const signal = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
+      validateFiniteSignal(signal);
       const full = welchPSD(signal, samplingRate, windowSec, overlap);
       const trimmed = trimFrequencyBand(full.freqs, full.psd, 1, 55);
       return {
@@ -125,7 +130,13 @@ function trimFrequencyBand(freqs, psd, minHz, maxHz) {
 }
 
 function spectralMetrics(psd, freqs) {
-  const values = psd.map((value) => Math.max(Number(value) || 0, 1e-18));
+  if (!psd.length || !freqs.length) {
+    return emptyBandMetrics();
+  }
+  const values = psd.map((value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(number, 1e-18) : 1e-18;
+  });
   const sumPower = values.reduce((sum, value) => sum + value, 0) || 1e-18;
   const probabilities = values.map((value) => value / sumPower);
   const centroid = freqs.reduce((sum, frequency, index) => sum + frequency * probabilities[index], 0);
@@ -152,6 +163,31 @@ function spectralMetrics(psd, freqs) {
     flatness,
     edge95,
     alpha_relative_power: alphaPower / sumPower,
+  };
+}
+
+function validateFiniteSignal(signal) {
+  if (signal.length < 8) {
+    throw new Error("DSP worker needs at least 8 samples for Welch PSD");
+  }
+  for (let index = 0; index < signal.length; index += 1) {
+    if (!Number.isFinite(signal[index])) {
+      throw new Error("DSP worker input samples must be finite");
+    }
+  }
+}
+
+function emptyBandMetrics() {
+  // Sentinel for an empty 1-55 Hz trim band: keep the PSD/frequency rows empty,
+  // and report zero-valued metrics instead of manufacturing NaN/Infinity.
+  return {
+    centroid: 0,
+    spread: 0,
+    entropy: 0,
+    entropy_normalized: 0,
+    flatness: 0,
+    edge95: 0,
+    alpha_relative_power: 0,
   };
 }
 

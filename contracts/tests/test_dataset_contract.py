@@ -90,12 +90,32 @@ def _string_meta_channels(data: dict[str, Any]) -> None:
     data["meta"]["channels"] = "Fp1"
 
 
+def _mismatch_meta_n_channels(data: dict[str, Any]) -> None:
+    data["meta"]["n_channels"] = len(data["meta"]["channels"]) + 1
+
+
+def _float_meta_n_channels(data: dict[str, Any]) -> None:
+    data["meta"]["n_channels"] = 1.5
+
+
+def _null_meta_n_channels(data: dict[str, Any]) -> None:
+    data["meta"]["n_channels"] = None
+
+
 def _missing_welch_frequencies(data: dict[str, Any]) -> None:
     data["welch_psd"].pop("frequencies")
 
 
 def _string_welch_frequencies(data: dict[str, Any]) -> None:
     data["welch_psd"]["frequencies"] = "1,2,3"
+
+
+def _empty_welch_frequencies(data: dict[str, Any]) -> None:
+    data["welch_psd"]["frequencies"] = []
+
+
+def _nan_welch_frequency(data: dict[str, Any]) -> None:
+    data["welch_psd"]["frequencies"][0] = float("nan")
 
 
 def _string_welch_psd(data: dict[str, Any]) -> None:
@@ -106,8 +126,28 @@ def _mismatch_welch_rows(data: dict[str, Any]) -> None:
     data["welch_psd"]["psd"] = data["welch_psd"]["psd"][:-1]
 
 
+def _non_array_welch_row(data: dict[str, Any]) -> None:
+    data["welch_psd"]["psd"][0] = {"value": 0.1}
+
+
+def _empty_welch_row(data: dict[str, Any]) -> None:
+    data["welch_psd"]["psd"][0] = []
+
+
+def _short_welch_row(data: dict[str, Any]) -> None:
+    data["welch_psd"]["psd"][0] = data["welch_psd"]["psd"][0][:-1]
+
+
+def _infinite_welch_value(data: dict[str, Any]) -> None:
+    data["welch_psd"]["psd"][0][0] = float("inf")
+
+
 def _missing_centroid_time(data: dict[str, Any]) -> None:
     data["centroid"].pop("time_relative")
+
+
+def _empty_centroid_time(data: dict[str, Any]) -> None:
+    data["centroid"]["time_relative"] = []
 
 
 def _string_centroid_values(data: dict[str, Any]) -> None:
@@ -118,12 +158,38 @@ def _mismatch_centroid_rows(data: dict[str, Any]) -> None:
     data["centroid"]["values"] = data["centroid"]["values"][:-1]
 
 
+def _non_array_centroid_row(data: dict[str, Any]) -> None:
+    data["centroid"]["values"][0] = {"value": 8.0}
+
+
+def _short_centroid_row(data: dict[str, Any]) -> None:
+    data["centroid"]["values"][0] = data["centroid"]["values"][0][:-1]
+
+
+def _nan_centroid_value(data: dict[str, Any]) -> None:
+    data["centroid"]["values"][0][0] = float("nan")
+
+
 def _missing_geometry_time(data: dict[str, Any]) -> None:
     data["geometry"].pop("time")
 
 
 def _string_geometry_time(data: dict[str, Any]) -> None:
     data["geometry"]["time"] = "0,1,2"
+
+
+def _empty_geometry_time(data: dict[str, Any]) -> None:
+    data["geometry"]["time"] = []
+
+
+def _infinite_geometry_time(data: dict[str, Any]) -> None:
+    data["geometry"]["time"][0] = float("-inf")
+
+
+def _too_many_channels(data: dict[str, Any]) -> None:
+    oversized = minimal_dataset(4097)
+    data.clear()
+    data.update(oversized)
 
 
 MUTATION_CASES: list[Mutation] = [
@@ -143,6 +209,21 @@ MUTATION_CASES: list[Mutation] = [
         "data.json must contain a non-empty meta.channels array",
     ),
     (
+        "meta.n_channels mismatch",
+        _mismatch_meta_n_channels,
+        "meta.n_channels must equal meta.channels length",
+    ),
+    (
+        "meta.n_channels is not an integer",
+        _float_meta_n_channels,
+        "meta.n_channels must be a positive integer",
+    ),
+    (
+        "meta.n_channels is null",
+        _null_meta_n_channels,
+        "meta.n_channels must be a positive integer",
+    ),
+    (
         "drop welch_psd.frequencies",
         _missing_welch_frequencies,
         "data.json is missing welch_psd arrays",
@@ -151,6 +232,16 @@ MUTATION_CASES: list[Mutation] = [
         "welch_psd.frequencies is not an array",
         _string_welch_frequencies,
         "data.json is missing welch_psd arrays",
+    ),
+    (
+        "welch_psd.frequencies is empty",
+        _empty_welch_frequencies,
+        "welch_psd.frequencies must be a non-empty array",
+    ),
+    (
+        "welch_psd.frequencies contains NaN",
+        _nan_welch_frequency,
+        "welch_psd.frequencies must contain only finite numbers",
     ),
     (
         "welch_psd.psd is not an array",
@@ -163,9 +254,34 @@ MUTATION_CASES: list[Mutation] = [
         "welch_psd.psd has 1 channel rows but meta.channels lists 2",
     ),
     (
+        "welch_psd.psd row is not an array",
+        _non_array_welch_row,
+        "welch_psd.psd row 0 must be an array",
+    ),
+    (
+        "welch_psd.psd row is empty",
+        _empty_welch_row,
+        "welch_psd.psd row 0 length must equal welch_psd.frequencies length",
+    ),
+    (
+        "welch_psd.psd row length mismatch",
+        _short_welch_row,
+        "welch_psd.psd row 0 length must equal welch_psd.frequencies length",
+    ),
+    (
+        "welch_psd.psd contains Infinity",
+        _infinite_welch_value,
+        "welch_psd.psd row 0 must contain only finite numbers",
+    ),
+    (
         "drop centroid.time_relative",
         _missing_centroid_time,
         "data.json is missing centroid arrays",
+    ),
+    (
+        "centroid.time_relative is empty",
+        _empty_centroid_time,
+        "centroid.time_relative must be a non-empty array",
     ),
     (
         "centroid.values is not an array",
@@ -178,6 +294,21 @@ MUTATION_CASES: list[Mutation] = [
         "centroid.values has 1 channel rows but meta.channels lists 2",
     ),
     (
+        "centroid.values row is not an array",
+        _non_array_centroid_row,
+        "centroid.values row 0 must be an array",
+    ),
+    (
+        "centroid.values row length mismatch",
+        _short_centroid_row,
+        "centroid.values row 0 length must equal centroid.time_relative length",
+    ),
+    (
+        "centroid.values contains NaN",
+        _nan_centroid_value,
+        "centroid.values row 0 must contain only finite numbers",
+    ),
+    (
         "drop geometry.time",
         _missing_geometry_time,
         "data.json is missing geometry.time",
@@ -187,6 +318,24 @@ MUTATION_CASES: list[Mutation] = [
         _string_geometry_time,
         "data.json is missing geometry.time",
     ),
+    (
+        "geometry.time is empty",
+        _empty_geometry_time,
+        "geometry.time must be a non-empty array",
+    ),
+    (
+        "geometry.time contains Infinity",
+        _infinite_geometry_time,
+        "geometry.time must contain only finite numbers",
+    ),
+    (
+        "channel count exceeds default ceiling",
+        _too_many_channels,
+        "meta.channels length must be at most 4096",
+    ),
+]
+HYPOTHESIS_MUTATION_CASES = [
+    mutation for mutation in MUTATION_CASES if mutation[0] != "channel count exceeds default ceiling"
 ]
 
 
@@ -214,7 +363,7 @@ def channel_major_rows(channel_count: int, width: int) -> st.SearchStrategy[list
 def valid_dataset_objects(draw: st.DrawFn) -> dict[str, Any]:
     channels = draw(
         st.lists(
-            st.text(min_size=1, max_size=12).filter(lambda value: value.strip() != ""),
+            st.integers(min_value=0, max_value=100_000).map(lambda value: f"C{value}"),
             min_size=1,
             max_size=12,
             unique=True,
@@ -223,7 +372,7 @@ def valid_dataset_objects(draw: st.DrawFn) -> dict[str, Any]:
     channel_count = len(channels)
     frequencies = draw(st.lists(finite_float_values(), min_size=1, max_size=16))
     centroid_time = draw(st.lists(finite_float_values(), min_size=1, max_size=16))
-    geometry_time = draw(st.lists(finite_float_values(), min_size=0, max_size=16))
+    geometry_time = draw(st.lists(finite_float_values(), min_size=1, max_size=16))
 
     return {
         "meta": {
@@ -335,6 +484,21 @@ def test_golden_dataset_loads_with_zero_validation_errors() -> None:
     assert len(dataset.meta.channels) == 32
 
 
+def test_high_density_mea_channel_count_under_ceiling_is_accepted() -> None:
+    dataset = validate_dataset(minimal_dataset(1024))
+
+    assert len(dataset.meta.channels) == 1024
+
+
+def test_channel_ceiling_is_configurable() -> None:
+    with pytest.raises(DatasetValidationError, match="meta.channels length must be at most 4"):
+        validate_dataset(minimal_dataset(8), max_channels=4)
+
+    dataset = validate_dataset(minimal_dataset(8), max_channels=8)
+
+    assert len(dataset.meta.channels) == 8
+
+
 @pytest.mark.parametrize(
     ("name", "mutate", "expected_error"), MUTATION_CASES, ids=lambda item: item
 )
@@ -359,7 +523,7 @@ def test_hypothesis_valid_datasets_pass(data: dict[str, Any]) -> None:
 
 
 @settings(max_examples=500, deadline=None)
-@given(valid_dataset_objects(), st.sampled_from(MUTATION_CASES))
+@given(valid_dataset_objects(), st.sampled_from(HYPOTHESIS_MUTATION_CASES))
 def test_hypothesis_targeted_invalid_mutations_reject(
     data: dict[str, Any], mutation: Mutation
 ) -> None:
