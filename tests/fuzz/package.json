@@ -1,0 +1,14 @@
+{
+  "name": "neuromouse-live-payload-fuzz",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node live-payload.fuzz.mjs",
+    "fuzz": "node live-payload.fuzz.mjs",
+    "fuzz:quick": "FUZZ_RUNS=10000 DSP_FUZZ_RUNS=1000 node live-payload.fuzz.mjs",
+    "fuzz:deep": "FUZZ_RUNS=2000000 DSP_FUZZ_RUNS=50000 node live-payload.fuzz.mjs"
+  },
+  "dependencies": {
+    "fast-check": "latest"
+  }
+}
