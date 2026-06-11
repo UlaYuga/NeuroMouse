@@ -2,7 +2,11 @@
 name = "neuromouse-core"
 version = "0.0.0"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "hypothesis>=6.0.0",
+    "numpy>=1.26.0",
+    "scipy>=1.11.0",
+]
 
 [build-system]
 requires = ["hatchling"]
