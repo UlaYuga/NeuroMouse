@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from neuromouse_backend.storage import BackendStore, JobRecord, SessionRecord, SQLiteBackendStore
 from neuromouse_contract import DatasetValidationError, validate_dataset
-from neuromouse_core.method_registry import MethodExecutionError, MethodLookupError, MethodRegistry
-from neuromouse_sdk import Method
+from neuromouse_sdk import Method, build_params
 from neuromouse_sdk.examples.band_power_summary import band_power_summary
+
+ROOT = Path(__file__).resolve().parents[4]
+DEMO_DATASET_PATH = ROOT / "datasets" / "golden" / "data.json"
 
 
 class SessionCreateRequest(BaseModel):
@@ -38,6 +42,41 @@ class MethodResponse(BaseModel):
     id: str
     name: str
     description: str
+    required_inputs: list[str]
+    params_schema: dict[str, Any]
+    output_spec: OutputSpecResponse
+
+
+class OutputFieldResponse(BaseModel):
+    path: str
+    label: str
+    description: str
+    unit: str | None = None
+
+
+class PanelSpecResponse(BaseModel):
+    id: str
+    title: str
+    kind: str
+    field: str
+
+
+class OutputSpecResponse(BaseModel):
+    fields: list[OutputFieldResponse]
+    panel: PanelSpecResponse | None = None
+
+
+class JobResultResponse(BaseModel):
+    output: dict[str, Any]
+    output_spec: OutputSpecResponse | None = None
+    panel: PanelSpecResponse | None = None
+
+
+class DemoSeedResponse(BaseModel):
+    session_id: str
+    dataset_id: str
+    dataset_version: int
+    channel_count: int
 
 
 class JobCreateRequest(BaseModel):
@@ -54,7 +93,7 @@ class JobResponse(BaseModel):
     method_id: str
     params: dict[str, Any]
     status: Literal["queued", "running", "completed", "failed"]
-    result: dict[str, Any] | None = None
+    result: JobResultResponse | None = None
     error: str | None = None
     created_at: str
     updated_at: str
@@ -63,19 +102,54 @@ class JobResponse(BaseModel):
 UNPROCESSABLE_ENTITY = 422
 
 
+class MethodLookupError(ValueError):
+    """Raised when a method is not present in the backend catalog."""
+
+
+class MethodExecutionError(ValueError):
+    """Raised when a registered method cannot run against the supplied dataset."""
+
+
 @dataclass(frozen=True)
 class MethodCatalog:
-    registry: MethodRegistry
     methods: dict[str, Method[Any]]
+
+    def lookup(self, method_id: str) -> Method[Any]:
+        try:
+            return self.methods[_normalize_method_id(method_id)]
+        except KeyError as exc:
+            raise MethodLookupError(f"unknown method: {method_id}") from exc
+
+    def run(
+        self,
+        method_id: str,
+        dataset: dict[str, Any],
+        *,
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
+        method = self.lookup(method_id)
+        try:
+            dataset_model = validate_dataset(dataset)
+            typed_params = build_params(method.params_type, params)
+            _require_declared_paths(dataset_model, method.required_inputs, owner=method.name)
+            result = method.compute(dataset_model, typed_params)
+            if not isinstance(result, dict):
+                result = dict(result)
+            _require_declared_paths(
+                result,
+                [field.path for field in method.output.fields],
+                owner=method.name,
+            )
+            return result
+        except (DatasetValidationError, TypeError, ValueError) as exc:
+            raise MethodExecutionError(f"method {method.name!r} failed: {exc}") from exc
 
 
 def create_default_method_catalog() -> MethodCatalog:
-    registry = MethodRegistry()
     methods: dict[str, Method[Any]] = {}
     for method in (band_power_summary,):
-        registered = registry.register(method)
-        methods[registered.name] = registered
-    return MethodCatalog(registry=registry, methods=methods)
+        methods[_normalize_method_id(method.name)] = method
+    return MethodCatalog(methods=methods)
 
 
 def create_app(
@@ -131,6 +205,25 @@ def create_app(
     async def list_methods() -> list[MethodResponse]:
         return [_method_response(method) for method in methods.methods.values()]
 
+    @app.post("/demo/seed", response_model=DemoSeedResponse, status_code=status.HTTP_201_CREATED)
+    async def seed_demo() -> DemoSeedResponse:
+        try:
+            payload = json.loads(DEMO_DATASET_PATH.read_text(encoding="utf-8"))
+            dataset = validate_dataset(payload).model_dump(mode="json")
+        except (OSError, json.JSONDecodeError, DatasetValidationError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Demo dataset could not be loaded: {exc}",
+            ) from exc
+
+        session = backend_store.create_session(name="Golden demo dataset", dataset=dataset)
+        return DemoSeedResponse(
+            session_id=session.id,
+            dataset_id=session.dataset_id,
+            dataset_version=session.dataset_version,
+            channel_count=len(session.dataset["meta"]["channels"]),
+        )
+
     @app.post(
         "/sessions/{session_id}/jobs",
         response_model=JobResponse,
@@ -142,7 +235,7 @@ def create_app(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
         try:
-            methods.registry.lookup(request.method_id)
+            methods.lookup(request.method_id)
         except MethodLookupError as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -157,22 +250,23 @@ def create_app(
         )
         backend_store.append_job_event(job.id, status="running")
         try:
-            run = methods.registry.run(request.method_id, session.dataset, params=request.params)
-            result = jsonable_encoder(run.result)
+            result = jsonable_encoder(
+                methods.run(request.method_id, session.dataset, params=request.params)
+            )
         except MethodExecutionError as exc:
             job = backend_store.append_job_event(job.id, status="failed", error=str(exc))
         except Exception as exc:  # pragma: no cover - defensive boundary for future methods
             job = backend_store.append_job_event(job.id, status="failed", error=str(exc))
         else:
             job = backend_store.append_job_event(job.id, status="completed", result=result)
-        return _job_response(job)
+        return _job_response(job, methods=methods)
 
     @app.get("/jobs/{job_id}", response_model=JobResponse)
     async def get_job(job_id: str) -> JobResponse:
         job = backend_store.get_job(job_id)
         if job is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-        return _job_response(job)
+        return _job_response(job, methods=methods)
 
     @app.get(
         "/ws/jobs/{job_id}",
@@ -240,7 +334,7 @@ def _session_response(session: SessionRecord) -> SessionResponse:
     )
 
 
-def _job_response(job: JobRecord) -> JobResponse:
+def _job_response(job: JobRecord, *, methods: MethodCatalog) -> JobResponse:
     return JobResponse(
         id=job.id,
         session_id=job.session_id,
@@ -248,7 +342,7 @@ def _job_response(job: JobRecord) -> JobResponse:
         method_id=job.method_id,
         params=job.params,
         status=job.status,
-        result=job.result,
+        result=_job_result_response(job, methods=methods),
         error=job.error,
         created_at=job.created_at,
         updated_at=job.updated_at,
@@ -264,7 +358,91 @@ def _method_response(method: Method[Any]) -> MethodResponse:
             fields.append(f"{field.path}: {field.description}")
         else:
             fields.append(field.path)
-    return MethodResponse(id=method.name, name=name, description="; ".join(fields))
+    return MethodResponse(
+        id=method.name,
+        name=name,
+        description="; ".join(fields),
+        required_inputs=list(method.required_inputs),
+        params_schema=_params_schema(method.params_type),
+        output_spec=_output_spec_response(method),
+    )
+
+
+def _job_result_response(job: JobRecord, *, methods: MethodCatalog) -> JobResultResponse | None:
+    if job.result is None:
+        return None
+    try:
+        method = methods.lookup(job.method_id)
+    except MethodLookupError:
+        return JobResultResponse(output=job.result)
+
+    output_spec = _output_spec_response(method)
+    return JobResultResponse(
+        output=job.result,
+        output_spec=output_spec,
+        panel=output_spec.panel,
+    )
+
+
+def _output_spec_response(method: Method[Any]) -> OutputSpecResponse:
+    return OutputSpecResponse(
+        fields=[
+            OutputFieldResponse(
+                path=field.path,
+                label=_label_from_path(field.path),
+                description=field.description,
+                unit=field.unit,
+            )
+            for field in method.output.fields
+        ],
+        panel=PanelSpecResponse(
+            id=method.output.panel.id,
+            title=method.output.panel.title,
+            kind=method.output.panel.kind,
+            field=method.output.panel.field,
+        )
+        if method.output.panel is not None
+        else None,
+    )
+
+
+def _params_schema(params_type: type[Any]) -> dict[str, Any]:
+    try:
+        schema = TypeAdapter(params_type).json_schema()
+    except Exception:  # pragma: no cover - fallback for future non-schema params classes
+        name = getattr(params_type, "__name__", "Params")
+        return {"title": name, "type": "object", "properties": {}}
+    return dict(schema)
+
+
+def _label_from_path(path: str) -> str:
+    return path.rsplit(".", maxsplit=1)[-1].replace("_", " ").title()
+
+
+def _normalize_method_id(method_id: str) -> str:
+    return method_id.strip()
+
+
+def _require_declared_paths(value: Any, paths: list[str] | tuple[str, ...], *, owner: str) -> None:
+    for path in paths:
+        if not _has_field_path(value, path):
+            raise MethodExecutionError(f"method {owner!r} missing declared field {path!r}")
+
+
+def _has_field_path(value: Any, path: str) -> bool:
+    current = value
+    for part in path.split("."):
+        if isinstance(current, BaseModel):
+            if not hasattr(current, part):
+                return False
+            current = getattr(current, part)
+        elif isinstance(current, dict):
+            if part not in current:
+                return False
+            current = current[part]
+        else:
+            return False
+    return True
 
 
 app = create_app()

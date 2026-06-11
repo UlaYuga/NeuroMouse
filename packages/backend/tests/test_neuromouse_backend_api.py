@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -8,6 +10,9 @@ from fastapi.testclient import TestClient
 
 from neuromouse_backend.app import create_app
 from neuromouse_backend.storage import SQLiteBackendStore
+
+ROOT = Path(__file__).resolve().parents[3]
+GOLDEN_PATH = ROOT / "datasets" / "golden" / "data.json"
 
 
 def minimal_dataset(channel_count: int = 2) -> dict[str, Any]:
@@ -127,12 +132,110 @@ async def test_rest_happy_path_creates_session_runs_job_and_returns_result(app) 
         assert job["status"] == "completed"
         assert job["dataset_version"] == 1
         assert job["params"] == {"min_hz": 8.0, "max_hz": 12.0}
-        assert job["result"]["band_power_summary"]["band"] == {"min_hz": 8.0, "max_hz": 12.0}
-        assert job["result"]["band_power_summary"]["mean_power"] == pytest.approx(0.8)
+        assert job["result"]["output"]["band_power_summary"]["band"] == {
+            "min_hz": 8.0,
+            "max_hz": 12.0,
+        }
+        assert job["result"]["output"]["band_power_summary"]["mean_power"] == pytest.approx(0.8)
+        assert job["result"]["panel"]["kind"] == "table"
+        assert job["result"]["panel"]["field"] == "band_power_summary.channels"
 
         get_job_response = await client.get(f"/jobs/{job['id']}")
         assert get_job_response.status_code == 200
         assert get_job_response.json() == job
+
+
+@pytest.mark.asyncio
+async def test_methods_include_render_specs_and_params_schema(app) -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/methods")
+
+    assert response.status_code == 200
+    methods = response.json()
+    band_power = next(method for method in methods if method["id"] == "band_power_summary")
+
+    assert band_power["params_schema"]["title"] == "BandPowerParams"
+    assert band_power["params_schema"]["properties"]["min_hz"]["default"] == 8.0
+    assert band_power["params_schema"]["properties"]["max_hz"]["default"] == 13.0
+    assert band_power["output_spec"]["panel"] == {
+        "id": "band_power_summary",
+        "title": "Band Power Summary",
+        "kind": "table",
+        "field": "band_power_summary.channels",
+    }
+    assert band_power["output_spec"]["fields"] == [
+        {
+            "path": "band_power_summary.band",
+            "label": "Band",
+            "description": "Frequency band used for integration",
+            "unit": None,
+        },
+        {
+            "path": "band_power_summary.channels",
+            "label": "Channels",
+            "description": "Per-channel band-power rows",
+            "unit": None,
+        },
+        {
+            "path": "band_power_summary.mean_power",
+            "label": "Mean Power",
+            "description": "Mean band power across channels",
+            "unit": None,
+        },
+        {
+            "path": "band_power_summary.top_channel",
+            "label": "Top Channel",
+            "description": "Channel with highest band power",
+            "unit": None,
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_demo_seed_creates_runnable_session_from_golden_dataset(app) -> None:
+    golden = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        seed_response = await client.post("/demo/seed")
+        assert seed_response.status_code == 201
+        seed = seed_response.json()
+        assert seed["session_id"]
+        assert seed["dataset_id"]
+        assert seed["dataset_version"] == 1
+
+        session_response = await client.get(f"/sessions/{seed['session_id']}")
+        assert session_response.status_code == 200
+        session = session_response.json()
+        assert session["dataset"]["meta"]["channels"] == golden["meta"]["channels"]
+        assert len(session["dataset"]["channel_summary"]) == len(golden["channel_summary"])
+        assert session["channel_count"] == golden["meta"]["n_channels"]
+
+        job_response = await client.post(
+            f"/sessions/{seed['session_id']}/jobs",
+            json={"method_id": "band_power_summary", "params": {"min_hz": 8.0, "max_hz": 13.0}},
+        )
+        assert job_response.status_code == 201
+        job = job_response.json()
+        assert job["status"] == "completed"
+        assert job["result"]["panel"] == {
+            "id": "band_power_summary",
+            "title": "Band Power Summary",
+            "kind": "table",
+            "field": "band_power_summary.channels",
+        }
+        assert job["result"]["output_spec"]["fields"][1]["path"] == "band_power_summary.channels"
+        channels = job["result"]["output"]["band_power_summary"]["channels"]
+        assert len(channels) == seed["channel_count"]
+
+        get_job_response = await client.get(f"/jobs/{job['id']}")
+        assert get_job_response.status_code == 200
+        assert get_job_response.json()["result"] == job["result"]
 
 
 def test_job_and_live_websockets_stream_progress_and_echo(app) -> None:
