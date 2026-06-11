@@ -1,3 +1,5 @@
+import { renderMethodPanel } from "./panels/method-panel.js";
+
 export const SCENARIOS = [
   {
     id: "trained-vs-naive",
@@ -222,6 +224,118 @@ export function generateWorkbenchReportPreview(options = {}) {
     qualityFlags: state.qualityFlags,
     markdown: generateWorkbenchReport(options),
   };
+}
+
+export async function runBackendMethodFlow({
+  backend,
+  backendMethods = [],
+  dataset,
+  methodId = "band_power_summary",
+  params = {},
+  output,
+  document: providedDocument = globalThis.document,
+  seedEndpoint = "/demo/seed",
+  seedName = "NeuroMouse backend demo",
+  onStatus,
+  onProgress,
+  onProgressEvent,
+} = {}) {
+  if (!backend) throw new Error("runBackendMethodFlow requires backend");
+  if (!output) throw new Error("runBackendMethodFlow requires output");
+  if (!dataset) throw new Error("runBackendMethodFlow requires dataset");
+
+  const updateStatus = typeof onStatus === "function" ? onStatus : () => {};
+  const updateProgress = typeof onProgress === "function" ? onProgress : () => {};
+  const emitProgress = typeof onProgressEvent === "function" ? onProgressEvent : () => {};
+  const methodLookup = Array.isArray(backendMethods) ? backendMethods : [];
+
+  updateStatus("Seeding demo dataset…", "is-connecting");
+  updateProgress("seed");
+
+  const method = methodLookup.find((item) => item.id === methodId) ?? {
+    id: methodId,
+    name: methodId,
+  };
+
+  try {
+    const session = await backend.seedDemoDataset({
+      name: seedName,
+      dataset,
+      seedEndpoint,
+    });
+    updateStatus(`Session ${session.id} ready`, "is-live");
+    updateProgress("queued");
+
+    const job = await backend.createJob(session.id, {
+      methodId,
+      params,
+    });
+
+    updateStatus(`Running ${methodId}…`, "is-connecting");
+    await backend.streamJobProgress(job.id, {
+      onEvent: (event) => {
+        emitProgress(event);
+        updateProgress(event.status ?? "event");
+        if (event.error) {
+          updateStatus(event.error, "is-error");
+        }
+      },
+    });
+
+    const result = await backend.getResult(job.id);
+    const methodResult = pickMethodResultPayload(result, method);
+    const methodPanelSpec = resolveMethodPanelSpec(result, method);
+    renderMethodPanel(output, {
+      document: providedDocument,
+      method,
+      panelSpec: methodPanelSpec,
+      result: methodResult,
+    });
+    updateStatus(`${methodId} completed`, "is-live");
+    updateProgress(result.status ?? "completed");
+
+    return {
+      session,
+      job,
+      method,
+      result,
+    };
+  } catch (error) {
+    updateStatus(`Backend run failed · ${error.message}`, "is-error");
+    updateProgress("failed");
+    throw error;
+  }
+}
+
+function pickMethodResultPayload(result, method = {}) {
+  const raw = result?.result;
+  if (!raw) return {};
+  if (raw.output != null && raw.output_spec != null && isObjectMap(raw.output)) {
+    return raw.output;
+  }
+  if (
+    isObjectMap(raw.output) &&
+    (raw.output[method?.id] != null || raw.output[method?.name] != null)
+  ) {
+    return raw.output;
+  }
+  return raw;
+}
+
+function isObjectMap(value) {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function resolveMethodPanelSpec(result, method = {}) {
+  return (
+    method.panelSpec ??
+    result?.result?.panel ??
+    result?.result?.output_spec?.panel ??
+    result?.result?.outputSpec?.panel ??
+    method.output_spec?.panel ??
+    method.output?.panel ??
+    null
+  );
 }
 
 export function createDemoDatasetPair(data) {

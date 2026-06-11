@@ -1,5 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_POLL_INTERVAL_MS = 250;
+const DEFAULT_DEMO_SEED_ENDPOINT = "/demo/seed";
 const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "not_found"]);
 
 export class BackendHttpError extends Error {
@@ -30,16 +31,30 @@ export class BackendClient {
     this.pollIntervalMs = pollIntervalMs;
   }
 
-  async seedDemoDataset({ name = "NeuroMouse demo dataset", dataset } = {}) {
+  async seedDemoDataset({ name = "NeuroMouse demo dataset", dataset, seedEndpoint = DEFAULT_DEMO_SEED_ENDPOINT } = {}) {
     if (!dataset) throw new Error("seedDemoDataset requires dataset");
+    const normalizedEndpoint = normalizeSeedEndpoint(seedEndpoint);
+    const allowCreateSessionFallback = normalizedEndpoint === DEFAULT_DEMO_SEED_ENDPOINT;
+    const allowSeedNoBody = /^\/demo\/seed/.test(normalizedEndpoint);
     try {
-      const response = await this.requestJson("/demo/seed", {
+      const response = await requestSeedDemo(this.requestJson.bind(this), normalizedEndpoint, {
         method: "POST",
         body: { name, dataset },
       });
       return normalizeSession(response.session ?? response);
     } catch (error) {
-      if (error instanceof BackendHttpError && (error.status === 404 || error.status === 405)) {
+      if (
+        allowSeedNoBody &&
+        error instanceof BackendHttpError &&
+        error.status === 422 &&
+        dataset
+      ) {
+        const response = await requestSeedDemo(this.requestJson.bind(this), normalizedEndpoint, {
+          method: "POST",
+        });
+        return normalizeSession(response.session ?? response);
+      }
+      if (allowCreateSessionFallback && error instanceof BackendHttpError && (error.status === 404 || error.status === 405)) {
         return this.createSession({ name, dataset });
       }
       throw error;
@@ -236,11 +251,23 @@ export function createBackendClient(options = {}) {
   return new BackendClient(options);
 }
 
+export function normalizeSeedEndpoint(seedEndpoint = DEFAULT_DEMO_SEED_ENDPOINT) {
+  if (!seedEndpoint) return DEFAULT_DEMO_SEED_ENDPOINT;
+  if (/^https?:\/\//i.test(seedEndpoint)) return seedEndpoint;
+  return `/${String(seedEndpoint).replace(/^\/+/, "")}`;
+}
+
 export function normalizeMethod(method) {
   const id = method.id ?? method.name;
   if (!id) throw new Error("Backend method is missing id");
   const name = method.name ?? titleFromId(id);
-  const rawPanel = method.panelSpec ?? method.panel_spec ?? method.panel ?? method.output?.panel ?? null;
+  const rawPanel = method.panelSpec ??
+    method.panel_spec ??
+    method.panel ??
+    method.output_spec?.panel ??
+    method.output?.panel ??
+    method.output_spec?.panel_spec ??
+    null;
   const normalized = {
     ...method,
     id,
@@ -274,8 +301,17 @@ export function normalizePanelSpec(panelSpec, method = {}) {
 }
 
 function normalizeSession(session) {
-  if (!session?.id) throw new Error("Backend session response is missing id");
+  const normalized = session;
+  if (!normalized?.id) {
+    if (normalized?.session_id != null) normalized.id = normalized.session_id;
+    else if (normalized?.sessionId != null) normalized.id = normalized.sessionId;
+  }
+  if (!normalized?.id) throw new Error("Backend session response is missing id");
   return session;
+}
+
+async function requestSeedDemo(requestJson, path, options) {
+  return requestJson(path, options);
 }
 
 async function readResponseBody(response) {
