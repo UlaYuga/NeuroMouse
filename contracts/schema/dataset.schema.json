@@ -7,6 +7,7 @@
           "items": {
             "type": "number"
           },
+          "minItems": 1,
           "title": "Time Relative",
           "type": "array"
         },
@@ -187,6 +188,7 @@
           "items": {
             "type": "number"
           },
+          "minItems": 1,
           "title": "Time",
           "type": "array"
         },
@@ -323,6 +325,7 @@
           "items": {
             "type": "string"
           },
+          "minItems": 1,
           "title": "Channels",
           "type": "array"
         },
@@ -448,6 +451,7 @@
           "items": {
             "type": "number"
           },
+          "minItems": 1,
           "title": "Frequencies",
           "type": "array"
         },

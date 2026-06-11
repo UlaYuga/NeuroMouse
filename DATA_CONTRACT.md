@@ -27,7 +27,7 @@ the outer array has one row per channel, in the same order as `meta.channels`.
 {
   "meta": {
     "channels": ["Fp1", "Fpz", "..."],   // REQUIRED, non-empty. Order defines channel index.
-    "n_channels": 32,                      // optional; should equal channels.length
+    "n_channels": 32,                      // optional; if present, MUST equal channels.length
     "segment_duration_sec": 60.0,          // optional
     "sampling_rate_analysis_hz": 256,      // optional
     "welch_window_sec": 4,                 // optional
@@ -39,17 +39,17 @@ the outer array has one row per channel, in the same order as `meta.channels`.
   },
 
   "welch_psd": {
-    "frequencies": [f0, f1, ...],          // REQUIRED, length F
+    "frequencies": [f0, f1, ...],          // REQUIRED, non-empty, finite values, length F
     "psd": [ [p, ...], ... ]               // REQUIRED, shape [n_channels][F]
   },
 
   "centroid": {
-    "time_relative": [t0, t1, ...],        // REQUIRED, length Tc
-    "values": [ [c, ...], ... ]            // REQUIRED, shape [n_channels][Tc]
+    "time_relative": [t0, t1, ...],        // REQUIRED, non-empty, length Tc
+    "values": [ [c, ...], ... ]            // REQUIRED, finite values, shape [n_channels][Tc]
   },
 
   "geometry": {
-    "time": [t0, t1, ...],                 // REQUIRED, length Tg
+    "time": [t0, t1, ...],                 // REQUIRED, non-empty, finite values, length Tg
     "centroid":              [ [..], ... ], // [n_channels][Tg]
     "spread":                [ [..], ... ],
     "entropy":               [ [..], ... ],
@@ -84,9 +84,19 @@ the outer array has one row per channel, in the same order as `meta.channels`.
 ### Hard validation rules (the dataset is rejected if any fail)
 
 - `meta.channels` is a **non-empty array**. Its length `N` is the channel count.
-- `welch_psd.frequencies` and `welch_psd.psd` are arrays, and `welch_psd.psd.length === N`.
-- `centroid.time_relative` and `centroid.values` are arrays, and `centroid.values.length === N`.
-- `geometry.time` is an array.
+- `meta.channels.length <= 4096` by default. This is a configurable denial-of-service
+  ceiling, not a montage limit; HD-MEA datasets with hundreds or thousands of electrodes
+  are valid below the configured ceiling.
+- `meta.n_channels`, when present, is a positive integer and equals `meta.channels.length`.
+- `welch_psd.frequencies` is a **non-empty array** of finite numbers.
+- `welch_psd.psd` is an array with `welch_psd.psd.length === N`; every row is an array
+  with `row.length === welch_psd.frequencies.length`, and every value is finite.
+- `centroid.time_relative` is a **non-empty array**.
+- `centroid.values` is an array with `centroid.values.length === N`; every row is an
+  array with `row.length === centroid.time_relative.length`, and every value is finite.
+- `geometry.time` is a **non-empty array** of finite numbers.
+
+Finite means no `NaN`, `+Infinity`, or `-Infinity`.
 
 Everything else is best-effort: missing optional fields degrade a panel, they do not
 break the dashboard. Keep channel-major rows aligned to `meta.channels` order — index `i`
