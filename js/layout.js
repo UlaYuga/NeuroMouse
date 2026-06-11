@@ -1,7 +1,14 @@
 import { loadData } from "./loader.js";
 import { createViewerApp } from "./viewer.js";
 
-const app = createViewerApp({ document, window });
+const params = new URLSearchParams(window.location.search);
+const backendMode = params.has("backend") && params.get("backend") !== "0";
+const app = createViewerApp({
+  document,
+  window,
+  backendMode,
+  backendBaseUrl: params.get("backendUrl") ?? "",
+});
 
 init();
 

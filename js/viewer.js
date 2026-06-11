@@ -1,5 +1,7 @@
 import { createDisposables } from "./disposables.js";
+import { createBackendClient } from "./backend-client.js";
 import { createLiveSource, createStaticSource, loadDatasetFiles, setSource } from "./loader.js";
+import { renderMethodPanel } from "./panels/method-panel.js";
 import { createSessionStore, MAX_SESSIONS } from "./session-store.js";
 import { createViewerState } from "./viewer-state.js";
 import { initPsdView } from "./views/psd-view.js";
@@ -27,6 +29,7 @@ import {
 import { buildViewerStructure } from "./viewer-structure.js";
 
 export { buildViewerStructure, createSessionStore, createViewerState };
+export { BackendClient, createBackendClient } from "./backend-client.js";
 
 export function createViewerApp({
   dataset = null,
@@ -35,6 +38,9 @@ export function createViewerApp({
   window: providedWindow = providedDocument?.defaultView ?? globalThis.window,
   state = createViewerState(),
   sessions = createSessionStore(),
+  backendMode = false,
+  backendBaseUrl = "",
+  backendClient = null,
 } = {}) {
   if (!providedDocument) throw new Error("createViewerApp requires a document");
 
@@ -115,11 +121,15 @@ export function createViewerApp({
   const workbenchExplainBtn = query("#workbench-explain-btn");
   const workbenchExplain = query("#workbench-explain");
   const workbenchExplainQuestion = query("#workbench-explain-q");
+  const workbench = query(".workbench");
   let lastReportMarkdown = "";
   let liveConnection = null;
   let activeData = null;
   let monitorView = null;
   let activeScenarioId = workbenchScenario?.value ?? "trained-vs-naive";
+  let backend = backendClient;
+  let backendUi = null;
+  let backendMethods = [];
   const appDisposables = createDisposables();
 
 async function mount(nextDataset = dataset) {
@@ -138,6 +148,7 @@ async function mount(nextDataset = dataset) {
     bindSessionControls();
     renderSessionSidebar();
     renderWorkbench();
+    if (backendMode) setupBackendMode();
     appDisposables.add(initPsdView(data, tooltip, context));
     appDisposables.add(initCentroidView(data, tooltip, context));
     appDisposables.add(initPlaybackBar(query("#playback-bar"), data, context));
@@ -366,6 +377,151 @@ function bindSessionControls() {
   appDisposables.listen(workbenchReportDialog, "click", (event) => {
     if (event.target === workbenchReportDialog) closeReportPreview();
   });
+}
+
+function setupBackendMode() {
+  if (backendUi || !dashboard) return;
+  backend = backend ?? createBackendClient({ baseUrl: backendBaseUrl });
+  backendUi = createBackendUi();
+  if (workbench && typeof workbench.after === "function") {
+    workbench.after(backendUi.section);
+  } else {
+    dashboard.prepend(backendUi.section);
+  }
+  appDisposables.listen(backendUi.runButton, "click", runBackendMethod);
+  appDisposables.listen(backendUi.refreshButton, "click", () => {
+    void loadBackendMethods();
+  });
+  void loadBackendMethods();
+}
+
+function createBackendUi() {
+  const section = element("section", {
+    id: "backend-method-runner",
+    className: "panel panel-backend panel-collapsible is-expanded",
+    "aria-labelledby": "backend-method-title",
+  },
+  element("div", { className: "panel-head" },
+    element("div", {},
+      element("h2", { id: "backend-method-title" }, "Backend Method Runner"),
+      element("p", {}, "Seed the active dataset, run a registered backend method, and render its declared panel."),
+    ),
+    element("span", { className: "panel-toggle-icon", "aria-hidden": "true" }, "−"),
+  ),
+  element("div", { className: "panel-body" },
+    element("div", { className: "workbench-actions", "aria-label": "Backend method controls" },
+      element("select", { id: "backend-method-select", name: "backend-method", "aria-label": "Backend method" },
+        element("option", { value: "band_power_summary" }, "band_power_summary"),
+      ),
+      element("button", { id: "backend-refresh-methods", type: "button" }, "Refresh Methods"),
+      element("button", { id: "backend-run-method", className: "primary-action", type: "button" }, "Run Method"),
+    ),
+    element("div", { className: "live-readouts", "aria-live": "polite" },
+      element("span", { id: "backend-status", className: "live-status" }, "Backend mode ready"),
+      element("span", {}, "progress ", element("strong", { id: "backend-progress" }, "idle")),
+    ),
+    element("div", { id: "method-panel-output", "aria-live": "polite" }),
+  ));
+  return {
+    section,
+    methodSelect: section.querySelector("#backend-method-select"),
+    refreshButton: section.querySelector("#backend-refresh-methods"),
+    runButton: section.querySelector("#backend-run-method"),
+    status: section.querySelector("#backend-status"),
+    progress: section.querySelector("#backend-progress"),
+    output: section.querySelector("#method-panel-output"),
+  };
+}
+
+async function loadBackendMethods() {
+  if (!backendUi || !backend) return;
+  setBackendStatus("Connecting to backend…", "is-connecting");
+  try {
+    backendMethods = await backend.listMethods();
+    renderBackendMethodOptions();
+    setBackendStatus(`Connected · ${backendMethods.length} method${backendMethods.length === 1 ? "" : "s"}`, "is-live");
+    setBackendProgress("ready");
+  } catch (error) {
+    backendMethods = [];
+    setBackendStatus(`Backend unavailable · ${error.message}`, "is-error");
+    setBackendProgress("offline");
+  }
+}
+
+function renderBackendMethodOptions() {
+  if (!backendUi?.methodSelect) return;
+  const selected = backendUi.methodSelect.value || "band_power_summary";
+  backendUi.methodSelect.innerHTML = "";
+  const methods = backendMethods.length
+    ? backendMethods
+    : [{ id: "band_power_summary", name: "band_power_summary" }];
+  methods.forEach((method) => {
+    backendUi.methodSelect.append(element("option", {
+      value: method.id,
+      selected: method.id === selected,
+    }, method.name || method.id));
+  });
+}
+
+async function runBackendMethod() {
+  if (!backendUi || !backend || !activeData) return;
+  const methodId = backendUi.methodSelect?.value || "band_power_summary";
+  const method = findBackendMethod(methodId);
+  backendUi.runButton.disabled = true;
+  backendUi.refreshButton.disabled = true;
+  backendUi.output.replaceChildren();
+  setBackendStatus("Seeding demo dataset…", "is-connecting");
+  setBackendProgress("seed");
+  try {
+    if (!backendMethods.length) {
+      backendMethods = await backend.listMethods();
+      renderBackendMethodOptions();
+    }
+    const session = await backend.seedDemoDataset({
+      name: "NeuroMouse backend demo",
+      dataset: activeData,
+    });
+    setBackendStatus(`Session ${session.id} ready`, "is-live");
+    setBackendProgress("queued");
+    const job = await backend.createJob(session.id, { methodId, params: {} });
+    setBackendStatus(`Running ${methodId}…`, "is-connecting");
+    await backend.streamJobProgress(job.id, {
+      onEvent: (event) => {
+        setBackendProgress(event.status ?? "event");
+        if (event.error) setBackendStatus(event.error, "is-error");
+      },
+    });
+    const resultJob = await backend.getResult(job.id);
+    const finalMethod = findBackendMethod(methodId) ?? method ?? { id: methodId, name: methodId };
+    renderMethodPanel(backendUi.output, {
+      document,
+      method: finalMethod,
+      panelSpec: finalMethod.panelSpec,
+      result: resultJob.result,
+    });
+    setBackendStatus(`${methodId} completed`, "is-live");
+    setBackendProgress(resultJob.status ?? "completed");
+  } catch (error) {
+    setBackendStatus(`Backend run failed · ${error.message}`, "is-error");
+    setBackendProgress("failed");
+  } finally {
+    backendUi.runButton.disabled = false;
+    backendUi.refreshButton.disabled = false;
+  }
+}
+
+function findBackendMethod(methodId) {
+  return backendMethods.find((method) => method.id === methodId) ?? null;
+}
+
+function setBackendStatus(message, className = "") {
+  if (!backendUi?.status) return;
+  backendUi.status.textContent = message;
+  backendUi.status.className = `live-status ${className}`.trim();
+}
+
+function setBackendProgress(message) {
+  if (backendUi?.progress) backendUi.progress.textContent = message;
 }
 
 async function handleSessionFiles(files) {
