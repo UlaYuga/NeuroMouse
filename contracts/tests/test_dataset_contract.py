@@ -335,7 +335,9 @@ MUTATION_CASES: list[Mutation] = [
     ),
 ]
 HYPOTHESIS_MUTATION_CASES = [
-    mutation for mutation in MUTATION_CASES if mutation[0] != "channel count exceeds default ceiling"
+    mutation
+    for mutation in MUTATION_CASES
+    if mutation[0] != "channel count exceeds default ceiling"
 ]
 
 

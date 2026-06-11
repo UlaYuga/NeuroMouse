@@ -78,7 +78,7 @@ def _integrate_band(frequencies: list[float], psd_row: list[float], selected: li
         return float(psd_row[selected[0]])
 
     power = 0.0
-    for left, right in zip(selected, selected[1:]):
+    for left, right in zip(selected, selected[1:], strict=False):
         width = frequencies[right] - frequencies[left]
         power += ((psd_row[left] + psd_row[right]) / 2.0) * width
     return float(power)

@@ -15,7 +15,6 @@ from pydantic import (
     model_validator,
 )
 
-
 DEFAULT_MAX_CHANNELS = 4096
 NonEmptyFloatList = Annotated[list[float], Field(min_length=1)]
 NonEmptyStringList = Annotated[list[str], Field(min_length=1)]

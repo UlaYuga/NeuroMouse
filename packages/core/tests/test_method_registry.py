@@ -9,16 +9,16 @@ from typing import Any
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-from neuromouse_contract import Dataset
-from neuromouse_sdk import OutputField, OutputSpec, PanelSpec
-from neuromouse_sdk.examples.band_power_summary import band_power_summary
 
+from neuromouse_contract import Dataset
 from neuromouse_core.method_registry import (
     MethodDeclarationError,
     MethodExecutionError,
     MethodRegistry,
     has_field_path,
 )
+from neuromouse_sdk import OutputField, OutputSpec, PanelSpec
+from neuromouse_sdk.examples.band_power_summary import band_power_summary
 
 ROOT = Path(__file__).resolve().parents[3]
 GOLDEN_PATH = ROOT / "datasets" / "golden" / "data.json"
