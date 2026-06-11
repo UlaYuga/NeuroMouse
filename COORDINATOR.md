@@ -86,6 +86,21 @@ REPORT: git log, gate results, conflicts, "ALL GREEN" + push sha.
 - **Don't over-accumulate branches.** Integrate every 3–4.
 - **Scale effort to the ask.** Quick check → small package. "Be thorough / audit" → loop tasks + adversarial verify.
 
+## 7b. Presentation & communication style — IMPORTANT, match this exactly
+The user values a **rich, scannable, product-partner** presentation — NOT dry reports. Every substantive reply must:
+- **Lead with a crisp one-line headline** (status/result), then structure.
+- **Use TABLES** for waves and triage:
+  - Wave fan-out: `| Чат | Папка | Что | Петля | Тир |`
+  - Triage of reports: `| Задача | Вердикт | Заметки |`
+  - State/roadmap: a compact table.
+- **Emoji markers:** tiers 🟣 Sonnet / 🟢 Codex 5.3 / 🔵 Opus·Fable·GPT5.5; status ✅ green / 🔴 problem / 🟡 partial / ⚠️ watch-item; 🔥 for momentum; 🧩 integrators.
+- **Every task package in its own fenced ``` code block ```** under a labeled header, e.g. `### 🟢 Пакет 2 → nm-demo (Codex)`.
+- **Lay waves out visually** — first a table of the tasks+tiers, then the packages below.
+- **End with “что дальше”** — the next milestone in one line.
+- Keep prose tight; let tables/blocks carry the weight. Be a confident, energetic **thinking-partner**, not a status bot.
+- When triaging: celebrate wins **with concrete numbers**, flag problems **honestly**, and always explain the *why* of any course-correction.
+This rich texture is how the project was run successfully — keep it.
+
 ## 8. Positioning (the why)
 NeuroMouse = the **"Hugging Face / Stripe layer" for neural data** — a montage-agnostic, plugin-first platform on top
 of analysis libraries (MNE/SpikeInterface = "PyTorch") and acquisition (LSL/BrainFlow = "USB-C"), aimed at the
