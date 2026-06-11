@@ -48,6 +48,122 @@ test("renderMethodPanel renders a generic table from a panel spec path", () => {
   assert.equal(host.children.length, 1);
 });
 
+test("renderMethodPanel renders heatmap_table rows and cells from MEA-like rate output", () => {
+  const document = createTestDocument();
+  const host = document.createElement("div");
+  const result = {
+    spike_detect: {
+      rates: [
+        { electrode: "E01", rate_hz: 5.0 },
+        { electrode: "E02", rate_hz: 2.5 },
+        { electrode: "E03", rate_hz: 0.0 },
+      ],
+    },
+  };
+
+  renderMethodPanel(host, {
+    document,
+    method: { id: "spike_detect_rates", name: "Spike Detect Firing Rates" },
+    panelSpec: {
+      id: "spike_detect_rates",
+      title: "Spike Detect Firing Rates",
+      kind: "heatmap_table",
+      field: "spike_detect.rates",
+    },
+    result,
+  });
+
+  const table = host.querySelector("table");
+  assert.ok(table, "Expected a table for heatmap_table");
+  assert.deepEqual(
+    Array.from(table.querySelectorAll("thead tr th")).map((node) => node.textContent),
+    ["electrode", "rate_hz"],
+  );
+  assert.deepEqual(
+    Array.from(table.querySelectorAll("tbody tr")).map((row) => {
+      return Array.from(row.querySelectorAll("td")).map((cell) => cell.textContent);
+    }),
+    [
+      ["E01", "5"],
+      ["E02", "2.5000"],
+      ["E03", "0"],
+    ],
+  );
+});
+
+test("renderMethodPanel renders timeline segments from MEA-like timeline output", () => {
+  const document = createTestDocument();
+  const host = document.createElement("div");
+  const result = {
+    network_burst: {
+      timeline: [
+        { start_sec: 0.12, end_sec: 0.37, spike_count: 5 },
+        { start_sec: 0.9, end_sec: 1.42, spike_count: 3 },
+      ],
+    },
+  };
+
+  renderMethodPanel(host, {
+    document,
+    method: { id: "network_burst_timeline", name: "Network Burst Timeline" },
+    panelSpec: {
+      id: "network_burst_timeline",
+      title: "Network Burst Timeline",
+      kind: "timeline",
+      field: "network_burst.timeline",
+    },
+    result,
+  });
+
+  const timeline = host.querySelector("table");
+  assert.ok(timeline, "Expected a timeline table");
+  assert.deepEqual(
+    Array.from(timeline.querySelectorAll("tr")).length,
+    3,
+    "Expected header row + two segments",
+  );
+  assert.deepEqual(
+    Array.from(timeline.querySelectorAll("tbody tr")).map((row) => {
+      return Array.from(row.querySelectorAll("td")).map((cell) => cell.textContent);
+    }),
+    [
+      ["0.1200", "0.3700", "5"],
+      ["0.9000", "1.4200", "3"],
+    ],
+  );
+});
+
+test("renderMethodPanel renders matrix panels as NxN grids", () => {
+  const document = createTestDocument();
+  const host = document.createElement("div");
+  const result = {
+    electrode_connectivity: {
+      matrix: [
+        [1.0, 0.6, 0.2],
+        [0.6, 1.0, 0.1],
+        [0.2, 0.1, 1.0],
+      ],
+    },
+  };
+
+  renderMethodPanel(host, {
+    document,
+    method: { id: "electrode_connectivity_matrix", name: "Electrode Connectivity Matrix" },
+    panelSpec: {
+      id: "electrode_connectivity_matrix",
+      title: "Electrode Connectivity Matrix",
+      kind: "matrix",
+      field: "electrode_connectivity.matrix",
+    },
+    result,
+  });
+
+  const matrix = host.querySelector("table");
+  assert.ok(matrix, "Expected a matrix table");
+  assert.equal(matrix.querySelectorAll("tbody tr").length, 3);
+  assert.deepEqual(Array.from(matrix.querySelectorAll("tbody tr")).map((row) => row.querySelectorAll("td").length), [3, 3, 3]);
+});
+
 test("renderMethodPanel renders key-value output when the panel field is scalar", () => {
   const document = createTestDocument();
   const host = document.createElement("div");
