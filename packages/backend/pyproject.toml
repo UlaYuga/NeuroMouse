@@ -2,7 +2,14 @@
 name = "neuromouse-backend"
 version = "0.0.0"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "fastapi>=0.115.0,<0.116.0",
+    "httpx>=0.28.0",
+    "pydantic==2.11.0",
+    "pytest-asyncio>=0.24.0",
+    "schemathesis>=3.39.0",
+    "uvicorn>=0.34.0",
+]
 
 [build-system]
 requires = ["hatchling"]
