@@ -13,6 +13,7 @@ members = [
     "neuromouse-contract",
     "neuromouse-core",
     "neuromouse-sdk",
+    "neuromouse-sorting",
     "neuromouse-workspace",
 ]
 
@@ -650,6 +651,20 @@ dependencies = [
 requires-dist = [{ name = "neuromouse-contract", editable = "contracts" }]
 
 [[package]]
+name = "neuromouse-sorting"
+version = "0.0.0"
+source = { editable = "packages/sorting" }
+
+[package.optional-dependencies]
+spikeinterface = [
+    { name = "spikeinterface" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "spikeinterface", marker = "extra == 'spikeinterface'", specifier = ">=0.101.0" }]
+provides-extras = ["spikeinterface"]
+
+[[package]]
 name = "neuromouse-workspace"
 version = "0.0.0"
 source = { virtual = "." }
@@ -659,6 +674,7 @@ dependencies = [
     { name = "neuromouse-contract" },
     { name = "neuromouse-core" },
     { name = "neuromouse-sdk" },
+    { name = "neuromouse-sorting" },
 ]
 
 [package.dev-dependencies]
@@ -676,6 +692,7 @@ requires-dist = [
     { name = "neuromouse-contract", editable = "contracts" },
     { name = "neuromouse-core", editable = "packages/core" },
     { name = "neuromouse-sdk", editable = "packages/sdk" },
+    { name = "neuromouse-sorting", editable = "packages/sorting" },
 ]
 
 [package.metadata.requires-dev]

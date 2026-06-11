@@ -8,6 +8,7 @@ dependencies = [
     "neuromouse-contract",
     "neuromouse-core",
     "neuromouse-sdk",
+    "neuromouse-sorting",
 ]
 
 [dependency-groups]
@@ -28,6 +29,7 @@ neuromouse-backend = { workspace = true }
 neuromouse-contract = { workspace = true }
 neuromouse-core = { workspace = true }
 neuromouse-sdk = { workspace = true }
+neuromouse-sorting = { workspace = true }
 neuromouse-native-startup = { path = "tools/native-startup" }
 
 [tool.uv.workspace]
@@ -37,6 +39,7 @@ members = [
     "packages/backend",
     "packages/core",
     "packages/sdk",
+    "packages/sorting",
 ]
 
 [tool.pytest.ini_options]
@@ -47,6 +50,7 @@ pythonpath = [
     "packages/backend/src",
     "packages/core/src",
     "packages/sdk/src",
+    "packages/sorting/src",
 ]
 testpaths = [
     "contracts/tests",
@@ -54,6 +58,7 @@ testpaths = [
     "packages/backend/tests",
     "packages/core/tests",
     "packages/sdk/tests",
+    "packages/sorting/tests",
 ]
 
 [tool.ruff]
@@ -63,6 +68,7 @@ include = [
     "packages/backend/**/*.py",
     "packages/core/**/*.py",
     "packages/sdk/**/*.py",
+    "packages/sorting/**/*.py",
 ]
 line-length = 100
 src = [
@@ -71,6 +77,7 @@ src = [
     "packages/backend/src",
     "packages/core/src",
     "packages/sdk/src",
+    "packages/sorting/src",
 ]
 target-version = "py311"
 
@@ -85,6 +92,7 @@ root = [
     "packages/backend/src",
     "packages/core/src",
     "packages/sdk/src",
+    "packages/sorting/src",
 ]
 
 [tool.ty.src]
@@ -99,4 +107,6 @@ include = [
     "packages/core/tests",
     "packages/sdk/src",
     "packages/sdk/tests",
+    "packages/sorting/src",
+    "packages/sorting/tests",
 ]
