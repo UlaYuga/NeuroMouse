@@ -109,7 +109,7 @@ export function makeCanonicalData({
 export function makeMalformedData({ shape, mutation }) {
   if (mutation === "oversized-channel-count") {
     return makeCanonicalData({
-      channelCount: 1024,
+      channelCount: 4097,
       freqCount: 1,
       centroidCount: 1,
       geometryCount: 1,
