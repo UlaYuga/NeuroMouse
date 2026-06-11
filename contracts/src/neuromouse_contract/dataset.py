@@ -62,6 +62,11 @@ class Geometry(ContractModel):
     area_normalized_psd: WelchPsd | None = None
 
 
+class Mea(ContractModel):
+    sampling_rate_hz: float
+    traces: list[list[float]]
+
+
 class ChannelSummary(ContractModel):
     channel: str
     hemisphere: Literal["L", "R", "M", ""] | None = None
@@ -82,6 +87,7 @@ class Dataset(ContractModel):
     welch_psd: WelchPsd
     centroid: Centroid
     geometry: Geometry
+    mea: Mea | None = None
     channel_summary: list[ChannelSummary] | None = None
 
     @model_validator(mode="before")
@@ -156,6 +162,31 @@ class Dataset(ContractModel):
             geometry_time,
             "geometry.time must contain only finite numbers",
         )
+
+        mea = value.get("mea")
+        if mea is not None:
+            if not isinstance(mea, Mapping):
+                raise ValueError("data.json must contain a top-level mea object")
+            sampling_rate_hz = mea.get("sampling_rate_hz")
+            if not _is_finite_number(sampling_rate_hz) or sampling_rate_hz <= 0:
+                raise ValueError("mea.sampling_rate_hz must be a finite positive number")
+
+            traces = mea.get("traces")
+            if not isinstance(traces, list) or not traces:
+                raise ValueError("mea.traces must be a non-empty channel-major matrix")
+            first_trace = traces[0]
+            if not isinstance(first_trace, list) or not first_trace:
+                raise ValueError("mea.traces must be a non-empty channel-major matrix")
+            if len(first_trace) == 0:
+                raise ValueError("mea.traces rows must be non-empty")
+            _require_matrix_rows(
+                traces,
+                expected_width=len(first_trace),
+                label="mea.traces",
+                width_label="trace length",
+            )
+            if len(traces) != channel_count:
+                raise ValueError("mea.traces must contain one row per meta.channels")
 
         return value
 

@@ -151,6 +151,32 @@ const mutationCases: Array<{
     },
     expected: /geometry\.time.*non-empty/,
   },
+      {
+        name: "mea traces has wrong channel count",
+        mutate: (data) => {
+          if (!data.mea) {
+            data.mea = {
+              sampling_rate_hz: 1000,
+              traces: data.meta.channels.map(() => [0.1]),
+            };
+          }
+          data.mea.traces = data.mea.traces.slice(0, data.meta.channels.length - 1);
+        },
+        expected: /mea\.traces.*meta\.channels/,
+      },
+      {
+        name: "mea traces contains a non-finite value",
+        mutate: (data) => {
+          if (!data.mea) {
+            data.mea = {
+              sampling_rate_hz: 1000,
+              traces: data.meta.channels.map(() => [0.1]),
+            };
+          }
+          data.mea.traces[0][0] = Number.POSITIVE_INFINITY;
+        },
+        expected: /mea\.traces\[0\]\[0\].*finite number/,
+      },
   {
     name: "4097 channels exceed default ceiling",
     mutate: (data) => {

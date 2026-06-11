@@ -9,6 +9,7 @@ export const datasetSchema = {
           "items": {
             "type": "number"
           },
+          "minItems": 1,
           "title": "Time Relative",
           "type": "array"
         },
@@ -189,6 +190,7 @@ export const datasetSchema = {
           "items": {
             "type": "number"
           },
+          "minItems": 1,
           "title": "Time",
           "type": "array"
         },
@@ -318,6 +320,31 @@ export const datasetSchema = {
       "title": "Geometry",
       "type": "object"
     },
+    "Mea": {
+      "additionalProperties": true,
+      "properties": {
+        "sampling_rate_hz": {
+          "title": "Sampling Rate Hz",
+          "type": "number"
+        },
+        "traces": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Traces",
+          "type": "array"
+        }
+      },
+      "required": [
+        "sampling_rate_hz",
+        "traces"
+      ],
+      "title": "Mea",
+      "type": "object"
+    },
     "Meta": {
       "additionalProperties": true,
       "properties": {
@@ -325,6 +352,7 @@ export const datasetSchema = {
           "items": {
             "type": "string"
           },
+          "minItems": 1,
           "title": "Channels",
           "type": "array"
         },
@@ -450,6 +478,7 @@ export const datasetSchema = {
           "items": {
             "type": "number"
           },
+          "minItems": 1,
           "title": "Frequencies",
           "type": "array"
         },
@@ -485,6 +514,17 @@ export const datasetSchema = {
     },
     "geometry": {
       "$ref": "#/$defs/Geometry"
+    },
+    "mea": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Mea"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "channel_summary": {
       "anyOf": [

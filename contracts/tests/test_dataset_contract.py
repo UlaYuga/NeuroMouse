@@ -192,6 +192,34 @@ def _too_many_channels(data: dict[str, Any]) -> None:
     data.update(oversized)
 
 
+def _invalid_mea_missing_required_field(data: dict[str, Any]) -> None:
+    data["mea"] = {"sampling_rate_hz": 1_000.0}
+
+
+def _mea_wrong_channel_count(data: dict[str, Any]) -> None:
+    channel_count = len(data["meta"]["channels"])
+    data["mea"] = {
+        "sampling_rate_hz": 1_000.0,
+        "traces": [[0.0] for _ in range(channel_count + 1)],
+    }
+
+
+def _mea_nonfinite_sample_rate(data: dict[str, Any]) -> None:
+    channel_count = len(data["meta"]["channels"])
+    data["mea"] = {
+        "sampling_rate_hz": float("nan"),
+        "traces": [[0.0] for _ in range(channel_count)],
+    }
+
+
+def _mea_nonfinite_trace(data: dict[str, Any]) -> None:
+    channel_count = len(data["meta"]["channels"])
+    data["mea"] = {
+        "sampling_rate_hz": 1_000.0,
+        "traces": [[float("nan")] for _ in range(channel_count)],
+    }
+
+
 MUTATION_CASES: list[Mutation] = [
     (
         "drop meta.channels",
@@ -327,6 +355,26 @@ MUTATION_CASES: list[Mutation] = [
         "geometry.time contains Infinity",
         _infinite_geometry_time,
         "geometry.time must contain only finite numbers",
+    ),
+    (
+        "mea block missing required field",
+        _invalid_mea_missing_required_field,
+        "mea.traces must be a non-empty channel-major matrix",
+    ),
+    (
+        "mea.traces wrong channel count",
+        _mea_wrong_channel_count,
+        "mea.traces must contain one row per meta.channels",
+    ),
+    (
+        "mea.sampling_rate_hz is not a finite positive number",
+        _mea_nonfinite_sample_rate,
+        "mea.sampling_rate_hz must be a finite positive number",
+    ),
+    (
+        "mea.traces contains non-finite value",
+        _mea_nonfinite_trace,
+        "mea.traces row 0 must contain only finite numbers",
     ),
     (
         "channel count exceeds default ceiling",

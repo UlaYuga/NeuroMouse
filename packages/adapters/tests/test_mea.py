@@ -60,6 +60,9 @@ def test_make_synthetic_mea_is_deterministic_contract_valid_and_keeps_spike_grou
     assert dataset["meta"]["channels"][-1] == "MEA-1023"
     assert dataset["meta"]["modality"] == "hd_mea"
     assert dataset["meta"]["analysis_by"] == "neuromouse_adapters.mea"
+    assert "mea" in dataset
+    assert dataset["mea"]["sampling_rate_hz"] == dataset["meta"]["sampling_rate_analysis_hz"]
+    assert len(dataset["mea"]["traces"]) == dataset["meta"]["n_channels"]
     assert dataset["spike_ground_truth"] == repeat["spike_ground_truth"]
     assert dataset["welch_psd"]["psd"][0] == repeat["welch_psd"]["psd"][0]
 
@@ -171,3 +174,6 @@ def test_1024_channel_golden_mea_fixture_is_contract_valid() -> None:
         dataset["spike_ground_truth"]["events"]
     )
     assert dataset["spike_ground_truth"]["events"]
+    assert "mea" in dataset
+    assert dataset["mea"]["sampling_rate_hz"] > 0.0
+    assert len(dataset["mea"]["traces"]) == dataset["meta"]["n_channels"]

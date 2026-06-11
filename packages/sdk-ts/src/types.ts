@@ -1,7 +1,10 @@
 /* eslint-disable */
 /* Generated from ../../contracts/schema/dataset.schema.json. Do not edit by hand. */
 
-export type Channels = string[];
+/**
+ * @minItems 1
+ */
+export type Channels = [string, ...string[]];
 export type NChannels = number | null;
 export type SegmentDurationSec = number | null;
 export type SamplingRateAnalysisHz = number | null;
@@ -11,17 +14,28 @@ export type SlidingWindowSec = number | null;
 export type SlidingStepSec = number | null;
 export type Source = string | null;
 export type AnalysisBy = string | null;
-export type Frequencies = number[];
+/**
+ * @minItems 1
+ */
+export type Frequencies = [number, ...number[]];
 export type Psd = number[][];
-export type TimeRelative = number[];
+/**
+ * @minItems 1
+ */
+export type TimeRelative = [number, ...number[]];
 export type Values = number[][];
-export type Time = number[];
+/**
+ * @minItems 1
+ */
+export type Time = [number, ...number[]];
 export type Centroid1 = number[][] | null;
 export type Spread = number[][] | null;
 export type Entropy = number[][] | null;
 export type Flatness = number[][] | null;
 export type Edge95 = number[][] | null;
 export type AlphaRelativePower = number[][] | null;
+export type SamplingRateHz = number;
+export type Traces = number[][];
 export type ChannelSummary = ChannelSummary1[] | null;
 export type Channel = string;
 export type Hemisphere = ("L" | "R" | "M" | "") | null;
@@ -41,6 +55,7 @@ export interface Dataset {
   welch_psd: WelchPsd;
   centroid: Centroid;
   geometry: Geometry;
+  mea?: Mea | null;
   channel_summary?: ChannelSummary;
   [k: string]: unknown;
 }
@@ -76,6 +91,11 @@ export interface Geometry {
   edge95?: Edge95;
   alpha_relative_power?: AlphaRelativePower;
   area_normalized_psd?: WelchPsd | null;
+  [k: string]: unknown;
+}
+export interface Mea {
+  sampling_rate_hz: SamplingRateHz;
+  traces: Traces;
   [k: string]: unknown;
 }
 export interface ChannelSummary1 {

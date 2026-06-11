@@ -36,6 +36,13 @@ export const malformedDataMutations = [
   "geometry-time-not-array",
   "geometry-time-empty",
   "geometry-time-infinity",
+  "mea-is-null",
+  "mea-trace-row-count-too-few",
+  "mea-trace-row-count-too-many",
+  "mea-trace-row-not-array",
+  "mea-trace-row-empty",
+  "mea-trace-row-length-mismatch",
+  "mea-trace-value-infinity",
   "oversized-channel-count",
 ];
 
@@ -88,6 +95,10 @@ export function makeCanonicalData({
         frequencies,
         psd: matrix(channelCount, freqCount, 0.01),
       },
+    },
+    mea: {
+      sampling_rate_hz: 1000.0,
+      traces: matrix(channelCount, 32, 0.0),
     },
     channel_summary: channels.map((channel, index) => ({
       channel,
@@ -205,6 +216,27 @@ export function makeMalformedData({ shape, mutation }) {
       break;
     case "geometry-time-infinity":
       data.geometry.time[0] = Number.POSITIVE_INFINITY;
+      break;
+    case "mea-is-null":
+      data.mea = null;
+      break;
+    case "mea-trace-row-count-too-few":
+      data.mea.traces.pop();
+      break;
+    case "mea-trace-row-count-too-many":
+      data.mea.traces.push([...data.mea.traces[0]]);
+      break;
+    case "mea-trace-row-not-array":
+      data.mea.traces[0] = { value: data.mea.traces[0][0] };
+      break;
+    case "mea-trace-row-empty":
+      data.mea.traces[0] = [];
+      break;
+    case "mea-trace-row-length-mismatch":
+      data.mea.traces[0] = data.mea.traces[0].slice(1);
+      break;
+    case "mea-trace-value-infinity":
+      data.mea.traces[0][0] = Number.POSITIVE_INFINITY;
       break;
     default:
       throw new Error(`Unhandled mutation: ${mutation}`);

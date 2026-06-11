@@ -131,6 +131,47 @@ function hardRuleErrors(obj: unknown, maxChannels: number): DatasetValidationIss
   validateRequiredAxis(errors, "geometry.time", geometryTime);
   validateFiniteVector(errors, "geometry.time", geometryTime);
 
+  const mea = getPath(obj, ["mea"]);
+  if (mea !== undefined && mea !== null) {
+    if (!isRecord(mea)) {
+      addError(errors, "mea", "mea must be an object");
+      return errors;
+    }
+
+    const samplingRate = mea["sampling_rate_hz"];
+    if (typeof samplingRate !== "number" || !Number.isFinite(samplingRate) || samplingRate <= 0) {
+      addError(errors, "mea.sampling_rate_hz", "mea.sampling_rate_hz must be a positive finite number");
+    }
+
+    const traces = mea["traces"];
+    if (!Array.isArray(traces) || traces.length === 0) {
+      addError(
+        errors,
+        "mea.traces",
+        "mea.traces must be a non-empty channel-major matrix",
+      );
+    } else {
+  if (channelCount !== undefined && channelCount > 0 && traces.length !== channelCount) {
+        addError(
+          errors,
+          "mea.traces",
+          `mea.traces has ${traces.length} channel rows but meta.channels lists ${channelCount}`,
+        );
+      }
+      if (!Array.isArray(traces[0]) || traces[0].length === 0) {
+        addError(errors, "mea.traces", "mea.traces[0] must be a non-empty array");
+      }
+      validateChannelRows(errors, {
+        path: "mea.traces",
+        rows: traces,
+        channelCount: traces.length,
+        expectedWidth: (Array.isArray(traces[0]) ? traces[0].length : undefined),
+        expectedWidthPath: "trace length",
+        checkFiniteValues: true,
+      });
+    }
+  }
+
   return errors;
 }
 

@@ -101,6 +101,10 @@ def make_synthetic_mea(
             },
         }
     )
+    dataset["mea"] = {
+        "sampling_rate_hz": analysis_rate_hz,
+        "traces": samples_by_channel,
+    }
     dataset["spike_ground_truth"] = {
         "schema": "synthetic-mea-spikes-v1",
         "seed": int(seed),

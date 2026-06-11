@@ -117,4 +117,28 @@ export function validateData(data, { maxChannels = 4096 } = {}) {
     data.geometry.time,
     "geometry.time must contain only finite numbers",
   );
+
+  if (Object.hasOwn(data, "mea")) {
+    if (!data.mea || typeof data.mea !== "object") {
+      throw new Error("mea must be an object when present");
+    }
+    if (typeof data.mea.sampling_rate_hz !== "number" || !Number.isFinite(data.mea.sampling_rate_hz) || data.mea.sampling_rate_hz <= 0) {
+      throw new Error("mea.sampling_rate_hz must be a positive number");
+    }
+    if (!Array.isArray(data.mea.traces) || data.mea.traces.length === 0) {
+      throw new Error("mea.traces must be a non-empty array when present");
+    }
+    if (!Array.isArray(data.mea.traces[0]) || data.mea.traces[0].length === 0) {
+      throw new Error("mea.traces[0] must be a non-empty array");
+    }
+    requireMatrixRows(
+      data.mea.traces,
+      data.mea.traces[0]?.length,
+      "mea.traces",
+      "trace length",
+    );
+    if (data.mea.traces.length !== channelCount) {
+      throw new Error(`mea.traces has ${data.mea.traces.length} channel rows but meta.channels lists ${channelCount}`);
+    }
+  }
 }
