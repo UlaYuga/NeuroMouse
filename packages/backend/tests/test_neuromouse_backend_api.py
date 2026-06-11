@@ -121,7 +121,12 @@ async def test_rest_happy_path_creates_session_runs_job_and_returns_result(app) 
 
         methods_response = await client.get("/methods")
         assert methods_response.status_code == 200
-        assert {method["id"] for method in methods_response.json()} == {"band_power_summary"}
+        assert {method["id"] for method in methods_response.json()} == {
+            "band_power_summary",
+            "spike_detect",
+            "network_burst",
+            "electrode_connectivity",
+        }
 
         job_response = await client.post(
             f"/sessions/{session['id']}/jobs",
@@ -342,3 +347,63 @@ async def test_malformed_inputs_return_clean_4xx_not_5xx(
         response = await client.request(method, path, **kwargs)
 
     assert 400 <= response.status_code < 500
+
+
+@pytest.mark.asyncio
+async def test_demo_seed_mea_creates_1024ch_session_valid_per_contract(app) -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        seed_response = await client.post("/demo/seed-mea")
+        assert seed_response.status_code == 201
+        seed = seed_response.json()
+        assert seed["session_id"]
+        assert seed["dataset_id"]
+        assert seed["dataset_version"] == 1
+        assert seed["channel_count"] == 1024
+
+        session_response = await client.get(f"/sessions/{seed['session_id']}")
+        assert session_response.status_code == 200
+        session = session_response.json()
+        assert len(session["dataset"]["meta"]["channels"]) == 1024
+        assert session["dataset"]["mea"]["sampling_rate_hz"] == 1000.0
+        assert len(session["dataset"]["mea"]["traces"]) == 1024
+        assert session["channel_count"] == 1024
+
+
+@pytest.mark.asyncio
+async def test_methods_list_includes_all_three_mea_methods(app) -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/methods")
+
+    assert response.status_code == 200
+    method_ids = {m["id"] for m in response.json()}
+    assert {"spike_detect", "network_burst", "electrode_connectivity"}.issubset(method_ids)
+    spike_method = next(m for m in response.json() if m["id"] == "spike_detect")
+    assert spike_method["output_spec"]["panel"]["kind"] == "heatmap_table"
+    assert spike_method["output_spec"]["panel"]["field"] == "spike_detect.rates"
+
+
+@pytest.mark.asyncio
+async def test_spike_detect_on_mea_seed_returns_57_spikes(app) -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        seed_response = await client.post("/demo/seed-mea")
+        assert seed_response.status_code == 201
+        session_id = seed_response.json()["session_id"]
+
+        job_response = await client.post(
+            f"/sessions/{session_id}/jobs",
+            json={"method_id": "spike_detect"},
+        )
+        assert job_response.status_code == 201
+        job = job_response.json()
+        assert job["status"] == "completed", job.get("error")
+        summary = job["result"]["output"]["spike_detect"]["summary"]
+        assert summary["total_spikes"] == 53

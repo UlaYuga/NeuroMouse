@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -17,6 +19,7 @@ from neuromouse_sdk.examples.band_power_summary import band_power_summary
 
 ROOT = Path(__file__).resolve().parents[4]
 DEMO_DATASET_PATH = ROOT / "datasets" / "golden" / "data.json"
+MEA_DEMO_DATASET_PATH = ROOT / "datasets" / "golden" / "mea_synthetic.json"
 
 
 class SessionCreateRequest(BaseModel):
@@ -144,10 +147,26 @@ class MethodCatalog:
             raise MethodExecutionError(f"method {method.name!r} failed: {exc}") from exc
 
 
+def _load_mea_method(name: str) -> Method[Any]:
+    module_name = f"_neuromouse_method_{name}"
+    if module_name not in sys.modules:
+        path = ROOT / "methods" / f"{name}.py"
+        spec = importlib.util.spec_from_file_location(module_name, path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"MEA method not found at {path}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return cast("Method[Any]", sys.modules[module_name].method)
+
+
 def create_default_method_catalog() -> MethodCatalog:
     methods: dict[str, Method[Any]] = {}
     for method in (band_power_summary,):
         methods[_normalize_method_id(method.name)] = method
+    for mea_name in ("spike_detect", "network_burst", "electrode_connectivity"):
+        mea_method = _load_mea_method(mea_name)
+        methods[_normalize_method_id(mea_method.name)] = mea_method
     return MethodCatalog(methods=methods)
 
 
@@ -216,6 +235,31 @@ def create_app(
             ) from exc
 
         session = backend_store.create_session(name="Golden demo dataset", dataset=dataset)
+        return DemoSeedResponse(
+            session_id=session.id,
+            dataset_id=session.dataset_id,
+            dataset_version=session.dataset_version,
+            channel_count=len(session.dataset["meta"]["channels"]),
+        )
+
+    @app.post(
+        "/demo/seed-mea",
+        response_model=DemoSeedResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def seed_demo_mea() -> DemoSeedResponse:
+        try:
+            payload = json.loads(MEA_DEMO_DATASET_PATH.read_text(encoding="utf-8"))
+            dataset = validate_dataset(payload).model_dump(mode="json")
+        except (OSError, json.JSONDecodeError, DatasetValidationError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"MEA demo dataset could not be loaded: {exc}",
+            ) from exc
+
+        session = backend_store.create_session(
+            name="MEA golden demo (1024-ch synthetic)", dataset=dataset
+        )
         return DemoSeedResponse(
             session_id=session.id,
             dataset_id=session.dataset_id,
