@@ -19,6 +19,7 @@ dev = [
 
 [tool.uv]
 package = false
+link-mode = "copy"
 
 [tool.uv.sources]
 neuromouse-adapters = { workspace = true }
