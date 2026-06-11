@@ -12,6 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "neuromouse-native-startup",
     "pytest>=8.0.0",
     "ruff>=0.12.0",
     "ty",
@@ -19,7 +20,7 @@ dev = [
 
 [tool.uv]
 package = false
-link-mode = "copy"
+link-mode = "clone"
 
 [tool.uv.sources]
 neuromouse-adapters = { workspace = true }
@@ -27,6 +28,7 @@ neuromouse-backend = { workspace = true }
 neuromouse-contract = { workspace = true }
 neuromouse-core = { workspace = true }
 neuromouse-sdk = { workspace = true }
+neuromouse-native-startup = { path = "tools/native-startup" }
 
 [tool.uv.workspace]
 members = [

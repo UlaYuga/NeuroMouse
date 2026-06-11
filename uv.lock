@@ -527,6 +527,11 @@ requires-dist = [
 ]
 
 [[package]]
+name = "neuromouse-native-startup"
+version = "0.0.0"
+source = { directory = "tools/native-startup" }
+
+[[package]]
 name = "neuromouse-sdk"
 version = "0.0.0"
 source = { editable = "packages/sdk" }
@@ -551,6 +556,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "neuromouse-native-startup" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
@@ -567,6 +573,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "neuromouse-native-startup", directory = "tools/native-startup" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "ruff", specifier = ">=0.12.0" },
     { name = "ty" },

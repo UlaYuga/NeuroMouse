@@ -18,6 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 for source_path in (
     REPO_ROOT / "contracts" / "src",
     REPO_ROOT / "packages" / "core" / "src",
+    REPO_ROOT / "packages" / "sdk" / "src",
 ):
     source_path_text = str(source_path)
     if source_path_text not in sys.path:
@@ -412,6 +413,7 @@ def _check_dsp_import_subprocess() -> None:
     )
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join([*map(str, _source_paths()), env.get("PYTHONPATH", "")])
+    env["NEUROMOUSE_NATIVE_PREWARM_CHILD"] = "1"
     try:
         completed = subprocess.run(
             [sys.executable, "-c", code],
@@ -439,6 +441,7 @@ def _source_paths() -> list[str]:
     return [
         str(REPO_ROOT / "contracts" / "src"),
         str(REPO_ROOT / "packages" / "core" / "src"),
+        str(REPO_ROOT / "packages" / "sdk" / "src"),
     ]
 
 

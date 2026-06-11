@@ -18,7 +18,7 @@ NeuroMouse platform direction.
 - [ADR 0003: Method SDK plugin surface](adr/0003-method-sdk-plugin-surface.md)
 - [ADR 0004: Montage-agnostic contract with 4096-channel ceiling](adr/0004-montage-agnostic-channel-ceiling.md)
 - [ADR 0005: Fuzz-gated hardening](adr/0005-fuzz-gated-hardening.md)
-- [ADR 0006: uv link-mode copy](adr/0006-uv-link-mode-copy.md)
+- [ADR 0006: uv link-mode clone](adr/0006-uv-link-mode-clone.md)
 
 ## Source Anchors
 
