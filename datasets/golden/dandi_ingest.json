@@ -1,0 +1,190 @@
+{
+  "meta": {
+    "channels": [
+      "DANDI catalog"
+    ],
+    "n_channels": 1,
+    "source": "DANDI kinematic dandisets tabular export",
+    "analysis_by": "neuromouse-adapters.ingest_dandi",
+    "source_files": {
+      "dandi_csv": "caller supplied CSV"
+    },
+    "notes": [
+      "Partial metadata-only ingest: this CSV lists DANDI dandisets and does not contain neural samples, channel names, frequencies, time axes, or per-channel spectral metrics."
+    ]
+  },
+  "welch_psd": {
+    "frequencies": [],
+    "psd": [
+      []
+    ]
+  },
+  "centroid": {
+    "time_relative": [],
+    "values": [
+      []
+    ]
+  },
+  "geometry": {
+    "time": []
+  },
+  "channel_summary": [
+    {
+      "channel": "DANDI catalog",
+      "hemisphere": "",
+      "region": "metadata",
+      "has_clear_alpha_peak": false
+    }
+  ],
+  "dandi": {
+    "schema": "neuromouse-dandi-catalog-v1",
+    "source_columns": [
+      "identifier",
+      "version",
+      "name",
+      "asset_count",
+      "size_bytes",
+      "url"
+    ],
+    "missing_columns": [],
+    "missing_canonical_fields": [
+      "real channel names",
+      "sampling rate",
+      "raw or windowed signal samples",
+      "Welch frequency axis",
+      "Welch PSD values",
+      "centroid time axis and values",
+      "sliding geometry metrics",
+      "per-channel summary metrics"
+    ],
+    "summary": {
+      "dandiset_count": 15,
+      "known_asset_count_rows": 15,
+      "known_size_bytes_rows": 15,
+      "total_asset_count": 5650,
+      "total_size_bytes": 14797898131717
+    },
+    "rows": [
+      {
+        "identifier": "000127",
+        "version": "0.220113.0359",
+        "name": "Area2_Bump: macaque somatosensory area 2 spiking activity during reaching with perturbations",
+        "asset_count": 2,
+        "size_bytes": 1823368810,
+        "url": "https://dandiarchive.org/dandiset/000127/0.220113.0359"
+      },
+      {
+        "identifier": "000129",
+        "version": "0.241017.1444",
+        "name": "MC_RTT: macaque motor cortex spiking activity during self-paced reaching",
+        "asset_count": 2,
+        "size_bytes": 50965512,
+        "url": "https://dandiarchive.org/dandiset/000129/0.241017.1444"
+      },
+      {
+        "identifier": "000239",
+        "version": "0.230607.1752",
+        "name": "Cortical processing of flexible and context-dependent sensorimotor sequences",
+        "asset_count": 754,
+        "size_bytes": 11769901909,
+        "url": "https://dandiarchive.org/dandiset/000239/0.230607.1752"
+      },
+      {
+        "identifier": "000404",
+        "version": "0.230605.2024",
+        "name": "Monkey 2D cursor BMI",
+        "asset_count": 13,
+        "size_bytes": 1046740856,
+        "url": "https://dandiarchive.org/dandiset/000404/0.230605.2024"
+      },
+      {
+        "identifier": "000559",
+        "version": "0.260528.0858",
+        "name": "Spontaneous behaviour is structured by reinforcement without explicit reward",
+        "asset_count": 4425,
+        "size_bytes": 14753252327642,
+        "url": "https://dandiarchive.org/dandiset/000559/0.260528.0858"
+      },
+      {
+        "identifier": "000941",
+        "version": "0.241029.1405",
+        "name": "FALCON Benchmark M1-A: primary motor cortex recordings in primate during reach-to-grasp task",
+        "asset_count": 11,
+        "size_bytes": 311792278,
+        "url": "https://dandiarchive.org/dandiset/000941/0.241029.1405"
+      },
+      {
+        "identifier": "000953",
+        "version": "draft",
+        "name": "FALCON Benchmark M2: primary motor cortex recordings in primate during finger movement",
+        "asset_count": 20,
+        "size_bytes": 15916372200,
+        "url": "https://dandiarchive.org/dandiset/000953/draft"
+      },
+      {
+        "identifier": "000954",
+        "version": "draft",
+        "name": "FALCON Benchmark H1: Human 7DoF Reach and Grasp Motor BCI",
+        "asset_count": 40,
+        "size_bytes": 102258934,
+        "url": "https://dandiarchive.org/dandiset/000954/draft"
+      },
+      {
+        "identifier": "001056",
+        "version": "draft",
+        "name": "NeuroTask - Center-Out with bump: A Benchmark Dataset for Multi-Task, -Session and -Subject Neural Analysis",
+        "asset_count": 1,
+        "size_bytes": 54454695,
+        "url": "https://dandiarchive.org/dandiset/001056/draft"
+      },
+      {
+        "identifier": "001058",
+        "version": "draft",
+        "name": "NeuroTask - Two Workspace Random Target: A Benchmark Dataset for Multi-Task, -Session and -Subject Neural Analysis",
+        "asset_count": 1,
+        "size_bytes": 150032788,
+        "url": "https://dandiarchive.org/dandiset/001058/draft"
+      },
+      {
+        "identifier": "001062",
+        "version": "draft",
+        "name": "Marmoset electrophysiology and kinematics during prey capture (monkey MG)",
+        "asset_count": 1,
+        "size_bytes": 278740648,
+        "url": "https://dandiarchive.org/dandiset/001062/draft"
+      },
+      {
+        "identifier": "001201",
+        "version": "0.251023.2336",
+        "name": "LINK: Long-Term Intracortical Neural Activity and Kinematics",
+        "asset_count": 312,
+        "size_bytes": 12563287466,
+        "url": "https://dandiarchive.org/dandiset/001201/0.251023.2336"
+      },
+      {
+        "identifier": "001209",
+        "version": "draft",
+        "name": "FALCON Benchmark M1-B: primary motor cortex recordings in primate during reach-to-grasp task",
+        "asset_count": 12,
+        "size_bytes": 233554359,
+        "url": "https://dandiarchive.org/dandiset/001209/draft"
+      },
+      {
+        "identifier": "001527",
+        "version": "draft",
+        "name": "3D directional tuning in OSMCx during natural feeding and drinking",
+        "asset_count": 0,
+        "size_bytes": 0,
+        "url": "https://dandiarchive.org/dandiset/001527/draft"
+      },
+      {
+        "identifier": "001782",
+        "version": "0.260421.2247",
+        "name": "Mouse and NHP pre/post-lesion kinematic data",
+        "asset_count": 56,
+        "size_bytes": 344333620,
+        "url": "https://dandiarchive.org/dandiset/001782/0.260421.2247"
+      }
+    ]
+  }
+}
