@@ -1,0 +1,13 @@
+{
+  "name": "neuromouse-property-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test *.test.mjs",
+    "test:dry": "PROPERTY_BASE_CASES=128 PROPERTY_DRY_RUNS=4 PROPERTY_MAX_CASES=1024 node --test *.test.mjs"
+  },
+  "dependencies": {
+    "fast-check": "^4.8.0",
+    "jszip": "^3.10.1"
+  }
+}
