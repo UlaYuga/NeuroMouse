@@ -11,6 +11,9 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from neuromouse_adapters import read_file
+from neuromouse_adapters.conformance import assert_adapter_conforms
+
+HIGH_CHANNEL_COUNT = 1025
 
 
 def _edf_field(value: object, width: int) -> bytes:
@@ -128,43 +131,6 @@ def _write_csv(path: Path, channel_names: list[str], n_samples: int = 16) -> Non
             )
 
 
-def _assert_contract_conformant(dataset: dict, n_channels: int) -> None:
-    channels = dataset["meta"]["channels"]
-    assert isinstance(channels, list)
-    assert len(channels) == n_channels
-    assert n_channels > 0
-
-    frequencies = dataset["welch_psd"]["frequencies"]
-    psd = dataset["welch_psd"]["psd"]
-    assert isinstance(frequencies, list)
-    assert len(frequencies) > 0
-    assert len(psd) == n_channels
-    assert all(len(row) == len(frequencies) for row in psd)
-
-    centroid_time = dataset["centroid"]["time_relative"]
-    centroid_values = dataset["centroid"]["values"]
-    assert isinstance(centroid_time, list)
-    assert len(centroid_time) > 0
-    assert len(centroid_values) == n_channels
-    assert all(len(row) == len(centroid_time) for row in centroid_values)
-
-    geometry = dataset["geometry"]
-    assert isinstance(geometry["time"], list)
-    assert len(geometry["time"]) == len(centroid_time)
-    for key in (
-        "centroid",
-        "spread",
-        "entropy",
-        "flatness",
-        "edge95",
-        "alpha_relative_power",
-    ):
-        assert len(geometry[key]) == n_channels
-        assert all(len(row) == len(geometry["time"]) for row in geometry[key])
-
-    assert len(dataset["channel_summary"]) == n_channels
-
-
 def test_read_file_round_trips_tiny_edf(tmp_path: Path) -> None:
     edf_path = tmp_path / "tiny.edf"
     _write_tiny_edf(edf_path)
@@ -173,7 +139,7 @@ def test_read_file_round_trips_tiny_edf(tmp_path: Path) -> None:
 
     assert dataset["meta"]["channels"] == ["Fp1", "Cz"]
     assert dataset["meta"]["n_channels"] == 2
-    _assert_contract_conformant(dataset, n_channels=2)
+    assert_adapter_conforms(dataset, adapter_name="read_file_edf")
 
 
 def test_read_file_round_trips_tiny_bdf(tmp_path: Path) -> None:
@@ -184,7 +150,7 @@ def test_read_file_round_trips_tiny_bdf(tmp_path: Path) -> None:
 
     assert dataset["meta"]["channels"] == ["A1", "A2", "Ref"]
     assert dataset["meta"]["n_channels"] == 3
-    _assert_contract_conformant(dataset, n_channels=3)
+    assert_adapter_conforms(dataset, adapter_name="read_file_bdf")
 
 
 def test_read_file_round_trips_channel_per_column_csv(tmp_path: Path) -> None:
@@ -195,7 +161,7 @@ def test_read_file_round_trips_channel_per_column_csv(tmp_path: Path) -> None:
 
     assert dataset["meta"]["channels"] == ["Fp1", "Cz", "Oz"]
     assert dataset["meta"]["n_channels"] == 3
-    _assert_contract_conformant(dataset, n_channels=3)
+    assert_adapter_conforms(dataset, adapter_name="read_file_csv")
 
 
 def test_read_file_rejects_empty_csv_channel_set(tmp_path: Path) -> None:
@@ -208,8 +174,14 @@ def test_read_file_rejects_empty_csv_channel_set(tmp_path: Path) -> None:
 
 @st.composite
 def _csv_cases(draw: st.DrawFn) -> tuple[list[str], int]:
-    n_channels = draw(st.integers(min_value=1, max_value=256))
-    n_samples = draw(st.integers(min_value=4, max_value=48))
+    n_channels = draw(
+        st.one_of(
+            st.integers(min_value=1, max_value=128),
+            st.sampled_from([256, 512, 1024, HIGH_CHANNEL_COUNT]),
+        )
+    )
+    max_samples = 16 if n_channels >= 512 else 48
+    n_samples = draw(st.integers(min_value=8, max_value=max_samples))
     prefix = draw(
         st.text(
             alphabet=st.characters(
@@ -237,4 +209,4 @@ def test_csv_replay_conforms_for_random_channel_counts_names_and_lengths(
         dataset = read_file(csv_path)
 
     assert dataset["meta"]["channels"] == channel_names
-    _assert_contract_conformant(dataset, n_channels=len(channel_names))
+    assert_adapter_conforms(dataset, adapter_name="read_file_csv")
