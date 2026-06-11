@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">NeuroMouse landscape map</title>
+  <desc id="desc">A layered map showing acquisition tools below analysis libraries, NeuroMouse as the platform layer, and collaborators above it.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f5ef; }
+      .band { fill: #ffffff; stroke: #1f2937; stroke-width: 2; }
+      .platform { fill: #102a43; stroke: #102a43; stroke-width: 2; }
+      .platformText { fill: #ffffff; font: 700 28px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .title { fill: #111827; font: 700 30px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .label { fill: #111827; font: 700 20px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .body { fill: #374151; font: 16px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .small { fill: #4b5563; font: 14px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .pill { fill: #e8f0f2; stroke: #79949d; stroke-width: 1.5; }
+      .accent { fill: #d8b45a; stroke: #8a6a16; stroke-width: 1.5; }
+      .wet { fill: #dfe9d4; stroke: #6d8556; stroke-width: 1.5; }
+      .arrow { stroke: #52616b; stroke-width: 3; fill: none; marker-end: url(#arrowhead); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#52616b" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1200" height="760" />
+  <text x="60" y="58" class="title">NeuroMouse: platform layer for neural signal artifacts</text>
+  <text x="60" y="88" class="body">Like Hugging Face for neural data: above analysis libraries and acquisition, below collaborator workflows.</text>
+
+  <rect x="60" y="120" width="1080" height="120" rx="16" class="band" />
+  <text x="90" y="158" class="label">Collaborators and artifacts</text>
+  <text x="90" y="188" class="body">Researchers, lab partners, reviewers, wetware teams</text>
+  <text x="90" y="216" class="small">Inspect, compare, reproduce, discuss, and share browser-native analysis artifacts.</text>
+
+  <rect x="60" y="290" width="1080" height="140" rx="18" class="platform" />
+  <text x="90" y="340" class="platformText">NeuroMouse platform layer</text>
+  <text x="90" y="375" class="platformText" style="font-size:20px;font-weight:500">Executable contract + method SDK + registry + replay + browser rendering</text>
+  <rect x="760" y="318" width="330" height="44" rx="22" class="accent" />
+  <text x="785" y="346" class="label" style="font-size:18px">EEG -> MEA -> wetware</text>
+  <rect x="760" y="372" width="330" height="36" rx="18" class="wet" />
+  <text x="785" y="396" class="small">FinalSpark / Cortical Labs direction</text>
+
+  <rect x="60" y="480" width="520" height="130" rx="16" class="band" />
+  <text x="90" y="520" class="label">Analysis libraries</text>
+  <text x="90" y="550" class="body">MNE, SpikeInterface, SciPy, NumPy</text>
+  <text x="90" y="580" class="small">The PyTorch-like compute substrate: powerful, lower-level, specialist-owned.</text>
+
+  <rect x="620" y="480" width="520" height="130" rx="16" class="band" />
+  <text x="650" y="520" class="label">Acquisition and streams</text>
+  <text x="650" y="550" class="body">LSL, BrainFlow, EDF/BDF/CSV, lab APIs</text>
+  <text x="650" y="580" class="small">Source systems produce samples, files, metadata, and live frames.</text>
+
+  <rect x="60" y="650" width="1080" height="52" rx="12" class="pill" />
+  <text x="90" y="682" class="body">Neutral goal: make existing tools interoperable through a contract-first platform, not replace them.</text>
+
+  <path class="arrow" d="M320 480 C320 445, 330 440, 360 430" />
+  <path class="arrow" d="M880 480 C880 445, 870 440, 840 430" />
+  <path class="arrow" d="M600 290 C600 265, 600 255, 600 240" />
+</svg>
