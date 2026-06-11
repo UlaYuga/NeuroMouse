@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from neuromouse_backend.storage import BackendStore, InMemoryBackendStore, JobRecord, SessionRecord
+from neuromouse_backend.storage import BackendStore, JobRecord, SessionRecord, SQLiteBackendStore
 from neuromouse_contract import DatasetValidationError, validate_dataset
+from neuromouse_core.method_registry import MethodExecutionError, MethodLookupError, MethodRegistry
+from neuromouse_sdk import Method
+from neuromouse_sdk.examples.band_power_summary import band_power_summary
 
 
 class SessionCreateRequest(BaseModel):
@@ -22,6 +26,7 @@ class SessionSummary(BaseModel):
     id: str
     name: str | None
     channel_count: int
+    dataset_version: int
     created_at: str
 
 
@@ -39,12 +44,15 @@ class JobCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     method_id: str = Field(min_length=1)
+    params: dict[str, Any] = Field(default_factory=dict)
 
 
 class JobResponse(BaseModel):
     id: str
     session_id: str
+    dataset_version: int
     method_id: str
+    params: dict[str, Any]
     status: Literal["queued", "running", "completed", "failed"]
     result: dict[str, Any] | None = None
     error: str | None = None
@@ -52,35 +60,34 @@ class JobResponse(BaseModel):
     updated_at: str
 
 
-MethodRunner = Callable[[SessionRecord], dict[str, Any]]
 UNPROCESSABLE_ENTITY = 422
 
 
-def _summary_method(session: SessionRecord) -> dict[str, Any]:
-    return {
-        "channel_count": len(session.dataset["meta"]["channels"]),
-        "method_id": "summary",
-    }
+@dataclass(frozen=True)
+class MethodCatalog:
+    registry: MethodRegistry
+    methods: dict[str, Method[Any]]
 
 
-METHODS: dict[str, tuple[MethodResponse, MethodRunner]] = {
-    "summary": (
-        MethodResponse(
-            id="summary",
-            name="Dataset summary",
-            description="Returns basic contract-derived dataset metadata.",
-        ),
-        _summary_method,
-    )
-}
+def create_default_method_catalog() -> MethodCatalog:
+    registry = MethodRegistry()
+    methods: dict[str, Method[Any]] = {}
+    for method in (band_power_summary,):
+        registered = registry.register(method)
+        methods[registered.name] = registered
+    return MethodCatalog(registry=registry, methods=methods)
 
 
-def create_app(store: BackendStore | None = None) -> FastAPI:
-    backend_store = store or InMemoryBackendStore()
+def create_app(
+    store: BackendStore | None = None,
+    method_catalog: MethodCatalog | None = None,
+) -> FastAPI:
+    backend_store = store or SQLiteBackendStore()
+    methods = method_catalog or create_default_method_catalog()
     app = FastAPI(
         title="NeuroMouse Backend",
         version="0.0.0",
-        description="FastAPI skeleton for contract-validated NeuroMouse backend workflows.",
+        description="FastAPI backend for contract-validated NeuroMouse method jobs.",
     )
 
     @app.post(
@@ -122,7 +129,7 @@ def create_app(store: BackendStore | None = None) -> FastAPI:
 
     @app.get("/methods", response_model=list[MethodResponse])
     async def list_methods() -> list[MethodResponse]:
-        return [method for method, _runner in METHODS.values()]
+        return [_method_response(method) for method in methods.methods.values()]
 
     @app.post(
         "/sessions/{session_id}/jobs",
@@ -134,15 +141,26 @@ def create_app(store: BackendStore | None = None) -> FastAPI:
         if session is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
-        method = METHODS.get(request.method_id)
-        if method is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Method not found")
+        try:
+            methods.registry.lookup(request.method_id)
+        except MethodLookupError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Method not found",
+            ) from exc
 
-        _method_response, runner = method
-        job = backend_store.create_job(session_id=session.id, method_id=request.method_id)
+        job = backend_store.create_job(
+            session_id=session.id,
+            dataset_version=session.dataset_version,
+            method_id=request.method_id,
+            params=request.params,
+        )
         backend_store.append_job_event(job.id, status="running")
         try:
-            result = runner(session)
+            run = methods.registry.run(request.method_id, session.dataset, params=request.params)
+            result = jsonable_encoder(run.result)
+        except MethodExecutionError as exc:
+            job = backend_store.append_job_event(job.id, status="failed", error=str(exc))
         except Exception as exc:  # pragma: no cover - defensive boundary for future methods
             job = backend_store.append_job_event(job.id, status="failed", error=str(exc))
         else:
@@ -210,6 +228,7 @@ def _session_summary(session: SessionRecord) -> SessionSummary:
         id=session.id,
         name=session.name,
         channel_count=len(session.dataset["meta"]["channels"]),
+        dataset_version=session.dataset_version,
         created_at=session.created_at,
     )
 
@@ -225,13 +244,27 @@ def _job_response(job: JobRecord) -> JobResponse:
     return JobResponse(
         id=job.id,
         session_id=job.session_id,
+        dataset_version=job.dataset_version,
         method_id=job.method_id,
+        params=job.params,
         status=job.status,
         result=job.result,
         error=job.error,
         created_at=job.created_at,
         updated_at=job.updated_at,
     )
+
+
+def _method_response(method: Method[Any]) -> MethodResponse:
+    panel = method.output.panel
+    name = panel.title if panel is not None else method.name.replace("_", " ").title()
+    fields = []
+    for field in method.output.fields:
+        if field.description:
+            fields.append(f"{field.path}: {field.description}")
+        else:
+            fields.append(field.path)
+    return MethodResponse(id=method.name, name=name, description="; ".join(fields))
 
 
 app = create_app()

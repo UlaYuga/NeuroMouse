@@ -4,8 +4,10 @@ from typing import Any
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
 
 from neuromouse_backend.app import create_app
+from neuromouse_backend.storage import SQLiteBackendStore
 
 
 def minimal_dataset(channel_count: int = 2) -> dict[str, Any]:
@@ -13,7 +15,7 @@ def minimal_dataset(channel_count: int = 2) -> dict[str, Any]:
     return {
         "meta": {"channels": channels, "n_channels": channel_count},
         "welch_psd": {
-            "frequencies": [1.0, 2.0, 3.0],
+            "frequencies": [8.0, 10.0, 12.0],
             "psd": [[0.1, 0.2, 0.3] for _ in channels],
         },
         "centroid": {
@@ -54,8 +56,9 @@ def minimal_dataset(channel_count: int = 2) -> dict[str, Any]:
 
 
 @pytest.fixture
-def app():
-    return create_app()
+def app(tmp_path):
+    store = SQLiteBackendStore(tmp_path / "backend.sqlite3")
+    return create_app(store=store)
 
 
 @pytest.mark.asyncio
@@ -102,6 +105,7 @@ async def test_rest_happy_path_creates_session_runs_job_and_returns_result(app) 
                 "id": session["id"],
                 "name": "baseline",
                 "channel_count": 2,
+                "dataset_version": 1,
                 "created_at": session["created_at"],
             }
         ]
@@ -112,16 +116,19 @@ async def test_rest_happy_path_creates_session_runs_job_and_returns_result(app) 
 
         methods_response = await client.get("/methods")
         assert methods_response.status_code == 200
-        assert {method["id"] for method in methods_response.json()} == {"summary"}
+        assert {method["id"] for method in methods_response.json()} == {"band_power_summary"}
 
         job_response = await client.post(
             f"/sessions/{session['id']}/jobs",
-            json={"method_id": "summary"},
+            json={"method_id": "band_power_summary", "params": {"min_hz": 8.0, "max_hz": 12.0}},
         )
         assert job_response.status_code == 201
         job = job_response.json()
         assert job["status"] == "completed"
-        assert job["result"] == {"channel_count": 2, "method_id": "summary"}
+        assert job["dataset_version"] == 1
+        assert job["params"] == {"min_hz": 8.0, "max_hz": 12.0}
+        assert job["result"]["band_power_summary"]["band"] == {"min_hz": 8.0, "max_hz": 12.0}
+        assert job["result"]["band_power_summary"]["mean_power"] == pytest.approx(0.8)
 
         get_job_response = await client.get(f"/jobs/{job['id']}")
         assert get_job_response.status_code == 200
@@ -129,8 +136,6 @@ async def test_rest_happy_path_creates_session_runs_job_and_returns_result(app) 
 
 
 def test_job_and_live_websockets_stream_progress_and_echo(app) -> None:
-    from fastapi.testclient import TestClient
-
     with TestClient(app) as client:
         session_response = client.post(
             "/sessions",
@@ -139,7 +144,7 @@ def test_job_and_live_websockets_stream_progress_and_echo(app) -> None:
         session_id = session_response.json()["id"]
         job_response = client.post(
             f"/sessions/{session_id}/jobs",
-            json={"method_id": "summary"},
+            json={"method_id": "band_power_summary"},
         )
         job_id = job_response.json()["id"]
 
@@ -147,7 +152,7 @@ def test_job_and_live_websockets_stream_progress_and_echo(app) -> None:
             events = [websocket.receive_json() for _ in range(3)]
 
         assert [event["status"] for event in events] == ["queued", "running", "completed"]
-        assert events[-1]["result"] == {"channel_count": 2, "method_id": "summary"}
+        assert events[-1]["result"]["band_power_summary"]["top_channel"]["channel"] == "C0"
 
         with client.websocket_connect("/ws/live") as websocket:
             websocket.send_json({"kind": "ping", "samples": [1, 2, 3]})
@@ -170,6 +175,46 @@ async def test_invalid_dataset_returns_422_with_clear_contract_error(app) -> Non
     assert "non-empty" in response.text
 
 
+def test_job_lifecycle_persists_across_sqlite_store_reopen(tmp_path) -> None:
+    db_path = tmp_path / "backend.sqlite3"
+    store = SQLiteBackendStore(db_path)
+    app = create_app(store=store)
+
+    with TestClient(app) as client:
+        session_response = client.post(
+            "/sessions",
+            json={"name": "persistent", "dataset": minimal_dataset(channel_count=3)},
+        )
+        assert session_response.status_code == 201
+        session = session_response.json()
+        assert session["dataset_version"] == 1
+
+        job_response = client.post(
+            f"/sessions/{session['id']}/jobs",
+            json={"method_id": "band_power_summary"},
+        )
+        assert job_response.status_code == 201
+        job = job_response.json()
+        assert job["status"] == "completed"
+
+    store.close()
+
+    restarted_app = create_app(store=SQLiteBackendStore(db_path))
+    with TestClient(restarted_app) as client:
+        session_after_restart = client.get(f"/sessions/{session['id']}")
+        assert session_after_restart.status_code == 200
+        assert session_after_restart.json()["dataset"] == session["dataset"]
+        assert session_after_restart.json()["dataset_version"] == 1
+
+        job_after_restart = client.get(f"/jobs/{job['id']}")
+        assert job_after_restart.status_code == 200
+        assert job_after_restart.json() == job
+
+        with client.websocket_connect(f"/ws/jobs/{job['id']}") as websocket:
+            events = [websocket.receive_json() for _ in range(3)]
+        assert [event["status"] for event in events] == ["queued", "running", "completed"]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("method", "path", "kwargs"),
@@ -177,7 +222,7 @@ async def test_invalid_dataset_returns_422_with_clear_contract_error(app) -> Non
         ("POST", "/sessions", {"content": b"{", "headers": {"content-type": "application/json"}}),
         ("POST", "/sessions", {"json": {"name": "missing-dataset"}}),
         ("POST", "/sessions", {"json": {"dataset": {"meta": {"channels": []}}}}),
-        ("POST", "/sessions/not-found/jobs", {"json": {"method_id": "summary"}}),
+        ("POST", "/sessions/not-found/jobs", {"json": {"method_id": "band_power_summary"}}),
         ("GET", "/jobs/not-found", {}),
     ],
 )
