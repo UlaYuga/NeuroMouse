@@ -116,7 +116,7 @@ class RunManifest:
             method_id=_required_str(method, "id"),
             method_version=_required_str(method, "version"),
             params=method.get("params", {}),
-            seed=payload.get("seed"),
+            seed=_required_int(payload, "seed"),
             library_versions=_required_mapping(payload, "library_versions"),
             platform=_required_mapping(payload, "platform"),
             output_hash=_required_str(payload, "output_hash"),
@@ -583,6 +583,13 @@ def _required_str(payload: Mapping[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise MethodExecutionError(f"run manifest {key} must be a non-empty string")
     return value.strip()
+
+
+def _required_int(payload: Mapping[str, Any], key: str) -> int:
+    value = payload.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise MethodExecutionError(f"run manifest {key} must be an integer")
+    return value
 
 
 @contextmanager

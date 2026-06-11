@@ -54,5 +54,5 @@ def build_params(params_type: type[ParamsT], params: ParamsT | Mapping[str, Any]
         model_validate = getattr(params_type, "model_validate", None)
         if callable(model_validate):
             return model_validate(dict(params))
-        return params_type(**params)
+        return params_type(**params)  # ty: ignore[invalid-argument-type]  # Mapping[str,Any] guaranteed by function sig + isinstance guard
     raise TypeError(f"Expected {params_type.__name__} or mapping params")
