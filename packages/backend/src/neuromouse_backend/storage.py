@@ -19,6 +19,7 @@ def utc_now() -> str:
 @dataclass(frozen=True)
 class SessionRecord:
     id: str
+    dataset_id: str
     name: str | None
     dataset: dict[str, Any]
     dataset_version: int
@@ -76,6 +77,7 @@ class InMemoryBackendStore:
     def create_session(self, *, name: str | None, dataset: dict[str, Any]) -> SessionRecord:
         session = SessionRecord(
             id=str(uuid4()),
+            dataset_id=str(uuid4()),
             name=name,
             dataset=dataset,
             dataset_version=1,
@@ -199,6 +201,7 @@ class SQLiteBackendStore:
                     s.id,
                     s.name,
                     s.created_at,
+                    d.id AS dataset_id,
                     d.version AS dataset_version,
                     d.payload_json AS dataset_json
                 FROM sessions AS s
@@ -219,6 +222,7 @@ class SQLiteBackendStore:
                     s.id,
                     s.name,
                     s.created_at,
+                    d.id AS dataset_id,
                     d.version AS dataset_version,
                     d.payload_json AS dataset_json
                 FROM sessions AS s
@@ -489,6 +493,7 @@ def _load_json(value: str | None) -> Any:
 def _session_from_row(row: sqlite3.Row) -> SessionRecord:
     return SessionRecord(
         id=row["id"],
+        dataset_id=row["dataset_id"],
         name=row["name"],
         dataset=_load_json(row["dataset_json"]),
         dataset_version=row["dataset_version"],
