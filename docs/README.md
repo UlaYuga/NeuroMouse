@@ -5,6 +5,8 @@ NeuroMouse platform direction.
 
 ## Start Here
 
+- [MEA Quickstart](MEA_QUICKSTART.md) - loading MEA data, running wetware methods, and
+  connecting a lab spike sorter.
 - [Architecture](ARCHITECTURE.md) - current package map, data flow, and test/fuzz strategy.
 - [Positioning](POSITIONING.md) - how NeuroMouse fits above acquisition and analysis tools.
 - [Landscape SVG](neuromouse-landscape.svg) - visual map for collaborator conversations.
@@ -19,6 +21,7 @@ NeuroMouse platform direction.
 - [ADR 0004: Montage-agnostic contract with 4096-channel ceiling](adr/0004-montage-agnostic-channel-ceiling.md)
 - [ADR 0005: Fuzz-gated hardening](adr/0005-fuzz-gated-hardening.md)
 - [ADR 0006: uv link-mode clone](adr/0006-uv-link-mode-clone.md)
+- [ADR 0007: Wetware and MEA direction](adr/0007-wetware-mea-direction.md)
 
 ## Source Anchors
 
