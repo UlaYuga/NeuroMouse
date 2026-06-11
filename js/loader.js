@@ -60,8 +60,8 @@ export async function loadZip(file) {
   const { zip } = await readZip(file);
   const dataJson = findDataJson(zip);
   if (dataJson) {
-    const data = JSON.parse(await dataJson.async("string"));
-    validateData(data);
+    const data = parseJson(await dataJson.async("string"), dataJson.name ?? "data.json");
+    validateImportedData(data);
     return data;
   }
 
@@ -82,8 +82,8 @@ export async function loadDatasetFiles(files) {
   for (const file of files) {
     try {
       if (file.name.toLowerCase().endsWith(".json")) {
-        const data = JSON.parse(await file.text());
-        validateData(data);
+        const data = parseJson(await file.text(), file.name);
+        validateImportedData(data);
         datasets.push({ name: file.name, data });
         continue;
       }
@@ -96,8 +96,8 @@ export async function loadDatasetFiles(files) {
       const archive = await readZip(file);
       const dataJson = findDataJson(archive.zip);
       if (dataJson) {
-        const data = JSON.parse(await dataJson.async("string"));
-        validateData(data);
+        const data = parseJson(await dataJson.async("string"), dataJson.name ?? "data.json");
+        validateImportedData(data);
         datasets.push({ name: file.name, data });
         continue;
       }
@@ -284,13 +284,16 @@ async function buildDataFromCsvArchives(welchZip, geometryZip, sourceName) {
     channel_summary: await buildChannelSummary(geometryZip, channels),
   };
 
-  validateData(data);
+  validateImportedData(data);
   return data;
 }
 
 async function readWideMatrix(zip, member, axisKey, channels) {
   const rows = await readZipCsv(zip, member);
   if (!rows.length) throw new Error(`${member} has no rows`);
+  if (!(axisKey in rows[0])) {
+    throw new Error(`${member} is missing required ${axisKey} axis column`);
+  }
 
   const missing = channels.filter((channel) => !(channel in rows[0]));
   if (missing.length) {
@@ -298,8 +301,10 @@ async function readWideMatrix(zip, member, axisKey, channels) {
   }
 
   return [
-    rows.map((row) => toFloat(row[axisKey])),
-    channels.map((channel) => rows.map((row) => toFloat(row[channel]))),
+    rows.map((row, rowIndex) => requiredFloat(row[axisKey], `${member}.${axisKey}[${rowIndex}]`)),
+    channels.map((channel) => (
+      rows.map((row, rowIndex) => requiredFloat(row[channel], `${member}.${channel}[${rowIndex}]`))
+    )),
   ];
 }
 
@@ -329,7 +334,7 @@ async function buildChannelSummary(zip, channels) {
 async function readZipJson(zip, member) {
   const file = findMember(zip, member);
   if (!file) throw new Error(`Missing ${member}`);
-  return JSON.parse(await file.async("string"));
+  return parseJson(await file.async("string"), member);
 }
 
 async function readZipCsv(zip, member) {
@@ -386,6 +391,97 @@ function parseCsvLine(line) {
   }
   cells.push(cell);
   return cells;
+}
+
+function parseJson(text, label) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${label} contains invalid JSON: ${error.message}`);
+  }
+}
+
+function validateImportedData(data) {
+  validateData(data);
+
+  const channelCount = data.meta.channels.length;
+  assertFiniteVector(data.welch_psd.frequencies, "data.json welch_psd.frequencies");
+  assertFiniteMatrix(
+    data.welch_psd.psd,
+    "data.json welch_psd.psd",
+    channelCount,
+    data.welch_psd.frequencies.length,
+  );
+
+  assertFiniteVector(data.centroid.time_relative, "data.json centroid.time_relative");
+  assertFiniteMatrix(
+    data.centroid.values,
+    "data.json centroid.values",
+    channelCount,
+    data.centroid.time_relative.length,
+  );
+
+  assertFiniteVector(data.geometry.time, "data.json geometry.time");
+
+  for (const key of ["centroid", "spread", "entropy", "flatness", "edge95", "alpha_relative_power", "higuchi_fd"]) {
+    if (data.geometry[key] == null) continue;
+    assertFiniteMatrix(data.geometry[key], `data.json geometry.${key}`, channelCount, data.geometry.time.length);
+  }
+
+  if (data.geometry.area_normalized_psd != null) {
+    const area = data.geometry.area_normalized_psd;
+    assertFiniteVector(area.frequencies, "data.json geometry.area_normalized_psd.frequencies");
+    assertFiniteMatrix(
+      area.psd,
+      "data.json geometry.area_normalized_psd.psd",
+      channelCount,
+      area.frequencies.length,
+    );
+  }
+}
+
+function assertFiniteVector(values, label) {
+  if (!Array.isArray(values) || values.length === 0) {
+    throw new Error(`${label} must be a non-empty numeric array`);
+  }
+
+  values.forEach((value, index) => {
+    assertFiniteNumber(value, `${label}[${index}]`);
+  });
+}
+
+function assertFiniteMatrix(rows, label, rowCount, columnCount) {
+  if (!Array.isArray(rows) || rows.length !== rowCount) {
+    throw new Error(`${label} must have ${rowCount} channel rows`);
+  }
+
+  rows.forEach((row, rowIndex) => {
+    if (!Array.isArray(row) || row.length !== columnCount) {
+      throw new Error(`${label}[${rowIndex}] must have ${columnCount} numeric cells`);
+    }
+    row.forEach((value, columnIndex) => {
+      assertFiniteNumber(value, `${label}[${rowIndex}][${columnIndex}]`);
+    });
+  });
+}
+
+function assertFiniteNumber(value, label) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${label} must be a finite number`);
+  }
+}
+
+function requiredFloat(value, label) {
+  if (value == null || String(value).trim() === "") {
+    throw new Error(`${label} must be a finite number`);
+  }
+
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error(`${label} must be a finite number`);
+  }
+
+  return round(number, 6);
 }
 
 function toFloat(value) {
