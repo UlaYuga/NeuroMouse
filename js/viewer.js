@@ -1,7 +1,6 @@
 import { createDisposables } from "./disposables.js";
 import { createBackendClient } from "./backend-client.js";
 import { createLiveSource, createStaticSource, loadDatasetFiles, setSource } from "./loader.js";
-import { renderMethodPanel } from "./panels/method-panel.js";
 import { createSessionStore, MAX_SESSIONS } from "./session-store.js";
 import { createViewerState } from "./viewer-state.js";
 import { initPsdView } from "./views/psd-view.js";
@@ -19,6 +18,7 @@ import {
   buildImportReceipt,
   buildWorkbenchState,
   createDemoDatasetPair,
+  runBackendMethodFlow,
   formatNumber,
   formatPercent,
   formatSignedNumber,
@@ -466,41 +466,32 @@ function renderBackendMethodOptions() {
 async function runBackendMethod() {
   if (!backendUi || !backend || !activeData) return;
   const methodId = backendUi.methodSelect?.value || "band_power_summary";
-  const method = findBackendMethod(methodId);
   backendUi.runButton.disabled = true;
   backendUi.refreshButton.disabled = true;
   backendUi.output.replaceChildren();
-  setBackendStatus("Seeding demo dataset…", "is-connecting");
-  setBackendProgress("seed");
   try {
     if (!backendMethods.length) {
       backendMethods = await backend.listMethods();
       renderBackendMethodOptions();
     }
-    const session = await backend.seedDemoDataset({
-      name: "NeuroMouse backend demo",
+    const selectedMethod = findBackendMethod(methodId) ?? { id: methodId, name: methodId };
+    const usedSeedEndpoint = methodId === "spike_detect" ? "/demo/seed-mea" : "/demo/seed";
+    const result = await runBackendMethodFlow({
+      backend,
+      backendMethods,
       dataset: activeData,
-    });
-    setBackendStatus(`Session ${session.id} ready`, "is-live");
-    setBackendProgress("queued");
-    const job = await backend.createJob(session.id, { methodId, params: {} });
-    setBackendStatus(`Running ${methodId}…`, "is-connecting");
-    await backend.streamJobProgress(job.id, {
-      onEvent: (event) => {
-        setBackendProgress(event.status ?? "event");
-        if (event.error) setBackendStatus(event.error, "is-error");
+      methodId,
+      seedEndpoint: usedSeedEndpoint,
+      output: backendUi.output,
+      document,
+      onStatus: setBackendStatus,
+      onProgress: setBackendProgress,
+      onProgressEvent: (event) => {
+        if (event?.error) setBackendStatus(event.error, "is-error");
       },
     });
-    const resultJob = await backend.getResult(job.id);
-    const finalMethod = findBackendMethod(methodId) ?? method ?? { id: methodId, name: methodId };
-    renderMethodPanel(backendUi.output, {
-      document,
-      method: finalMethod,
-      panelSpec: finalMethod.panelSpec,
-      result: resultJob.result,
-    });
-    setBackendStatus(`${methodId} completed`, "is-live");
-    setBackendProgress(resultJob.status ?? "completed");
+    setBackendStatus(`${result?.method?.id ?? selectedMethod.id} completed`, "is-live");
+    setBackendProgress(result?.result?.status ?? "completed");
   } catch (error) {
     setBackendStatus(`Backend run failed · ${error.message}`, "is-error");
     setBackendProgress("failed");
