@@ -1,4 +1,4 @@
-import { getChannelIndex, getFrame, onChannelChange, onFrameChange } from "../state.js";
+import * as defaultState from "../state.js";
 import { createDisposables } from "../disposables.js";
 import {
   ACTIVE_COLOR,
@@ -12,7 +12,15 @@ import {
   resizeCanvas,
 } from "./chart-utils.js";
 
-export function initKuramotoView(root, data) {
+export function initKuramotoView(root, data, context = {}) {
+  const state = context.state ?? defaultState;
+  const document = context.document ?? globalThis.document;
+  const {
+    getChannelIndex,
+    getFrame,
+    onChannelChange,
+    onFrameChange,
+  } = state;
   const section = root?.closest("section");
   if (!root || !data.kuramoto) {
     if (section) section.hidden = true;

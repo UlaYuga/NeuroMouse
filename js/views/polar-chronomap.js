@@ -1,4 +1,4 @@
-import { getFrame, onFrameChange } from "../state.js";
+import * as defaultState from "../state.js";
 import { createDisposables } from "../disposables.js";
 import {
   ACTIVE_COLOR,
@@ -13,7 +13,10 @@ import {
   resizeCanvas,
 } from "./chart-utils.js";
 
-export function initPolarChronomap(root, data, tooltip) {
+export function initPolarChronomap(root, data, tooltip, context = {}) {
+  const state = context.state ?? defaultState;
+  const document = context.document ?? globalThis.document;
+  const { getFrame, onFrameChange } = state;
   const section = root?.closest("section");
   if (!root || !data.polar_chronomap) {
     if (section) section.hidden = true;

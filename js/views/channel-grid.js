@@ -1,24 +1,6 @@
-import {
-  getChannel,
-  getChannelFilter,
-  getFrame,
-  getIsPlaying,
-  getLiveState,
-  getVisibleChannels,
-  onChannelChange,
-  onDisplayChange,
-  onFrameChange,
-  onLiveChange,
-  setChannel,
-} from "../state.js";
+import * as defaultState from "../state.js";
 import { createDisposables } from "../disposables.js";
-import {
-  getBaselineSession,
-  getComparisonSessions,
-  getRenderSessions,
-  getViewMode,
-  onSessionsChange,
-} from "../sessions.js";
+import * as defaultSessions from "../sessions.js";
 import { ACTIVE_COLOR, CHART_BACKGROUND, MUTED_COLOR, colorScale, deltaColorScale, extent, formatNumber } from "./chart-utils.js";
 
 export const EEG_10_20 = {
@@ -76,13 +58,44 @@ export function buildElectrodeLayout(channels) {
   };
 }
 
-export function initChannelGrid(data, tooltip) {
+export function initChannelGrid(data, tooltip, context = {}) {
+  const state = context.state ?? defaultState;
+  const sessionStore = context.sessions ?? defaultSessions;
+  const document = context.document ?? globalThis.document;
+  const {
+    getChannel,
+    getChannelFilter,
+    getFrame,
+    getIsPlaying,
+    getLiveState,
+    getVisibleChannels,
+    onChannelChange,
+    onDisplayChange,
+    onFrameChange,
+    onLiveChange,
+    setChannel,
+  } = state;
+  const {
+    getBaselineSession,
+    getComparisonSessions,
+    getRenderSessions,
+    getViewMode,
+    onSessionsChange,
+  } = sessionStore;
   const root = document.querySelector("#channel-grid");
   const caption = document.querySelector("#grid-caption");
   const disposables = createDisposables();
   const modeBar = document.createElement("div");
   const mapRoot = document.createElement("div");
   let colorMode = "alpha_relative_power";
+
+  function element(name, attrs = {}, text = "") {
+    const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+    if (Array.isArray(text)) node.append(...text);
+    else if (text) node.textContent = text;
+    return node;
+  }
 
   modeBar.className = "grid-mode-bar";
   mapRoot.className = "channel-grid-map";

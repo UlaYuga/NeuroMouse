@@ -1,25 +1,43 @@
-import {
-  getFrame,
-  getIsPlaying,
-  getPlaybackSpeed,
-  getTotalFrames,
-  onFrameChange,
-  setFrame,
-  setPlaybackSpeed,
-  setPlaying,
-} from "../state.js";
+import * as defaultState from "../state.js";
 import { createDisposables } from "../disposables.js";
 import { formatNumber } from "./chart-utils.js";
 
 const BASE_FPS = 8;
 const SPEEDS = [1, 2, 4];
 
-export function initPlaybackBar(root, data) {
+export function initPlaybackBar(root, data, context = {}) {
   if (!root) return;
 
+  const state = context.state ?? defaultState;
+  const window = context.window ?? globalThis.window;
+  const document = context.document ?? globalThis.document;
+  const {
+    getFrame,
+    getIsPlaying,
+    getPlaybackSpeed,
+    getTotalFrames,
+    onFrameChange,
+    setFrame,
+    setPlaybackSpeed,
+    setPlaying,
+  } = state;
   const times = data.geometry.time;
   const disposables = createDisposables();
   root.innerHTML = "";
+
+  function element(name, attrs = {}, ...children) {
+    const node = document.createElement(name);
+    Object.entries(attrs).forEach(([key, value]) => {
+      if (key === "className") node.className = value;
+      else if (key === "htmlFor") node.htmlFor = value;
+      else node.setAttribute(key, value);
+    });
+    children.flat().forEach((child) => {
+      if (child == null) return;
+      node.append(child instanceof window.Node ? child : document.createTextNode(String(child)));
+    });
+    return node;
+  }
 
   const playButton = element("button", {
     type: "button",
@@ -170,7 +188,7 @@ function element(name, attrs = {}, ...children) {
   });
   children.flat().forEach((child) => {
     if (child == null) return;
-    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    node.append(child instanceof window.Node ? child : document.createTextNode(String(child)));
   });
   return node;
 }

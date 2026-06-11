@@ -1,21 +1,6 @@
-import {
-  getChannel,
-  getFrame,
-  getLiveState,
-  getTimeHover,
-  onChannelChange,
-  onFrameChange,
-  onLiveChange,
-  onTimeHoverChange,
-  setTimeHover,
-} from "../state.js";
+import * as defaultState from "../state.js";
 import { createDisposables } from "../disposables.js";
-import {
-  getComparisonSessions,
-  getRenderSessions,
-  getViewMode,
-  onSessionsChange,
-} from "../sessions.js";
+import * as defaultSessions from "../sessions.js";
 import {
   ACTIVE_COLOR,
   AXIS_COLOR,
@@ -49,7 +34,27 @@ const METRICS = [
 ];
 const LABEL_WIDTH = 110;
 
-export function initGeometryView(data, tooltip) {
+export function initGeometryView(data, tooltip, context = {}) {
+  const state = context.state ?? defaultState;
+  const sessionStore = context.sessions ?? defaultSessions;
+  const document = context.document ?? globalThis.document;
+  const {
+    getChannel,
+    getFrame,
+    getLiveState,
+    getTimeHover,
+    onChannelChange,
+    onFrameChange,
+    onLiveChange,
+    onTimeHoverChange,
+    setTimeHover,
+  } = state;
+  const {
+    getComparisonSessions,
+    getRenderSessions,
+    getViewMode,
+    onSessionsChange,
+  } = sessionStore;
   const canvas = document.querySelector("#geometry-chart");
   const caption = document.querySelector("#geometry-caption");
   const legend = document.querySelector("#geometry-legend");
@@ -102,7 +107,7 @@ export function initGeometryView(data, tooltip) {
   }
 
   function draw() {
-    renderSessionLegend(legend, data);
+    renderSessionLegend(legend, data, { sessions: sessionStore });
     const mode = getViewMode();
     const sessions = getRenderSessions(data);
     if (mode === "split" && sessions.length > 1) {

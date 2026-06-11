@@ -1,25 +1,6 @@
-import {
-  getChannel,
-  getChannelIndex,
-  getFrame,
-  getLiveState,
-  getTimeHover,
-  getVisibleChannels,
-  onChannelChange,
-  onDisplayChange,
-  onFrameChange,
-  onLiveChange,
-  onTimeHoverChange,
-  setChannel,
-  setTimeHover,
-} from "../state.js";
+import * as defaultState from "../state.js";
 import { createDisposables } from "../disposables.js";
-import {
-  getComparisonSessions,
-  getRenderSessions,
-  getViewMode,
-  onSessionsChange,
-} from "../sessions.js";
+import * as defaultSessions from "../sessions.js";
 import {
   ACTIVE_COLOR,
   AXIS_COLOR,
@@ -45,7 +26,31 @@ import {
 } from "./chart-utils.js";
 import { renderSessionLegend } from "./session-legend.js";
 
-export function initCentroidView(data, tooltip) {
+export function initCentroidView(data, tooltip, context = {}) {
+  const state = context.state ?? defaultState;
+  const sessionStore = context.sessions ?? defaultSessions;
+  const document = context.document ?? globalThis.document;
+  const {
+    getChannel,
+    getChannelIndex,
+    getFrame,
+    getLiveState,
+    getTimeHover,
+    getVisibleChannels,
+    onChannelChange,
+    onDisplayChange,
+    onFrameChange,
+    onLiveChange,
+    onTimeHoverChange,
+    setChannel,
+    setTimeHover,
+  } = state;
+  const {
+    getComparisonSessions,
+    getRenderSessions,
+    getViewMode,
+    onSessionsChange,
+  } = sessionStore;
   const canvas = document.querySelector("#centroid-chart");
   const legend = document.querySelector("#centroid-legend");
   const disposables = createDisposables();
@@ -108,7 +113,7 @@ export function initCentroidView(data, tooltip) {
   }
 
   function draw() {
-    renderSessionLegend(legend, data);
+    renderSessionLegend(legend, data, { sessions: sessionStore });
     const mode = getViewMode();
     const sessions = getRenderSessions(data);
     if (mode === "split" && sessions.length > 1) {

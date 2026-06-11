@@ -1,9 +1,18 @@
-import { getChannel, getFrame, onChannelChange, onFrameChange, setChannel } from "../state.js";
+import * as defaultState from "../state.js";
 import { createDisposables } from "../disposables.js";
 import { ACTIVE_COLOR, CHART_BACKGROUND, MUTED_COLOR, clamp, formatNumber } from "./chart-utils.js";
 import { EEG_10_20 } from "./channel-grid.js";
 
-export function initChannelNetwork(root, data, tooltip) {
+export function initChannelNetwork(root, data, tooltip, context = {}) {
+  const state = context.state ?? defaultState;
+  const document = context.document ?? globalThis.document;
+  const {
+    getChannel,
+    getFrame,
+    onChannelChange,
+    onFrameChange,
+    setChannel,
+  } = state;
   const section = root?.closest("section");
   if (!root || !data.channel_network) {
     if (section) section.hidden = true;
@@ -15,6 +24,27 @@ export function initChannelNetwork(root, data, tooltip) {
   let threshold = Number(data.channel_network.threshold_strong ?? 0.7);
   let metric = "composite";
   let showWeak = false;
+
+  function labelText(text) {
+    const span = document.createElement("span");
+    span.textContent = text;
+    return span;
+  }
+
+  function option(value, text) {
+    const node = document.createElement("option");
+    node.value = value;
+    node.textContent = text;
+    return node;
+  }
+
+  function element(name, attrs = {}, text = "") {
+    const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+    if (Array.isArray(text)) node.append(...text);
+    else if (text) node.textContent = text;
+    return node;
+  }
 
   const controls = document.createElement("div");
   controls.className = "network-controls";
