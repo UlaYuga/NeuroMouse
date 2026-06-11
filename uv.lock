@@ -511,6 +511,8 @@ version = "0.0.0"
 source = { editable = "packages/core" }
 dependencies = [
     { name = "hypothesis" },
+    { name = "neuromouse-contract" },
+    { name = "neuromouse-sdk" },
     { name = "numpy" },
     { name = "scipy" },
 ]
@@ -518,6 +520,8 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "hypothesis", specifier = ">=6.0.0" },
+    { name = "neuromouse-contract", editable = "contracts" },
+    { name = "neuromouse-sdk", editable = "packages/sdk" },
     { name = "numpy", specifier = ">=1.26.0,<2.4" },
     { name = "scipy", specifier = ">=1.11.0" },
 ]
@@ -526,6 +530,12 @@ requires-dist = [
 name = "neuromouse-sdk"
 version = "0.0.0"
 source = { editable = "packages/sdk" }
+dependencies = [
+    { name = "neuromouse-contract" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "neuromouse-contract", editable = "contracts" }]
 
 [[package]]
 name = "neuromouse-workspace"
