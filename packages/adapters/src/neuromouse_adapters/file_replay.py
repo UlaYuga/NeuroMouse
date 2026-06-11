@@ -4,6 +4,7 @@ import csv
 import math
 import struct
 from pathlib import Path
+from typing import Any
 
 _EPSILON = 1e-12
 _GEOMETRY_KEYS = (
@@ -204,7 +205,7 @@ def _dataset_from_psd(
 
     metrics = [_spectral_metrics(clean_frequencies, row) for row in clean_psd]
     time_axis = [0.0]
-    geometry = {"time": time_axis}
+    geometry: dict[str, Any] = {"time": time_axis}
     for key in _GEOMETRY_KEYS:
         geometry[key] = [[metric[key]] for metric in metrics]
     geometry["area_normalized_psd"] = {
@@ -212,7 +213,7 @@ def _dataset_from_psd(
         "psd": [_normalize_area(row) for row in clean_psd],
     }
 
-    meta = {
+    meta: dict[str, Any] = {
         "channels": channels,
         "n_channels": len(channels),
         "source": source,

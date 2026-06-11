@@ -5,7 +5,7 @@ import math
 import random
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from neuromouse_adapters.file_replay import _dataset_from_signals
 
@@ -164,7 +164,7 @@ def _read_wide_csv_mea(path: Path) -> dict:
 
 def _read_hdf5_mea(path: Path) -> dict:
     try:
-        import h5py  # type: ignore[import-not-found]
+        import h5py  # type: ignore[import-not-found]  # ty: ignore[unresolved-import]  # optional dep; not in dev/CI env
     except ImportError as exc:
         raise ValueError(
             "h5py is required for documented HDF5 MEA fallback files; install "
@@ -207,7 +207,7 @@ def _read_hdf5_mea(path: Path) -> dict:
 
 def _read_with_spikeinterface(path: Path) -> dict | None:
     try:
-        import spikeinterface.extractors as se  # type: ignore[import-not-found]
+        import spikeinterface.extractors as se  # type: ignore[import-not-found]  # ty: ignore[unresolved-import]  # optional dep; not in dev/CI env
     except Exception:
         return None
 
@@ -469,7 +469,7 @@ def _to_nested_float_rows(value: Any) -> list[list[float]]:
     rows: list[list[float]] = []
     for row_index, row in enumerate(value):
         if hasattr(row, "tolist"):
-            row = row.tolist()
+            row = cast(Any, row).tolist()
         if not isinstance(row, list) or not row:
             raise ValueError(f"MEA signals row {row_index} must be a non-empty numeric array")
         rows.append([_finite_float(item, f"MEA signals row {row_index}") for item in row])

@@ -50,8 +50,9 @@ class EmptyParams:
 
 class OptionalInputMethod:
     name = "needs_channel_summary"
+    version = "0.0.0"
     params_type = EmptyParams
-    required_inputs = ("channel_summary",)
+    required_inputs: tuple[str, ...] = ("channel_summary",)
     output = OutputSpec(fields=(OutputField("analysis.ok"),), panel=None)
 
     def compute(self, dataset: Dataset, params: EmptyParams) -> dict[str, Any]:
@@ -60,8 +61,9 @@ class OptionalInputMethod:
 
 class MissingOutputMethod:
     name = "missing_output"
+    version = "0.0.0"
     params_type = EmptyParams
-    required_inputs = ("meta.channels",)
+    required_inputs: tuple[str, ...] = ("meta.channels",)
     output = OutputSpec(fields=(OutputField("analysis.required"),), panel=None)
 
     def compute(self, dataset: Dataset, params: EmptyParams) -> dict[str, Any]:
@@ -158,8 +160,9 @@ def test_registry_property_checks_random_valid_and_invalid_declarations(
 ) -> None:
     class GeneratedMethod:
         name = declaration["name"]
+        version: str = "0.0.0"
         params_type = EmptyParams
-        required_inputs = tuple(declaration["required_inputs"])
+        required_inputs: tuple[str, ...] = tuple(declaration["required_inputs"])
         output = OutputSpec(
             fields=tuple(OutputField(path) for path in declaration["output_fields"]),
             panel=PanelSpec(

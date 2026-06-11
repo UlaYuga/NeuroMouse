@@ -19,7 +19,7 @@ class BandPowerSummary:
     name = "band_power_summary"
     version = "0.0.0"
     params_type = BandPowerParams
-    required_inputs = ("meta.channels", "welch_psd.frequencies", "welch_psd.psd")
+    required_inputs: tuple[str, ...] = ("meta.channels", "welch_psd.frequencies", "welch_psd.psd")
     output = OutputSpec(
         fields=(
             OutputField(

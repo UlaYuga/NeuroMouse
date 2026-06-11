@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.encoders import jsonable_encoder
@@ -132,9 +132,8 @@ class MethodCatalog:
             dataset_model = validate_dataset(dataset)
             typed_params = build_params(method.params_type, params)
             _require_declared_paths(dataset_model, method.required_inputs, owner=method.name)
-            result = method.compute(dataset_model, typed_params)
-            if not isinstance(result, dict):
-                result = dict(result)
+            raw = method.compute(dataset_model, typed_params)
+            result: dict[str, Any] = dict(raw)
             _require_declared_paths(
                 result,
                 [field.path for field in method.output.fields],
@@ -341,7 +340,7 @@ def _job_response(job: JobRecord, *, methods: MethodCatalog) -> JobResponse:
         dataset_version=job.dataset_version,
         method_id=job.method_id,
         params=job.params,
-        status=job.status,
+        status=cast(Literal["queued", "running", "completed", "failed"], job.status),
         result=_job_result_response(job, methods=methods),
         error=job.error,
         created_at=job.created_at,

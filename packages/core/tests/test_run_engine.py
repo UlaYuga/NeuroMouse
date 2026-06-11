@@ -39,7 +39,7 @@ class RandomScalarMethod:
     name = "random_scalar"
     version = "1.0.0"
     params_type = RandomParams
-    required_inputs = ("meta.channels",)
+    required_inputs: tuple[str, ...] = ("meta.channels",)
     output = OutputSpec(fields=(OutputField("analysis.value"),), panel=None)
 
     def __init__(self) -> None:

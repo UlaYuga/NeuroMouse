@@ -371,7 +371,7 @@ class SQLiteBackendStore:
                 elif status == "failed":
                     connection.execute("DELETE FROM job_results WHERE job_id = ?", (job_id,))
 
-                event = {
+                event: dict[str, Any] = {
                     "job_id": existing.id,
                     "session_id": existing.session_id,
                     "dataset_version": existing.dataset_version,
