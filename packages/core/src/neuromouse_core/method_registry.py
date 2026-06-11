@@ -3,8 +3,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import platform as platform_module
 import random
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, is_dataclass
 from importlib import metadata
@@ -33,6 +34,14 @@ class MethodExecutionError(MethodRegistryError):
     """Raised when declared inputs or outputs do not match runtime data."""
 
 
+class ReproductionVerificationError(MethodRegistryError):
+    """Raised when a run manifest cannot be reproduced against an input dataset."""
+
+
+RUN_MANIFEST_SCHEMA_VERSION = "neuromouse.run-manifest.v1"
+DEFAULT_DATASET_VERSION = "unversioned"
+
+
 @dataclass(frozen=True)
 class MethodRun:
     method_name: str
@@ -46,14 +55,97 @@ class RunProvenance:
     method_version: str
     params: Mapping[str, Any]
     input_hash: str
+    input_version: str | int
+    input_lineage: tuple[str, ...]
     seed: int
     versions: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class RunManifest:
+    schema_version: str
+    run_id: str
+    dataset: Mapping[str, Any]
+    method: Mapping[str, Any]
+    seed: int
+    library_versions: Mapping[str, str]
+    platform: Mapping[str, str]
+    output_hash: str
+
+    @classmethod
+    def from_components(
+        cls,
+        *,
+        dataset_content_hash: str,
+        dataset_version: str | int,
+        dataset_lineage: Sequence[str] | None,
+        method_id: str,
+        method_version: str,
+        params: Mapping[str, Any] | Any,
+        seed: int,
+        library_versions: Mapping[str, str],
+        platform: Mapping[str, str],
+        output_hash: str,
+    ) -> RunManifest:
+        payload = _manifest_payload(
+            dataset_content_hash=dataset_content_hash,
+            dataset_version=dataset_version,
+            dataset_lineage=dataset_lineage,
+            method_id=method_id,
+            method_version=method_version,
+            params=params,
+            seed=seed,
+            library_versions=library_versions,
+            platform=platform,
+            output_hash=output_hash,
+        )
+        return cls(run_id=_manifest_run_id(payload), **payload)
+
+    @classmethod
+    def from_jsonable(cls, payload: Mapping[str, Any]) -> RunManifest:
+        if not isinstance(payload, Mapping):
+            raise MethodExecutionError("run manifest must be a mapping")
+        if payload.get("schema_version") != RUN_MANIFEST_SCHEMA_VERSION:
+            raise MethodExecutionError("unsupported run manifest schema_version")
+        dataset = _required_mapping(payload, "dataset")
+        method = _required_mapping(payload, "method")
+        manifest = cls.from_components(
+            dataset_content_hash=_required_str(dataset, "content_hash"),
+            dataset_version=dataset.get("version", DEFAULT_DATASET_VERSION),
+            dataset_lineage=dataset.get("lineage", ()),
+            method_id=_required_str(method, "id"),
+            method_version=_required_str(method, "version"),
+            params=method.get("params", {}),
+            seed=payload.get("seed"),
+            library_versions=_required_mapping(payload, "library_versions"),
+            platform=_required_mapping(payload, "platform"),
+            output_hash=_required_str(payload, "output_hash"),
+        )
+        supplied_run_id = _required_str(payload, "run_id")
+        if supplied_run_id != manifest.run_id:
+            raise MethodExecutionError("run manifest run_id does not match its contents")
+        return manifest
+
+    def to_jsonable(self) -> dict[str, Any]:
+        return copy.deepcopy(
+            {
+                "schema_version": self.schema_version,
+                "run_id": self.run_id,
+                "dataset": self.dataset,
+                "method": self.method,
+                "seed": self.seed,
+                "library_versions": self.library_versions,
+                "platform": self.platform,
+                "output_hash": self.output_hash,
+            }
+        )
 
 
 @dataclass(frozen=True)
 class RunResult:
     output: Mapping[str, Any]
     provenance: RunProvenance
+    manifest: RunManifest
 
 
 @dataclass(frozen=True)
@@ -62,6 +154,8 @@ class RunCacheKey:
     method_version: str
     params_hash: str
     input_hash: str
+    input_version: str | int
+    input_lineage: tuple[str, ...]
     seed: int
 
 
@@ -107,6 +201,9 @@ class MethodRegistry:
         params: Mapping[str, Any] | Any | None = None,
         *,
         seed: int,
+        dataset_version: str | int = DEFAULT_DATASET_VERSION,
+        dataset_lineage: Sequence[str] | None = None,
+        use_cache: bool = True,
     ) -> RunResult:
         method = self.lookup(name)
         dataset_model = _dataset_model(dataset)
@@ -115,18 +212,37 @@ class MethodRegistry:
         method_version = _method_version(method)
         params_payload = _jsonable(typed_params)
         input_hash = content_hash(dataset_model)
+        input_version = _normalize_dataset_version(dataset_version)
+        input_lineage = _normalize_dataset_lineage(dataset_lineage)
         cache_key = RunCacheKey(
             method_name=method_name,
             method_version=method_version,
             params_hash=_hash_jsonable(params_payload),
             input_hash=input_hash,
+            input_version=input_version,
+            input_lineage=input_lineage,
             seed=_validate_seed(seed),
         )
-        if cache_key in self._run_cache:
+        if use_cache and cache_key in self._run_cache:
             return copy.deepcopy(self._run_cache[cache_key])
 
         with _seeded(cache_key.seed):
             output = _jsonable(self._execute(method, dataset_model, typed_params))
+        versions = _runtime_versions()
+        platform = _runtime_platform()
+        output_hash = _hash_jsonable(output)
+        manifest = RunManifest.from_components(
+            dataset_content_hash=input_hash,
+            dataset_version=input_version,
+            dataset_lineage=input_lineage,
+            method_id=method_name,
+            method_version=method_version,
+            params=params_payload,
+            seed=cache_key.seed,
+            library_versions=versions,
+            platform=platform,
+            output_hash=output_hash,
+        )
         result = RunResult(
             output=output,
             provenance=RunProvenance(
@@ -134,12 +250,49 @@ class MethodRegistry:
                 method_version=method_version,
                 params=params_payload,
                 input_hash=input_hash,
+                input_version=input_version,
+                input_lineage=input_lineage,
                 seed=cache_key.seed,
-                versions=_runtime_versions(),
+                versions=versions,
             ),
+            manifest=manifest,
         )
-        self._run_cache[cache_key] = copy.deepcopy(result)
+        if use_cache:
+            self._run_cache[cache_key] = copy.deepcopy(result)
         return copy.deepcopy(result)
+
+    def verify_reproduction(
+        self,
+        manifest: RunManifest | Mapping[str, Any],
+        dataset: Dataset | Mapping[str, Any],
+    ) -> RunResult:
+        manifest_model = _manifest_model(manifest)
+        dataset_hash = content_hash(dataset)
+        manifest_hash = manifest_model.dataset["content_hash"]
+        if dataset_hash != manifest_hash:
+            raise ReproductionVerificationError(
+                f"input hash mismatch: expected {manifest_hash}, got {dataset_hash}"
+            )
+
+        result = self.run_result(
+            dataset,
+            manifest_model.method["id"],
+            manifest_model.method["params"],
+            seed=manifest_model.seed,
+            dataset_version=manifest_model.dataset["version"],
+            dataset_lineage=manifest_model.dataset["lineage"],
+            use_cache=False,
+        )
+        if result.manifest.output_hash != manifest_model.output_hash:
+            raise ReproductionVerificationError(
+                "output hash mismatch: "
+                f"expected {manifest_model.output_hash}, got {result.manifest.output_hash}"
+            )
+        if result.manifest.run_id != manifest_model.run_id:
+            raise ReproductionVerificationError(
+                f"run-id mismatch: expected {manifest_model.run_id}, got {result.manifest.run_id}"
+            )
+        return result
 
     def _execute(
         self,
@@ -195,12 +348,32 @@ def run(
     params: Mapping[str, Any] | Any | None = None,
     *,
     seed: int,
+    dataset_version: str | int = DEFAULT_DATASET_VERSION,
+    dataset_lineage: Sequence[str] | None = None,
 ) -> RunResult:
-    return _default_registry.run_result(dataset, method_name, params=params, seed=seed)
+    return _default_registry.run_result(
+        dataset,
+        method_name,
+        params=params,
+        seed=seed,
+        dataset_version=dataset_version,
+        dataset_lineage=dataset_lineage,
+    )
+
+
+def verify_reproduction(
+    manifest: RunManifest | Mapping[str, Any],
+    dataset: Dataset | Mapping[str, Any],
+) -> RunResult:
+    return _default_registry.verify_reproduction(manifest, dataset)
 
 
 def content_hash(dataset: Dataset | Mapping[str, Any]) -> str:
     return _hash_jsonable(_dataset_model(dataset).model_dump(mode="json"))
+
+
+def output_hash(output: Mapping[str, Any]) -> str:
+    return _hash_jsonable(_jsonable(output))
 
 
 def has_field_path(value: Any, path: str) -> bool:
@@ -304,6 +477,114 @@ def _validate_seed(seed: int) -> int:
     return seed
 
 
+def _manifest_model(manifest: RunManifest | Mapping[str, Any]) -> RunManifest:
+    return manifest if isinstance(manifest, RunManifest) else RunManifest.from_jsonable(manifest)
+
+
+def _manifest_payload(
+    *,
+    dataset_content_hash: str,
+    dataset_version: str | int,
+    dataset_lineage: Sequence[str] | None,
+    method_id: str,
+    method_version: str,
+    params: Mapping[str, Any] | Any,
+    seed: int,
+    library_versions: Mapping[str, str],
+    platform: Mapping[str, str],
+    output_hash: str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": RUN_MANIFEST_SCHEMA_VERSION,
+        "dataset": {
+            "content_hash": _validate_digest(dataset_content_hash, "dataset_content_hash"),
+            "version": _normalize_dataset_version(dataset_version),
+            "lineage": list(_normalize_dataset_lineage(dataset_lineage)),
+        },
+        "method": {
+            "id": _normalize_name(method_id),
+            "version": _normalize_non_empty_str(method_version, "method_version"),
+            "params": _jsonable(params),
+        },
+        "seed": _validate_seed(seed),
+        "library_versions": _normalize_str_mapping(library_versions, "library_versions"),
+        "platform": _normalize_str_mapping(platform, "platform"),
+        "output_hash": _validate_digest(output_hash, "output_hash"),
+    }
+
+
+def _manifest_run_id(payload: Mapping[str, Any]) -> str:
+    return _hash_jsonable(payload)
+
+
+def _normalize_dataset_version(version: str | int) -> str | int:
+    if isinstance(version, bool):
+        raise MethodExecutionError("dataset_version must be a string or integer")
+    if isinstance(version, int):
+        if version < 0:
+            raise MethodExecutionError("dataset_version integer must be non-negative")
+        return version
+    if isinstance(version, str) and version.strip():
+        return version.strip()
+    raise MethodExecutionError("dataset_version must be a non-empty string or integer")
+
+
+def _normalize_dataset_lineage(lineage: Sequence[str] | None) -> tuple[str, ...]:
+    if lineage is None:
+        return ()
+    if isinstance(lineage, str) or not isinstance(lineage, Sequence):
+        raise MethodExecutionError("dataset_lineage must be a sequence of strings")
+    normalized: list[str] = []
+    for entry in lineage:
+        if not isinstance(entry, str) or not entry.strip():
+            raise MethodExecutionError("dataset_lineage entries must be non-empty strings")
+        normalized.append(entry.strip())
+    return tuple(normalized)
+
+
+def _normalize_str_mapping(value: Mapping[str, Any], owner: str) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        raise MethodExecutionError(f"{owner} must be a mapping")
+    normalized: dict[str, str] = {}
+    for key, child in value.items():
+        if not isinstance(key, str) or not key.strip():
+            raise MethodExecutionError(f"{owner} keys must be non-empty strings")
+        if not isinstance(child, str) or not child.strip():
+            raise MethodExecutionError(f"{owner} values must be non-empty strings")
+        normalized[key.strip()] = child.strip()
+    return normalized
+
+
+def _validate_digest(value: Any, owner: str) -> str:
+    if not isinstance(value, str) or len(value) != 64:
+        raise MethodExecutionError(f"{owner} must be a 64-character SHA-256 hex digest")
+    try:
+        int(value, 16)
+    except ValueError as exc:
+        raise MethodExecutionError(f"{owner} must be a SHA-256 hex digest") from exc
+    return value.lower()
+
+
+def _normalize_non_empty_str(value: Any, owner: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise MethodExecutionError(f"{owner} must be a non-empty string")
+    return value.strip()
+
+
+def _required_mapping(payload: Mapping[str, Any], key: str) -> Mapping[str, Any]:
+    value = payload.get(key)
+    if not isinstance(value, Mapping):
+        raise MethodExecutionError(f"run manifest {key} must be a mapping")
+    return value
+
+
+def _required_str(payload: Mapping[str, Any], key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise MethodExecutionError(f"run manifest {key} must be a non-empty string")
+    return value.strip()
+
+
 @contextmanager
 def _seeded(seed: int) -> Any:
     numpy_state = np.random.get_state()
@@ -352,8 +633,20 @@ def _runtime_versions() -> dict[str, str]:
     return {
         "numpy": np.__version__,
         "scipy": scipy.__version__,
+        "neuromouse_contract": _package_version("neuromouse-contract"),
         "neuromouse_core": _package_version("neuromouse-core"),
         "neuromouse_sdk": _package_version("neuromouse-sdk"),
+    }
+
+
+def _runtime_platform() -> dict[str, str]:
+    return {
+        "python": platform_module.python_version(),
+        "python_implementation": platform_module.python_implementation(),
+        "system": platform_module.system(),
+        "release": platform_module.release(),
+        "machine": platform_module.machine(),
+        "platform": platform_module.platform(),
     }
 
 

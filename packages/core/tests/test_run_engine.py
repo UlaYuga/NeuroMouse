@@ -14,7 +14,13 @@ from hypothesis import strategies as st
 
 import neuromouse_core
 import neuromouse_sdk
-from neuromouse_core import RunResult, register, run
+from neuromouse_core import (
+    ReproductionVerificationError,
+    RunManifest,
+    RunResult,
+    register,
+    run,
+)
 from neuromouse_core.method_registry import MethodRegistry
 from neuromouse_sdk import OutputField, OutputSpec
 from neuromouse_sdk.examples.band_power_summary import band_power_summary
@@ -65,6 +71,279 @@ def output_bytes(result: RunResult) -> bytes:
     return json.dumps(result.output, sort_keys=True, separators=(",", ":"), allow_nan=False).encode(
         "utf-8"
     )
+
+
+def test_run_manifest_captures_reproducibility_schema_and_dataset_lineage() -> None:
+    registry = MethodRegistry()
+    registry.register(RandomScalarMethod())
+    dataset = load_golden()
+
+    result = registry.run_result(
+        dataset,
+        " random_scalar ",
+        {"scale": 1.25},
+        seed=77,
+        dataset_version="golden-v1",
+        dataset_lineage=("raw:generation-script@2026-06-11", "contract:canonical-v1"),
+    )
+
+    manifest = result.manifest
+    payload = manifest.to_jsonable()
+
+    assert isinstance(manifest, RunManifest)
+    assert manifest.schema_version == "neuromouse.run-manifest.v1"
+    assert len(manifest.run_id) == 64
+    assert manifest.dataset == {
+        "content_hash": result.provenance.input_hash,
+        "version": "golden-v1",
+        "lineage": ["raw:generation-script@2026-06-11", "contract:canonical-v1"],
+    }
+    assert manifest.method == {
+        "id": "random_scalar",
+        "version": "1.0.0",
+        "params": {"scale": 1.25},
+    }
+    assert manifest.seed == 77
+    assert len(manifest.output_hash) == 64
+    assert manifest.library_versions["numpy"] == np.__version__
+    assert manifest.library_versions["scipy"] == scipy.__version__
+    assert manifest.library_versions["neuromouse_core"] == neuromouse_core.__version__
+    assert manifest.library_versions["neuromouse_sdk"] == neuromouse_sdk.__version__
+    assert payload["platform"]["python"]
+    assert payload["platform"]["system"]
+    assert result.provenance.input_version == "golden-v1"
+    assert result.provenance.input_lineage == (
+        "raw:generation-script@2026-06-11",
+        "contract:canonical-v1",
+    )
+
+
+def test_run_manifest_repeated_run_has_same_run_id_and_output_hash() -> None:
+    registry = MethodRegistry()
+    registry.register(RandomScalarMethod())
+
+    first = registry.run_result(
+        load_golden(),
+        "random_scalar",
+        {"scale": 1.5},
+        seed=1234,
+        dataset_version="golden-v1",
+        dataset_lineage=("fixture:golden",),
+    )
+    second = registry.run_result(
+        copy.deepcopy(load_golden()),
+        "random_scalar",
+        {"scale": 1.5},
+        seed=1234,
+        dataset_version="golden-v1",
+        dataset_lineage=("fixture:golden",),
+    )
+
+    assert output_bytes(first) == output_bytes(second)
+    assert first.manifest.run_id == second.manifest.run_id
+    assert first.manifest.output_hash == second.manifest.output_hash
+
+
+def test_run_manifest_run_id_changes_when_any_derivation_field_changes() -> None:
+    base = RunManifest.from_components(
+        dataset_content_hash="a" * 64,
+        dataset_version="dataset-v1",
+        dataset_lineage=("raw:one",),
+        method_id="method-a",
+        method_version="1.0.0",
+        params={"scale": 1.0},
+        seed=7,
+        library_versions={"numpy": "1", "scipy": "1", "neuromouse_core": "1"},
+        platform={"python": "3.12", "system": "Darwin"},
+        output_hash="b" * 64,
+    )
+
+    variants = [
+        RunManifest.from_components(
+            dataset_content_hash="c" * 64,
+            dataset_version="dataset-v1",
+            dataset_lineage=("raw:one",),
+            method_id="method-a",
+            method_version="1.0.0",
+            params={"scale": 1.0},
+            seed=7,
+            library_versions={"numpy": "1", "scipy": "1", "neuromouse_core": "1"},
+            platform={"python": "3.12", "system": "Darwin"},
+            output_hash="b" * 64,
+        ),
+        RunManifest.from_components(
+            dataset_content_hash="a" * 64,
+            dataset_version="dataset-v2",
+            dataset_lineage=("raw:one",),
+            method_id="method-a",
+            method_version="1.0.0",
+            params={"scale": 1.0},
+            seed=7,
+            library_versions={"numpy": "1", "scipy": "1", "neuromouse_core": "1"},
+            platform={"python": "3.12", "system": "Darwin"},
+            output_hash="b" * 64,
+        ),
+        RunManifest.from_components(
+            dataset_content_hash="a" * 64,
+            dataset_version="dataset-v1",
+            dataset_lineage=("raw:two",),
+            method_id="method-a",
+            method_version="1.0.0",
+            params={"scale": 1.0},
+            seed=7,
+            library_versions={"numpy": "1", "scipy": "1", "neuromouse_core": "1"},
+            platform={"python": "3.12", "system": "Darwin"},
+            output_hash="b" * 64,
+        ),
+        RunManifest.from_components(
+            dataset_content_hash="a" * 64,
+            dataset_version="dataset-v1",
+            dataset_lineage=("raw:one",),
+            method_id="method-b",
+            method_version="1.0.0",
+            params={"scale": 1.0},
+            seed=7,
+            library_versions={"numpy": "1", "scipy": "1", "neuromouse_core": "1"},
+            platform={"python": "3.12", "system": "Darwin"},
+            output_hash="b" * 64,
+        ),
+        RunManifest.from_components(
+            dataset_content_hash="a" * 64,
+            dataset_version="dataset-v1",
+            dataset_lineage=("raw:one",),
+            method_id="method-a",
+            method_version="2.0.0",
+            params={"scale": 1.0},
+            seed=7,
+            library_versions={"numpy": "1", "scipy": "1", "neuromouse_core": "1"},
+            platform={"python": "3.12", "system": "Darwin"},
+            output_hash="b" * 64,
+        ),
+        RunManifest.from_components(
+            dataset_content_hash="a" * 64,
+            dataset_version="dataset-v1",
+            dataset_lineage=("raw:one",),
+            method_id="method-a",
+            method_version="1.0.0",
+            params={"scale": 2.0},
+            seed=7,
+            library_versions={"numpy": "1", "scipy": "1", "neuromouse_core": "1"},
+            platform={"python": "3.12", "system": "Darwin"},
+            output_hash="b" * 64,
+        ),
+        RunManifest.from_components(
+            dataset_content_hash="a" * 64,
+            dataset_version="dataset-v1",
+            dataset_lineage=("raw:one",),
+            method_id="method-a",
+            method_version="1.0.0",
+            params={"scale": 1.0},
+            seed=8,
+            library_versions={"numpy": "1", "scipy": "1", "neuromouse_core": "1"},
+            platform={"python": "3.12", "system": "Darwin"},
+            output_hash="b" * 64,
+        ),
+        RunManifest.from_components(
+            dataset_content_hash="a" * 64,
+            dataset_version="dataset-v1",
+            dataset_lineage=("raw:one",),
+            method_id="method-a",
+            method_version="1.0.0",
+            params={"scale": 1.0},
+            seed=7,
+            library_versions={"numpy": "2", "scipy": "1", "neuromouse_core": "1"},
+            platform={"python": "3.12", "system": "Darwin"},
+            output_hash="b" * 64,
+        ),
+        RunManifest.from_components(
+            dataset_content_hash="a" * 64,
+            dataset_version="dataset-v1",
+            dataset_lineage=("raw:one",),
+            method_id="method-a",
+            method_version="1.0.0",
+            params={"scale": 1.0},
+            seed=7,
+            library_versions={"numpy": "1", "scipy": "1", "neuromouse_core": "1"},
+            platform={"python": "3.13", "system": "Darwin"},
+            output_hash="b" * 64,
+        ),
+        RunManifest.from_components(
+            dataset_content_hash="a" * 64,
+            dataset_version="dataset-v1",
+            dataset_lineage=("raw:one",),
+            method_id="method-a",
+            method_version="1.0.0",
+            params={"scale": 1.0},
+            seed=7,
+            library_versions={"numpy": "1", "scipy": "1", "neuromouse_core": "1"},
+            platform={"python": "3.12", "system": "Darwin"},
+            output_hash="d" * 64,
+        ),
+    ]
+
+    assert {variant.run_id for variant in variants}.isdisjoint({base.run_id})
+
+
+def test_verify_reproduction_passes_for_faithful_rerun_and_fails_for_tampered_input() -> None:
+    registry = MethodRegistry()
+    method = RandomScalarMethod()
+    registry.register(method)
+    dataset = load_golden()
+    result = registry.run_result(
+        dataset,
+        "random_scalar",
+        {"scale": 1.5},
+        seed=1234,
+        dataset_version="golden-v1",
+        dataset_lineage=("fixture:golden",),
+    )
+
+    verified = registry.verify_reproduction(result.manifest, copy.deepcopy(dataset))
+
+    assert method.calls == 2
+    assert verified.manifest == result.manifest
+    assert output_bytes(verified) == output_bytes(result)
+
+    tampered = copy.deepcopy(dataset)
+    tampered["meta"]["source"] = "tampered-dataset"
+    with pytest.raises(ReproductionVerificationError, match="input hash"):
+        registry.verify_reproduction(result.manifest, tampered)
+
+
+@given(
+    scale=st.floats(min_value=0.01, max_value=10.0, allow_nan=False, allow_infinity=False),
+    seed=st.integers(min_value=0, max_value=SEED_MAX),
+    dataset_version=st.text(
+        alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd")),
+        min_size=1,
+        max_size=12,
+    ),
+)
+@settings(
+    max_examples=40,
+    deadline=None,
+    derandomize=True,
+    suppress_health_check=[HealthCheck.too_slow],
+)
+def test_run_manifest_property_round_trips_jsonable_payload(
+    scale: float,
+    seed: int,
+    dataset_version: str,
+) -> None:
+    registry = MethodRegistry()
+    registry.register(RandomScalarMethod())
+
+    result = registry.run_result(
+        load_golden(),
+        "random_scalar",
+        {"scale": scale},
+        seed=seed,
+        dataset_version=dataset_version,
+        dataset_lineage=("property:golden",),
+    )
+    payload = json.loads(json.dumps(result.manifest.to_jsonable()))
+
+    assert RunManifest.from_jsonable(payload) == result.manifest
 
 
 def test_run_engine_is_seed_deterministic_without_reusing_cache() -> None:
