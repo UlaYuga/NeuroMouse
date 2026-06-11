@@ -55,6 +55,12 @@ wheels = [
 name = "neuromouse-adapters"
 version = "0.0.0"
 source = { editable = "packages/adapters" }
+dependencies = [
+    { name = "hypothesis" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "hypothesis", specifier = ">=6.0.0" }]
 
 [[package]]
 name = "neuromouse-backend"
