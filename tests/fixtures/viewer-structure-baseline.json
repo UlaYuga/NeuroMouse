@@ -1,0 +1,261 @@
+{
+  "dataset": {
+    "channels": 32,
+    "frames": 420,
+    "source": "GX dataset (Gebodh/CCNY), CC BY-SA 4.0"
+  },
+  "controls": {
+    "filters": [
+      "all",
+      "frontal",
+      "central_temporal",
+      "parietal",
+      "occipital",
+      "L",
+      "R"
+    ],
+    "channelSort": "layout",
+    "psdScale": "log",
+    "viewMode": "overlay"
+  },
+  "workbench": {
+    "pipeline": [
+      "ingest:ready",
+      "normalize:ready",
+      "compare:waiting",
+      "report:waiting"
+    ],
+    "scenario": {
+      "id": "trained-vs-naive",
+      "label": "Trained vs untrained",
+      "baselineLabel": "Untrained baseline",
+      "targetLabel": "Trained cohort",
+      "detail": "Compare trained neural cultures against untrained controls using spectral geometry and synchrony markers."
+    },
+    "baseline": {
+      "label": "Untrained baseline",
+      "name": "Demo dataset",
+      "facts": [
+        "32 ch",
+        "420 frames",
+        "14.0 Hz centroid",
+        "100% alpha clear"
+      ],
+      "select": {
+        "disabled": true,
+        "options": [
+          "Demo dataset"
+        ]
+      }
+    },
+    "status": {
+      "className": "workbench-status is-draft",
+      "text": "Loaded Demo dataset. Add a trained cohort dataset to calculate deltas."
+    },
+    "comparisons": [
+      {
+        "type": "empty",
+        "text": "Untrained baseline -> Trained cohort"
+      }
+    ],
+    "readiness": {
+      "className": "readiness-panel is-draft",
+      "text": "Report draft needs target dataset"
+    },
+    "qualityFlags": [
+      {
+        "className": "quality-item is-waiting",
+        "label": "Cohort depth",
+        "message": "Add a second dataset for cohort deltas"
+      },
+      {
+        "className": "quality-item is-ready",
+        "label": "Channel coverage",
+        "message": "32 channels, 420 frames"
+      },
+      {
+        "className": "quality-item is-ready",
+        "label": "Alpha markers",
+        "message": "100% channels with clear alpha peak"
+      },
+      {
+        "className": "quality-item is-waiting",
+        "label": "Comparison",
+        "message": "Waiting for target dataset"
+      }
+    ],
+    "metrics": [
+      {
+        "label": "Datasets",
+        "value": "1",
+        "detail": "load another file"
+      },
+      {
+        "label": "Channels",
+        "value": "32",
+        "detail": "420 analysis frames"
+      },
+      {
+        "label": "Alpha clarity",
+        "value": "100%",
+        "detail": "mean 0.2306"
+      },
+      {
+        "label": "Separation",
+        "value": "--",
+        "detail": "needs two datasets"
+      },
+      {
+        "label": "Report",
+        "value": "Draft",
+        "detail": "needs target dataset"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "key": "psd",
+      "title": "PSD Heatmap",
+      "expanded": true,
+      "hidden": false,
+      "regions": [
+        "psd-legend",
+        "psd-heatmap",
+        "psd-overlay"
+      ]
+    },
+    {
+      "key": "playback",
+      "title": "Playback",
+      "expanded": true,
+      "hidden": false,
+      "regions": [
+        "playback-bar"
+      ]
+    },
+    {
+      "key": "centroid",
+      "title": "Centroid Over Time",
+      "expanded": false,
+      "hidden": false,
+      "regions": [
+        "centroid-legend",
+        "centroid-chart"
+      ]
+    },
+    {
+      "key": "geometry",
+      "title": "Geometry Stack",
+      "expanded": true,
+      "hidden": false,
+      "regions": [
+        "geometry-legend",
+        "geometry-chart"
+      ]
+    },
+    {
+      "key": "grid",
+      "title": "Channel Grid",
+      "expanded": true,
+      "hidden": false,
+      "regions": [
+        "selected-channel",
+        "channel-grid"
+      ]
+    },
+    {
+      "key": "phase",
+      "title": "Phase Space",
+      "expanded": false,
+      "hidden": false,
+      "regions": [
+        "phase-space"
+      ]
+    },
+    {
+      "key": "polar",
+      "title": "Polar Alpha Chronomap",
+      "expanded": false,
+      "hidden": false,
+      "regions": [
+        "polar-chronomap"
+      ]
+    },
+    {
+      "key": "kuramoto",
+      "title": "Kuramoto Animation",
+      "expanded": false,
+      "hidden": false,
+      "regions": [
+        "kuramoto-view"
+      ]
+    },
+    {
+      "key": "network",
+      "title": "Channel Network",
+      "expanded": false,
+      "hidden": false,
+      "regions": [
+        "channel-network"
+      ]
+    },
+    {
+      "key": "tda",
+      "title": "TDA View",
+      "expanded": false,
+      "hidden": false,
+      "regions": [
+        "tda-view"
+      ]
+    },
+    {
+      "key": "monitor",
+      "title": "Closed-Loop Monitor",
+      "expanded": true,
+      "hidden": false,
+      "regions": [
+        "monitor-panel"
+      ]
+    }
+  ],
+  "widgets": {
+    "playback": {
+      "speeds": [
+        1,
+        2,
+        4
+      ],
+      "maxFrame": 419,
+      "initialTimeLabel": "t = 1.00 s"
+    },
+    "channelGrid": {
+      "selectedChannel": "Cz",
+      "layout": "head",
+      "electrodeCount": 32,
+      "colorModes": [
+        "alpha_relative_power",
+        "lyapunov_exponent",
+        "variability.alpha_range"
+      ]
+    },
+    "monitor": {
+      "mode": "static",
+      "defaultChannel": "Cz",
+      "metrics": [
+        "centroid",
+        "spread",
+        "entropy",
+        "flatness",
+        "edge95",
+        "alpha_relative_power"
+      ]
+    },
+    "sessions": {
+      "count": "0/6",
+      "message": "Add sessions to compare",
+      "baselineOptions": [
+        "No imported baselines"
+      ]
+    }
+  }
+}

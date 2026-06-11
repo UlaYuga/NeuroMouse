@@ -15,7 +15,8 @@ import {
   scaleLinear,
 } from "./chart-utils.js";
 
-export function initTdaView(root, data, tooltip) {
+export function initTdaView(root, data, tooltip, context = {}) {
+  const document = context.document ?? globalThis.document;
   const section = root?.closest("section");
   if (!root || data.tda?.status !== "computed") {
     if (section) section.hidden = true;
@@ -37,6 +38,17 @@ export function initTdaView(root, data, tooltip) {
   scatter.setAttribute("aria-label", "TDA persistence scatter");
   barcode.setAttribute("role", "img");
   barcode.setAttribute("aria-label", "TDA persistence barcode");
+
+  function panel(title, canvas) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "tda-panel";
+    const heading = document.createElement("div");
+    heading.className = "tda-subtitle";
+    heading.textContent = title;
+    wrapper.append(heading, canvas);
+    return wrapper;
+  }
+
   root.innerHTML = "";
   root.append(
     panel("Persistence", scatter),

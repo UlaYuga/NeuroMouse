@@ -1,12 +1,4 @@
-import {
-  getChannel,
-  getChannelIndex,
-  getFrame,
-  getLiveState,
-  onChannelChange,
-  onFrameChange,
-  onLiveChange,
-} from "../state.js";
+import * as defaultState from "../state.js";
 import { createDisposables } from "../disposables.js";
 import {
   ACTIVE_COLOR,
@@ -37,10 +29,35 @@ const METRICS = [
 const MODE_DELAY = "delay";
 const MODE_SCATTER = "scatter";
 
-export function initPhaseSpace(root, data) {
+export function initPhaseSpace(root, data, context = {}) {
   if (!root) return;
 
+  const state = context.state ?? defaultState;
+  const document = context.document ?? globalThis.document;
+  const window = context.window ?? globalThis.window;
+  const {
+    getChannel,
+    getChannelIndex,
+    getFrame,
+    getLiveState,
+    onChannelChange,
+    onFrameChange,
+    onLiveChange,
+  } = state;
   const disposables = createDisposables();
+  function element(name, attrs = {}, ...children) {
+    const node = document.createElement(name);
+    Object.entries(attrs).forEach(([key, value]) => {
+      if (key === "className") node.className = value;
+      else if (key === "htmlFor") node.htmlFor = value;
+      else node.setAttribute(key, value);
+    });
+    children.flat().forEach((child) => {
+      if (child == null) return;
+      node.append(child instanceof window.Node ? child : document.createTextNode(String(child)));
+    });
+    return node;
+  }
   const canvas = element("canvas", {
     id: "phase-space-chart",
     className: "chart chart-phase",
@@ -66,9 +83,9 @@ export function initPhaseSpace(root, data) {
   }, "2-Metric Scatter");
   modeGroup.append(delayButton, scatterButton);
 
-  const primarySelect = metricSelect("centroid", "phase-primary-metric", "Phase metric");
-  const xSelect = metricSelect("centroid", "phase-x-metric", "Phase X metric");
-  const ySelect = metricSelect("spread", "phase-y-metric", "Phase Y metric");
+  const primarySelect = metricSelect("centroid", "phase-primary-metric", "Phase metric", element);
+  const xSelect = metricSelect("centroid", "phase-x-metric", "Phase X metric", element);
+  const ySelect = metricSelect("spread", "phase-y-metric", "Phase Y metric", element);
   const tauInput = element("input", {
     type: "number",
     name: "phase-tau",
@@ -81,10 +98,10 @@ export function initPhaseSpace(root, data) {
     "aria-label": "Delay tau",
   });
 
-  const primaryControl = labeledControl("Metric", primarySelect);
-  const xControl = labeledControl("X metric", xSelect);
-  const yControl = labeledControl("Y metric", ySelect);
-  const tauControl = labeledControl("Tau", tauInput);
+  const primaryControl = labeledControl("Metric", primarySelect, element);
+  const xControl = labeledControl("X metric", xSelect, element);
+  const yControl = labeledControl("Y metric", ySelect, element);
+  const tauControl = labeledControl("Tau", tauInput, element);
   const controls = element(
     "div",
     { className: "phase-controls" },
@@ -400,7 +417,7 @@ function metricLabel(key) {
   return { key: row[0], label: row[1], unit: row[2] };
 }
 
-function metricSelect(value, id, label) {
+function metricSelect(value, id, label, element) {
   const select = element("select", { id, name: id, "aria-label": label });
   METRICS.forEach(([key, label]) => {
     select.append(element("option", { value: key }, label));
@@ -409,7 +426,7 @@ function metricSelect(value, id, label) {
   return select;
 }
 
-function labeledControl(label, control) {
+function labeledControl(label, control, element) {
   return element("label", { className: "phase-control" }, element("span", {}, label), control);
 }
 

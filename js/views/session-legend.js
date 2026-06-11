@@ -1,7 +1,9 @@
-import { getBaselineSession, getComparisonSessions, getViewMode } from "../sessions.js";
+import * as defaultSessions from "../sessions.js";
 
 export function renderSessionLegend(node, fallbackData, options = {}) {
   if (!node) return;
+  const sessionStore = options.sessions ?? defaultSessions;
+  const { getBaselineSession, getComparisonSessions, getViewMode } = sessionStore;
   const sessions = getComparisonSessions(fallbackData);
   const mode = getViewMode();
   const shouldShow = sessions.length > 1 || mode === "delta" || options.force;
@@ -13,6 +15,7 @@ export function renderSessionLegend(node, fallbackData, options = {}) {
 
   const baseline = getBaselineSession(fallbackData);
   const suffix = mode === "delta" && baseline ? ` Δ vs ${baseline.name}` : "";
+  const document = node.ownerDocument;
   node.innerHTML = "";
   sessions.forEach((session) => {
     const item = document.createElement("span");

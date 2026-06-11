@@ -1,23 +1,6 @@
-import {
-  getChannel,
-  getChannelIndex,
-  getLiveState,
-  getPsdScale,
-  getVisibleChannels,
-  onChannelChange,
-  onDisplayChange,
-  onLiveChange,
-  onPsdScaleChange,
-  setChannel,
-} from "../state.js";
+import * as defaultState from "../state.js";
 import { createDisposables } from "../disposables.js";
-import {
-  getBaselineSession,
-  getComparisonSessions,
-  getRenderSessions,
-  getViewMode,
-  onSessionsChange,
-} from "../sessions.js";
+import * as defaultSessions from "../sessions.js";
 import {
   ACTIVE_COLOR,
   AXIS_COLOR,
@@ -50,7 +33,30 @@ const HEATMAP_PALETTE = [
   [0, 212, 160],
 ];
 
-export function initPsdView(data, tooltip) {
+export function initPsdView(data, tooltip, context = {}) {
+  const state = context.state ?? defaultState;
+  const sessionStore = context.sessions ?? defaultSessions;
+  const document = context.document ?? globalThis.document;
+  const window = context.window ?? globalThis.window;
+  const {
+    getChannel,
+    getChannelIndex,
+    getLiveState,
+    getPsdScale,
+    getVisibleChannels,
+    onChannelChange,
+    onDisplayChange,
+    onLiveChange,
+    onPsdScaleChange,
+    setChannel,
+  } = state;
+  const {
+    getBaselineSession,
+    getComparisonSessions,
+    getRenderSessions,
+    getViewMode,
+    onSessionsChange,
+  } = sessionStore;
   const heatmap = document.querySelector("#psd-heatmap");
   const overlay = document.querySelector("#psd-overlay");
   const legend = document.querySelector("#psd-legend");
@@ -203,7 +209,7 @@ export function initPsdView(data, tooltip) {
   }
 
   function render() {
-    renderSessionLegend(legend, data);
+    renderSessionLegend(legend, data, { sessions: sessionStore });
     drawHeatmap();
     drawOverlay();
   }

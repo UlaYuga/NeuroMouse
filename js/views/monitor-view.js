@@ -1,7 +1,4 @@
-import {
-  getChannel,
-  onChannelChange,
-} from "../state.js";
+import * as defaultState from "../state.js";
 import { createDisposables } from "../disposables.js";
 import {
   ConditionMonitor,
@@ -16,9 +13,13 @@ import { formatNumber } from "./chart-utils.js";
 
 const LOG_LIMIT = 50;
 
-export function initMonitorView(root, data) {
+export function initMonitorView(root, data, context = {}) {
   if (!root) return null;
 
+  const state = context.state ?? defaultState;
+  const document = context.document ?? globalThis.document;
+  const window = context.window ?? globalThis.window;
+  const { getChannel, onChannelChange } = state;
   const disposables = createDisposables();
   let channels = channelsFromData(data);
   const condition = createDefaultCondition(channels.includes(getChannel()) ? getChannel() : defaultChannel(channels));
@@ -28,6 +29,72 @@ export function initMonitorView(root, data) {
   let isLive = false;
   let highlightedEvent = null;
   let highlightTimer = 0;
+
+  function element(name, attrs = {}, ...children) {
+    const node = document.createElement(name);
+    Object.entries(attrs).forEach(([key, value]) => {
+      if (value == null) return;
+      if (key === "className") node.className = value;
+      else if (key === "htmlFor") node.htmlFor = value;
+      else if (key === "hidden") node.hidden = Boolean(value);
+      else node.setAttribute(key, value);
+    });
+    children.flat().forEach((child) => {
+      if (child == null) return;
+      node.append(child instanceof window.Node ? child : document.createTextNode(String(child)));
+    });
+    return node;
+  }
+
+  function createLabeledSelect(id, label) {
+    const select = element("select", { id, name: id });
+    return {
+      select,
+      wrapper: element("label", { className: "monitor-field", htmlFor: id },
+        element("span", {}, label),
+        select,
+      ),
+    };
+  }
+
+  function createLabeledInput(id, label, attrs, suffix = "") {
+    const input = element("input", {
+      id,
+      name: id,
+      autocomplete: "off",
+      ...attrs,
+    });
+    const control = suffix
+      ? element("div", { className: "monitor-input-suffix" }, input, element("span", {}, suffix))
+      : input;
+    return {
+      input,
+      wrapper: element("label", { className: "monitor-field", htmlFor: id },
+        element("span", {}, label),
+        control,
+      ),
+    };
+  }
+
+  function populateSelect(select, rows, selectedValue) {
+    select.innerHTML = "";
+    rows.forEach((row) => {
+      const option = element("option", { value: row.value }, row.label);
+      option.selected = row.value === selectedValue;
+      select.append(option);
+    });
+  }
+
+  function exportCSV(log) {
+    const blob = new window.Blob([serializeTriggerLogCSV(log)], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const link = Object.assign(document.createElement("a"), {
+      href: url,
+      download: `neuromouse-triggers-${Date.now()}.csv`,
+    });
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }
 
   root.innerHTML = "";
 
