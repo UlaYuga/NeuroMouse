@@ -1,0 +1,511 @@
+{
+  "$defs": {
+    "Centroid": {
+      "additionalProperties": true,
+      "properties": {
+        "time_relative": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Time Relative",
+          "type": "array"
+        },
+        "values": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "time_relative",
+        "values"
+      ],
+      "title": "Centroid",
+      "type": "object"
+    },
+    "ChannelSummary": {
+      "additionalProperties": true,
+      "properties": {
+        "channel": {
+          "title": "Channel",
+          "type": "string"
+        },
+        "hemisphere": {
+          "anyOf": [
+            {
+              "enum": [
+                "L",
+                "R",
+                "M",
+                ""
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hemisphere"
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Region"
+        },
+        "has_clear_alpha_peak": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Has Clear Alpha Peak"
+        },
+        "alpha_relative_power": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alpha Relative Power"
+        },
+        "spectral_centroid_hz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spectral Centroid Hz"
+        },
+        "spectral_spread_hz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spectral Spread Hz"
+        },
+        "spectral_entropy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spectral Entropy"
+        },
+        "spectral_flatness": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spectral Flatness"
+        },
+        "edge95_hz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Edge95 Hz"
+        },
+        "alpha_peak_frequency_hz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alpha Peak Frequency Hz"
+        },
+        "sliding_alpha_relative_mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sliding Alpha Relative Mean"
+        }
+      },
+      "required": [
+        "channel"
+      ],
+      "title": "ChannelSummary",
+      "type": "object"
+    },
+    "Geometry": {
+      "additionalProperties": true,
+      "properties": {
+        "time": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Time",
+          "type": "array"
+        },
+        "centroid": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Centroid"
+        },
+        "spread": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spread"
+        },
+        "entropy": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entropy"
+        },
+        "flatness": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flatness"
+        },
+        "edge95": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Edge95"
+        },
+        "alpha_relative_power": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alpha Relative Power"
+        },
+        "area_normalized_psd": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WelchPsd"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "time"
+      ],
+      "title": "Geometry",
+      "type": "object"
+    },
+    "Meta": {
+      "additionalProperties": true,
+      "properties": {
+        "channels": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Channels",
+          "type": "array"
+        },
+        "n_channels": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Channels"
+        },
+        "segment_duration_sec": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Segment Duration Sec"
+        },
+        "sampling_rate_analysis_hz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sampling Rate Analysis Hz"
+        },
+        "welch_window_sec": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Welch Window Sec"
+        },
+        "welch_overlap_fraction": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Welch Overlap Fraction"
+        },
+        "sliding_window_sec": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sliding Window Sec"
+        },
+        "sliding_step_sec": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sliding Step Sec"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "analysis_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Analysis By"
+        }
+      },
+      "required": [
+        "channels"
+      ],
+      "title": "Meta",
+      "type": "object"
+    },
+    "WelchPsd": {
+      "additionalProperties": true,
+      "properties": {
+        "frequencies": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Frequencies",
+          "type": "array"
+        },
+        "psd": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Psd",
+          "type": "array"
+        }
+      },
+      "required": [
+        "frequencies",
+        "psd"
+      ],
+      "title": "WelchPsd",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "meta": {
+      "$ref": "#/$defs/Meta"
+    },
+    "welch_psd": {
+      "$ref": "#/$defs/WelchPsd"
+    },
+    "centroid": {
+      "$ref": "#/$defs/Centroid"
+    },
+    "geometry": {
+      "$ref": "#/$defs/Geometry"
+    },
+    "channel_summary": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/ChannelSummary"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Channel Summary"
+    }
+  },
+  "required": [
+    "meta",
+    "welch_psd",
+    "centroid",
+    "geometry"
+  ],
+  "title": "Dataset",
+  "type": "object"
+}
