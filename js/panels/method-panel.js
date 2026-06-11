@@ -24,17 +24,24 @@ export function buildMethodPanel({
 } = {}) {
   if (!providedDocument) throw new Error("buildMethodPanel requires a document");
   const spec = normalizePanelSpec(panelSpec, method);
-  const value = getPath(result, spec.field);
+  const rawValue = getPath(result, spec.field);
+  const value = normalizePanelValue(spec, rawValue);
   const body = element(providedDocument, "div", { className: "panel-body" });
   const status = element(providedDocument, "span", { "data-method-panel-status": "" }, statusText(value, spec));
 
-  if (value == null) {
+  if (rawValue == null) {
     body.append(element(
       providedDocument,
       "p",
       { className: "empty-comparison" },
       `No data returned for ${spec.field}.`,
     ));
+  } else if (spec.kind === "matrix") {
+    body.append(renderMatrix(providedDocument, rawValue, spec));
+  } else if (spec.kind === "timeline") {
+    body.append(renderTimeline(providedDocument, value, spec));
+  } else if (spec.kind === "heatmap_table") {
+    body.append(renderHeatmapTable(providedDocument, value, spec));
   } else if (Array.isArray(value)) {
     body.append(renderTable(providedDocument, value, spec));
   } else if (isPlainObject(value)) {
@@ -73,6 +80,65 @@ function renderTable(document, rows, spec) {
       element(document, "tbody", {}, rows.map((row) => {
         return element(document, "tr", {}, columns.map((column) => {
           return element(document, "td", {}, formatValue(getPath(row, column.key)));
+        }));
+      })),
+    ),
+  );
+}
+
+function renderHeatmapTable(document, rows, spec) {
+  const normalizedRows = normalizeHeatmapRows(rows);
+  const columns = normalizeColumns(spec.columns, normalizedRows);
+  if (!normalizedRows.length) {
+    return element(document, "p", { className: "empty-comparison" }, "No heatmap rows returned.");
+  }
+  return renderTable(document, normalizedRows, { columns });
+}
+
+function renderTimeline(document, segments, spec) {
+  if (!Array.isArray(segments) || !segments.length) {
+    return element(document, "p", { className: "empty-comparison" }, "No timeline events returned.");
+  }
+  const columns = normalizeColumns(spec.columns, segments);
+  if (!columns.length) {
+    columns.push({ key: "start_sec", label: "start_sec" });
+    columns.push({ key: "end_sec", label: "end_sec" });
+    columns.push({ key: "size", label: "size" });
+  }
+  return element(document, "table", { className: "method-timeline-table" },
+    element(document, "thead", {},
+      element(document, "tr", {}, columns.map((column) => {
+        return element(document, "th", { scope: "col" }, column.label ?? column.key);
+      })),
+    ),
+    element(document, "tbody", {}, segments.map((segment) => {
+      return element(document, "tr", { "data-timeline-segment": "" }, columns.map((column) => {
+        return element(document, "td", {}, formatValue(getPath(segment, column.key)));
+      }));
+    })),
+  );
+}
+
+function renderMatrix(document, matrix, spec) {
+  if (!Array.isArray(matrix) || !matrix.length) {
+    return element(document, "p", { className: "empty-comparison" }, "No matrix returned.");
+  }
+  const rows = matrix.filter(Array.isArray);
+  if (!rows.length) {
+    return element(document, "p", { className: "empty-comparison" }, "No matrix returned.");
+  }
+  const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+  const headers = normalizeColumns(spec.columns, Array.isArray(spec.columns) ? spec.columns.map((column) => ({ key: String(column) })) : []);
+  return element(document, "div", { className: "method-matrix-wrap" },
+    element(document, "table", { className: "method-matrix" },
+      headers.length ? element(document, "thead", {},
+        element(document, "tr", {},
+          headers.map((column) => element(document, "th", { scope: "col" }, column.label ?? column.key)),
+        ),
+      ) : null,
+      element(document, "tbody", {}, rows.map((row) => {
+        return element(document, "tr", {}, row.slice(0, columnCount).map((cell) => {
+          return element(document, "td", {}, formatValue(cell));
         }));
       })),
     ),
@@ -120,9 +186,35 @@ function normalizePanelSpec(panelSpec, method) {
 
 function statusText(value, spec) {
   if (value == null) return "No output";
+  if (spec.kind === "timeline") {
+    return Array.isArray(value)
+      ? `${value.length} segment${value.length === 1 ? "" : "s"}`
+      : "No segments";
+  }
+  if (spec.kind === "heatmap_table") {
+    return `${Array.isArray(value) ? value.length : 0} row${Array.isArray(value) && value.length === 1 ? "" : "s"}`;
+  }
   if (Array.isArray(value)) return `${value.length} row${value.length === 1 ? "" : "s"}`;
   if (isPlainObject(value)) return `${Object.keys(value).length} field${Object.keys(value).length === 1 ? "" : "s"}`;
   return spec.kind === "metric" ? "Metric" : "Result";
+}
+
+function normalizePanelValue(spec, value) {
+  if (spec.kind === "heatmap_table") return normalizeHeatmapRows(value);
+  if (spec.kind === "timeline") return Array.isArray(value) ? value : [];
+  if (spec.kind === "matrix") return Array.isArray(value) ? value : [];
+  return value;
+}
+
+function normalizeHeatmapRows(value) {
+  if (Array.isArray(value)) return value;
+  if (!isPlainObject(value)) return [];
+  return Object.entries(value).map(([electrode, entry]) => {
+    if (isPlainObject(entry)) {
+      return Object.keys(entry).length ? { electrode, ...entry } : { electrode, value: entry };
+    }
+    return { electrode, value };
+  });
 }
 
 function element(document, name, attrs = {}, ...children) {
