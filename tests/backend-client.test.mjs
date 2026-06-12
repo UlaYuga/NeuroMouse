@@ -171,6 +171,17 @@ function jsonResponse(body, status = 200) {
   });
 }
 
+// CloseEvent is only a browser/Node>=22.4 global; define a fallback so the mock
+// works on CI runners (Linux node22) where it may be absent.
+const CloseEventCtor = globalThis.CloseEvent ?? class CloseEvent extends Event {
+  constructor(type, init = {}) {
+    super(type);
+    this.code = init.code ?? 1000;
+    this.reason = init.reason ?? "";
+    this.wasClean = init.wasClean ?? true;
+  }
+};
+
 function createMockWebSocket(messages) {
   class MockWebSocket extends EventTarget {
     static urls = [];
@@ -189,7 +200,7 @@ function createMockWebSocket(messages) {
           }));
         });
         this.readyState = 3;
-        this.dispatchEvent(new CloseEvent("close"));
+        this.dispatchEvent(new CloseEventCtor("close"));
       });
     }
 
