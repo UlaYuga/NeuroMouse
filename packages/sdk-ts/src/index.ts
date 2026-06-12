@@ -161,12 +161,21 @@ function hardRuleErrors(obj: unknown, maxChannels: number): DatasetValidationIss
       if (!Array.isArray(traces[0]) || traces[0].length === 0) {
         addError(errors, "mea.traces", "mea.traces[0] must be a non-empty array");
       }
+      const declaredSamples = mea["n_samples"];
+      let expectedTraceWidth = Array.isArray(traces[0]) ? traces[0].length : undefined;
+      if (declaredSamples !== undefined && declaredSamples !== null) {
+        if (typeof declaredSamples !== "number" || !Number.isInteger(declaredSamples) || declaredSamples <= 0) {
+          addError(errors, "mea.n_samples", "mea.n_samples must be a positive integer");
+        } else {
+          expectedTraceWidth = declaredSamples;
+        }
+      }
       validateChannelRows(errors, {
         path: "mea.traces",
         rows: traces,
         channelCount: traces.length,
-        expectedWidth: (Array.isArray(traces[0]) ? traces[0].length : undefined),
-        expectedWidthPath: "trace length",
+        expectedWidth: expectedTraceWidth,
+        expectedWidthPath: declaredSamples !== undefined && declaredSamples !== null ? "mea.n_samples" : "trace length",
         checkFiniteValues: true,
       });
     }

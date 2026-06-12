@@ -336,6 +336,14 @@ export const datasetSchema = {
           },
           "title": "Traces",
           "type": "array"
+        },
+        "n_samples": {
+          "anyOf": [
+            { "type": "integer" },
+            { "type": "null" }
+          ],
+          "default": null,
+          "title": "N Samples"
         }
       },
       "required": [

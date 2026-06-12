@@ -98,6 +98,7 @@ export function makeCanonicalData({
     },
     mea: {
       sampling_rate_hz: 1000.0,
+      n_samples: 32,
       traces: matrix(channelCount, 32, 0.0),
     },
     channel_summary: channels.map((channel, index) => ({

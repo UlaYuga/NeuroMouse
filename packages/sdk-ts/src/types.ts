@@ -96,6 +96,7 @@ export interface Geometry {
 export interface Mea {
   sampling_rate_hz: SamplingRateHz;
   traces: Traces;
+  n_samples?: number | null;
   [k: string]: unknown;
 }
 export interface ChannelSummary1 {

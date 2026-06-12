@@ -220,6 +220,15 @@ def _mea_nonfinite_trace(data: dict[str, Any]) -> None:
     }
 
 
+def _mea_n_samples_mismatch(data: dict[str, Any]) -> None:
+    channel_count = len(data["meta"]["channels"])
+    data["mea"] = {
+        "sampling_rate_hz": 1_000.0,
+        "n_samples": 8,
+        "traces": [[0.0, 0.0, 0.0, 0.0] for _ in range(channel_count)],
+    }
+
+
 MUTATION_CASES: list[Mutation] = [
     (
         "drop meta.channels",
@@ -375,6 +384,11 @@ MUTATION_CASES: list[Mutation] = [
         "mea.traces contains non-finite value",
         _mea_nonfinite_trace,
         "mea.traces row 0 must contain only finite numbers",
+    ),
+    (
+        "mea.n_samples disagrees with trace width",
+        _mea_n_samples_mismatch,
+        "mea.traces row 0 length must equal mea.n_samples",
     ),
     (
         "channel count exceeds default ceiling",

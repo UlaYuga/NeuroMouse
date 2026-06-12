@@ -65,6 +65,7 @@ class Geometry(ContractModel):
 class Mea(ContractModel):
     sampling_rate_hz: float
     traces: list[list[float]]
+    n_samples: int | None = None
 
 
 class ChannelSummary(ContractModel):
@@ -179,11 +180,18 @@ class Dataset(ContractModel):
                 raise ValueError("mea.traces must be a non-empty channel-major matrix")
             if len(first_trace) == 0:
                 raise ValueError("mea.traces rows must be non-empty")
+            n_samples = mea.get("n_samples")
+            if n_samples is not None:
+                if not _is_positive_integer(n_samples):
+                    raise ValueError("mea.n_samples must be a positive integer")
+                expected_trace_width = n_samples
+            else:
+                expected_trace_width = len(first_trace)
             _require_matrix_rows(
                 traces,
-                expected_width=len(first_trace),
+                expected_width=expected_trace_width,
                 label="mea.traces",
-                width_label="trace length",
+                width_label="mea.n_samples" if n_samples is not None else "trace length",
             )
             if len(traces) != channel_count:
                 raise ValueError("mea.traces must contain one row per meta.channels")

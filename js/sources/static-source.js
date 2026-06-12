@@ -131,11 +131,19 @@ export function validateData(data, { maxChannels = 4096 } = {}) {
     if (!Array.isArray(data.mea.traces[0]) || data.mea.traces[0].length === 0) {
       throw new Error("mea.traces[0] must be a non-empty array");
     }
+    const meaHasSamples = Object.hasOwn(data.mea, "n_samples");
+    let expectedTraceWidth = data.mea.traces[0]?.length;
+    if (meaHasSamples) {
+      if (!isPositiveInteger(data.mea.n_samples)) {
+        throw new Error("mea.n_samples must be a positive integer");
+      }
+      expectedTraceWidth = data.mea.n_samples;
+    }
     requireMatrixRows(
       data.mea.traces,
-      data.mea.traces[0]?.length,
+      expectedTraceWidth,
       "mea.traces",
-      "trace length",
+      meaHasSamples ? "mea.n_samples" : "trace length",
     );
     if (data.mea.traces.length !== channelCount) {
       throw new Error(`mea.traces has ${data.mea.traces.length} channel rows but meta.channels lists ${channelCount}`);
