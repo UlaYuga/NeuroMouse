@@ -3,10 +3,17 @@ import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { timingSafeEqual } from "node:crypto";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const port = Number(process.env.PORT ?? 8080);
 const host = process.env.HOST ?? "0.0.0.0";
+
+const DEFAULT_EXPLAIN_API_URL = "https://api.anthropic.com/v1/messages";
+const EXPLAIN_RATE_WINDOW_MS = 60_000;
+const DEFAULT_EXPLAIN_RATE_LIMIT = 30;
+
+const explainRateState = new Map();
 
 const mimeTypes = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -91,14 +98,41 @@ async function fileStat(path) {
 }
 
 async function handleExplain(request, response) {
+  if (request.method === "OPTIONS") {
+    if (!setExplainCorsHeaders(response, request, { isPreflight: true })) return;
+    sendText(response, 204, "", request);
+    return;
+  }
+
   if (request.method !== "POST") {
-    sendJson(response, 405, { error: "Use POST." });
+    sendJson(response, 405, { error: "Use POST." }, request);
+    return;
+  }
+
+  if (!setExplainCorsHeaders(response, request)) return;
+
+  const explainToken = process.env.EXPLAIN_TOKEN;
+  if (!explainToken) {
+    sendJson(response, 503, { error: "Explain is not configured on this server." }, request);
     return;
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    sendJson(response, 503, { error: "Explain is not configured on this server." });
+    sendJson(response, 503, { error: "Explain is not configured on this server." }, request);
+    return;
+  }
+
+  const requestToken = typeof request.headers["x-explain-token"] === "string"
+    ? request.headers["x-explain-token"]
+    : "";
+  if (!matchesToken(requestToken, explainToken)) {
+    sendJson(response, 401, { error: "Missing or invalid explain token." }, request);
+    return;
+  }
+
+  if (isExplainRateLimited(getClientIp(request))) {
+    sendJson(response, 429, { error: "Rate limit exceeded. Try again later." }, request);
     return;
   }
 
@@ -106,12 +140,12 @@ async function handleExplain(request, response) {
   try {
     payload = await readJsonBody(request, 64 * 1024);
   } catch (error) {
-    sendJson(response, 400, { error: error.message });
+    sendJson(response, 400, { error: error.message }, request);
     return;
   }
 
   if (payload?.context == null) {
-    sendJson(response, 400, { error: "Missing 'context' in request body." });
+    sendJson(response, 400, { error: "Missing 'context' in request body." }, request);
     return;
   }
 
@@ -121,7 +155,7 @@ async function handleExplain(request, response) {
     : JSON.stringify(payload.context)
   ).slice(0, 12000);
 
-  const apiUrl = process.env.EXPLAIN_API_URL ?? "https://api.kie.ai/claude/v1/messages";
+  const apiUrl = process.env.EXPLAIN_API_URL ?? DEFAULT_EXPLAIN_API_URL;
   const model = process.env.EXPLAIN_MODEL ?? "claude-sonnet-4-6";
 
   const system = [
@@ -140,18 +174,19 @@ async function handleExplain(request, response) {
 
   try {
     const text = await callClaude({ apiUrl, apiKey, model, system, userText });
-    sendJson(response, 200, { text });
+    sendJson(response, 200, { text }, request);
   } catch (error) {
     console.error("explain error:", error.message);
-    sendJson(response, 502, { error: "Explanation service failed. Check server logs." });
+    sendJson(response, 502, { error: "Explanation service failed. Check server logs." }, request);
   }
 }
 
 async function callClaude({ apiUrl, apiKey, model, system, userText }) {
+  const safeApiUrl = getCheckedExplainApiUrl(apiUrl);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
   try {
-    const upstream = await fetch(apiUrl, {
+    const upstream = await fetch(safeApiUrl, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -178,6 +213,84 @@ async function callClaude({ apiUrl, apiKey, model, system, userText }) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function getCheckedExplainApiUrl(rawApiUrl) {
+  const apiUrl = new URL(rawApiUrl);
+  if (apiUrl.hostname !== "api.anthropic.com" && !process.env.EXPLAIN_ALLOW_THIRD_PARTY_API) {
+    throw new Error("Refusing non-official explain API host without explicit opt-in.");
+  }
+  return apiUrl.toString();
+}
+
+function getExplainCorsOrigins() {
+  const allowList = process.env.EXPLAIN_CORS_ALLOW_ORIGINS ?? process.env.EXPLAIN_CORS_ORIGINS;
+  if (!allowList) return [];
+  return allowList
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function setExplainCorsHeaders(response, request, options = {}) {
+  const origin = request.headers.origin;
+  const allowedOrigins = getExplainCorsOrigins();
+
+  if (!origin) return true;
+  if (!allowedOrigins.length || !allowedOrigins.includes(origin)) {
+    sendJson(response, 403, { error: "Origin not allowed." }, request);
+    return false;
+  }
+
+  response.setHeader("Access-Control-Allow-Origin", origin);
+  response.setHeader("Vary", "Origin");
+  response.setHeader("Access-Control-Allow-Credentials", "true");
+  response.setHeader("Access-Control-Allow-Headers", "content-type, x-explain-token");
+  if (options.isPreflight) {
+    response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    response.setHeader("Access-Control-Max-Age", "600");
+  }
+  return true;
+}
+
+function getClientIp(request) {
+  const forwarded = request.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded.split(",")[0].trim();
+  }
+  return request.socket?.remoteAddress ?? "unknown";
+}
+
+function getExplainRateLimit() {
+  const configured = Number(process.env.EXPLAIN_RATE_LIMIT_PER_MIN);
+  if (Number.isFinite(configured) && configured > 0) return configured;
+  return DEFAULT_EXPLAIN_RATE_LIMIT;
+}
+
+function isExplainRateLimited(clientIp) {
+  const limit = getExplainRateLimit();
+  const now = Date.now();
+  const state = explainRateState.get(clientIp);
+
+  if (!state || now - state.windowStart >= EXPLAIN_RATE_WINDOW_MS) {
+    explainRateState.set(clientIp, { windowStart: now, count: 1 });
+    return false;
+  }
+
+  if (state.count >= limit) return true;
+
+  state.count += 1;
+  return false;
+}
+
+function matchesToken(expected, actual) {
+  if (typeof expected !== "string" || typeof actual !== "string" || !expected || !actual) {
+    return false;
+  }
+  const expectedBytes = Buffer.from(expected);
+  const actualBytes = Buffer.from(actual);
+  if (expectedBytes.length !== actualBytes.length) return false;
+  return timingSafeEqual(expectedBytes, actualBytes);
 }
 
 function readJsonBody(request, limit) {
