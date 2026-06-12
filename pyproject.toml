@@ -63,6 +63,7 @@ testpaths = [
     "packages/core/tests",
     "packages/sdk/tests",
     "packages/sorting/tests",
+    "examples",
 ]
 
 [tool.ruff]
