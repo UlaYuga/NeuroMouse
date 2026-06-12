@@ -1,0 +1,44 @@
+services:
+  static:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: neuromouse-static
+    profiles:
+      - workbench
+      - hosted
+    ports:
+      - "8080:8080"
+    networks:
+      - neuromouse
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: neuromouse-backend
+    profiles:
+      - hosted
+      - backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      BACKEND_SCOPE: ${BACKEND_SCOPE:-hosted}
+      PORT: ${BACKEND_PORT:-8000}
+      NEUROMOUSE_BACKEND_DB: /data/neuromouse_backend.sqlite3
+      EXPLAIN_TOKEN: ${EXPLAIN_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      EXPLAIN_API_URL: ${EXPLAIN_API_URL:-https://api.anthropic.com/v1/messages}
+      EXPLAIN_MODEL: ${EXPLAIN_MODEL:-}
+      EXPLAIN_RATE_LIMIT_PER_MIN: ${EXPLAIN_RATE_LIMIT_PER_MIN:-}
+      EXPLAIN_CORS_ALLOW_ORIGINS: ${EXPLAIN_CORS_ALLOW_ORIGINS:-}
+    volumes:
+      - neuromouse-backend-data:/data
+    networks:
+      - neuromouse
+
+networks:
+  neuromouse:
+
+volumes:
+  neuromouse-backend-data:
