@@ -110,45 +110,31 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
 ---
 
 ## 9. CURRENT STATE & roadmap  *(refresh this section after each integration)*
-- **main ≈ `43dc9cf` + this doc, on origin** (run `git log --oneline -3` to confirm the exact tip). Green:
-  `uv run pytest` **114 passed**, node **30/30**, **3 fuzz suites** green, **spike_detect 57/57** on the MEA golden.
+- **main = `c056b40`, on origin** (run `git log --oneline -3` to confirm the exact tip). Green:
+  `uv run pytest` **118 passed, 2 skipped**, `ruff` clean, **`ty` clean (HARD gate)**, node **39/39**,
+  `mkdocs build --strict` clean, **spike_detect 57/57** on the MEA golden. `dsp.py` blob unchanged through all
+  integration (verified `git diff … -- dsp.py` empty; 1e-13 parity intact). Heavy 2M-case fuzz runs on Linux CI.
+- **MODE: HANDS-ON** (since 2026-06-12) — Claude does build/git/test directly in Claude Code; the delegate-packages-
+  to-external-chats experiment ended. Overrides §1. See memory [[coordinator-delegation]].
 - **Waves done:** 0 (foundation + executable contract + DSP bit-exact parity), 1 (hardening + FastAPI backend +
-  method-SDK + adapters + TS contract + env fix), 2 + 2.5 (deterministic run-engine, backend jobs + sqlite + WS,
-  frontend lib-ization, **live slice = method→panel demo**), 3 (wetware/MEA: HD-MEA adapter, MEA method templates,
-  bring-your-own-sorter seam, reproducibility manifest, MEA docs), + the **MEA raw-traces contract** (pieces now compose).
+  method-SDK + adapters + TS contract + env fix), 2 + 2.5 (run-engine, backend jobs + sqlite + WS, frontend
+  lib-ization, **live slice = method→panel demo**), 3 (wetware/MEA: HD-MEA adapter, method templates, sorter seam,
+  repro manifest, MEA docs) + MEA raw-traces contract, **4 (deep)**, **5 (ship)**.
+- **Wave-4 (deep) DONE:** MEA demo backend (`/demo/seed-mea` + 3 methods) + frontend (seed→spike_detect→panel +
+  **wetware screenshot**), security audit v2, **MEA-method perf** (`electrode_connectivity` ~70× faster, ground-truth
+  holds), fuzz-until-dry (8 new targets), arch/prod critique. Plus **🔴 P0 `/api/explain` (V2-01) CLOSED** — auth token
+  + rate-limit + official-host default + CORS allowlist.
+- **Wave-5 (ship) DONE:** mkdocs docs-site, `examples/quickstart_mea.py` (public register→run on the golden), docker-
+  compose (static + FastAPI backend, profiles 🅰 hosted / 🅱 workbench) — **addresses arch P0-1** (backend was
+  undeployable). Caveat: docker images validated by `compose config` only; real `docker build` not yet run (no local
+  daemon → verify on CI/at deploy).
 
-### ▶ IMMEDIATE NEXT ACTION — batch-integrate 3 pending branches. Hand this to a 🟢 Codex executor:
-```
-Working folder: /Users/axel/Documents/SpeedMouse on branch main. Batch-integrate 3 pending branches, then push.
-Branches/worktrees:
-  task/ty-cleanup  (../nm-ty      — COMMITTED @0dc4985; fixes all `ty` diagnostics, annotations only, dsp.py untouched)
-  task/mea-panels  (../nm-mpanels — UNCOMMITTED: js/panels/method-panel.js heatmap_table/timeline/matrix renderers + tests)
-  task/ci          (../nm-ci      — UNCOMMITTED: .github/workflows/ci.yml Linux gate; `ty` is a HARD gate there)
-STEP 0 — survey: git branch --show-current (MUST be main; else STOP), git worktree list, git -C <each> status --short.
-STEP 1 — commit the two uncommitted worktrees onto their branches (ty-cleanup already committed):
-  ../nm-mpanels : "feat(web): MEA panel renderers — heatmap_table, timeline, matrix"
-  ../nm-ci      : "ci: Linux GitHub Actions quality gate (pytest, ruff, ty, node, fuzz, tsc)"
-STEP 2 — merge into main: git merge --no-edit task/ty-cleanup ; then task/mea-panels ; then task/ci.
-  CONFLICT RULES: uv.lock -> `uv lock` regenerate; else union; if ambiguous STOP and report.
-STEP 3 — FULL GREEN GATE (ty is now a HARD gate):
-  - rm -rf .venv && uv sync (on native stall: NEUROMOUSE_NATIVE_PREWARM=0 or `uv sync --link-mode=copy`, retry).
-  - uv run pytest (expect ~114) ; uv run ruff check ; uv run ty check -> All checks passed.
-  - node --test tests/*.test.mjs -> expect 33/33.
-  - 3 fuzz suites exit 0 (run `npm ci --ignore-scripts` in tests/property and tests/fuzz first if node_modules missing).
-  - DSP parity passes; `git diff main -- packages/core/src/neuromouse_core/dsp.py` empty.
-STEP 4 — cleanup if green: git worktree remove ../nm-ty ../nm-mpanels ../nm-ci (keep branches).
-STEP 5 — PUSH if green: git push origin main (fast-forward; no force; if rejected STOP).
-REPORT: git log -8, gate results (pytest/ruff/TY/node/fuzz), DSP parity, conflicts, "ALL GREEN" + push sha.
-```
+### ▶ IMMEDIATE NEXT ACTION — the last, OUTWARD step: **Railway deploy**, only on the user's explicit go.
+Decide scope first (arch-review `docs/ARCH-REVIEW.md` frames this as THE fork):
+- 🅰 **hosted multi-user platform** — deploy static + FastAPI; then owe sandbox for third-party code (arch P1-4),
+  persistent storage (P1-2), real auth/rate-limit on FastAPI. Big track, but it's the positioning promise.
+- 🅱 **workbench + public demo** — ship static demo + docs-site + pip SDK; backend stays dev-only. Fast handoff;
+  the wetware screenshot already exists. (Coordinator recommendation: 🅱 now, 🅰 as a flagged "next".)
+Also before deploy: run a real `docker build` to confirm the images actually build.
 
-### ▶ THEN — the deep Wave-4 (re-issue these packages as the user wants; tags shown):
-1. 🟣 **MEA demo backend** — `POST /demo/seed-mea` (seed the 1024-ch MEA golden) + expose the MEA methods (`packages/backend`).
-2. 🟢 **MEA demo frontend** — wire seed→run spike_detect→render MEA panel; e2e + **screenshot** (`js/`+`packages/web`). → the wetware screenshot.
-3. 🔵 **Adversarial security audit v2** — find→refute loop across domains; report in `audit/`. Read-only.
-4. 🔵 **MEA-method perf** — benchmark spike_detect/burst/connectivity on full 1024-ch raw traces; optimize-until-budget while ground-truth holds (`bench/`+`methods/`, NOT dsp.py).
-5. 🟢 **Fuzz-until-dry expansion** — new targets (MEA adapter parsing, run-engine, backend job lifecycle, sorter); report findings (`tests/`).
-6. 🔵 **Architecture & prod-readiness critique** — completeness-critic loop; report in `docs/`.
-
-### ▶ THEN — Wave 4 ship: docker/compose, docs-site (mkdocs), example script, **Railway deploy** (OUTWARD — only with the user's explicit go).
-
-Target: ~5 waves to a serious, demo-able handoff. We're in the **demo + ship** stretch.
+Target: ~5 waves to a serious, demo-able handoff. **We're essentially there** — only the outward deploy remains.
