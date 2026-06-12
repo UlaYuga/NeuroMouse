@@ -12,6 +12,7 @@ import tracemalloc
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +39,26 @@ DSP_FUNCTION = "compute_channels"
 VALIDATOR_FILE = "contracts/src/neuromouse_contract/dataset.py"
 VALIDATOR_FUNCTION = "validate_dataset"
 
+# MEA reference-method benchmark configuration. These methods are benchmarked on the
+# full 1024-channel raw-trace golden fixture (spike_detect -> spikes -> burst/connectivity).
+METHOD_TARGETS = ("spike_detect", "network_burst", "electrode_connectivity")
+GOLDEN_MEA_PATH = REPO_ROOT / "datasets" / "golden" / "mea_synthetic.json"
+GOLDEN_MEA_CHANNELS = 1024
+SPIKE_MATCH_TOLERANCE_SEC = 0.0015
+DEFAULT_METHOD_ITERATIONS = 9
+DEFAULT_METHOD_WARMUPS = 2
+# Explicit per-method p95 latency budgets (ms) and peak budgets (MB) on the full golden.
+METHOD_P95_BUDGET_MS = {
+    "spike_detect": 8.0,
+    "network_burst": 5.0,
+    "electrode_connectivity": 300.0,
+}
+METHOD_PEAK_BUDGET_MB = {
+    "spike_detect": 96.0,
+    "network_burst": 96.0,
+    "electrode_connectivity": 512.0,
+}
+
 
 @dataclass(frozen=True)
 class BenchmarkRow:
@@ -58,6 +79,8 @@ class BenchmarkRow:
     operation_peak_mb: float = 0.0
     frequency_bins: int = 0
     time_points: int = 0
+    ground_truth_recovered: int = 0
+    ground_truth_expected: int = 0
 
     def to_json(self) -> dict[str, Any]:
         row = asdict(self)
@@ -648,12 +671,352 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-json", default="bench/perf-results.json")
     parser.add_argument("--output-markdown", default="bench/perf-report.md")
     parser.add_argument("--budget-multiplier", type=float, default=1.0)
+    parser.add_argument(
+        "--methods",
+        action="store_true",
+        help="Benchmark the MEA reference methods on the full 1024-channel golden traces.",
+    )
+    parser.add_argument("--method-targets", default=",".join(METHOD_TARGETS))
+    parser.add_argument("--method-iterations", type=int, default=DEFAULT_METHOD_ITERATIONS)
+    parser.add_argument("--method-warmups", type=int, default=DEFAULT_METHOD_WARMUPS)
+    parser.add_argument("--channel-limit", type=int, default=None)
     return parser
+
+
+def run_method_benchmarks(
+    *,
+    golden_path: str | Path = GOLDEN_MEA_PATH,
+    methods: Sequence[str] = METHOD_TARGETS,
+    iterations: int = DEFAULT_METHOD_ITERATIONS,
+    warmups: int = DEFAULT_METHOD_WARMUPS,
+    channel_limit: int | None = None,
+    output_json: str | Path = Path("bench/method-perf-results.json"),
+    output_markdown: str | Path | None = Path("bench/method-perf-report.md"),
+    budget_multiplier: float = 1.0,
+) -> BenchmarkReport:
+    """Benchmark the MEA reference methods on the full 1024-channel golden traces.
+
+    The detector runs first (positive polarity, recovering the injected ground-truth
+    spikes); its detected spikes feed the burst/connectivity benchmarks, mirroring the
+    real per-electrode-detector -> population-analysis pipeline.
+    """
+    _validate_method_run_config(methods, iterations, warmups)
+
+    golden = _load_golden_mea(golden_path)
+    channels, traces, sampling_rate_hz, duration_sec = _golden_trace_inputs(
+        golden, channel_limit
+    )
+    trace_dataset = _MeaDataset(channels, {
+        "sampling_rate_hz": sampling_rate_hz,
+        "traces": traces,
+        "duration_sec": duration_sec,
+    })
+
+    spike_detect = _load_method_module("spike_detect")
+    spike_params = _method_params(spike_detect, {"polarity": "positive"})
+    spike_result = spike_detect.method.compute(trace_dataset, spike_params)["spike_detect"]
+    detected = {row["electrode"]: row["spike_times_sec"] for row in spike_result["spikes"]}
+    recovered, expected = _spike_recovery(detected, golden, set(channels))
+
+    spike_dataset = _MeaDataset(channels, {
+        "spikes": detected,
+        "duration_sec": duration_sec,
+    })
+
+    rows: list[BenchmarkRow] = []
+    for name in methods:
+        if name == "spike_detect":
+            operation = _method_operation(spike_detect, trace_dataset, spike_params)
+            row_recovered, row_expected = recovered, expected
+        else:
+            module = _load_method_module(name)
+            operation = _method_operation(module, spike_dataset, _method_params(module, {}))
+            row_recovered, row_expected = 0, 0
+
+        rows.append(
+            _benchmark_method(
+                name,
+                operation,
+                channels=len(channels),
+                record_samples=len(traces[0]),
+                iterations=iterations,
+                warmups=warmups,
+                budget_multiplier=budget_multiplier,
+                ground_truth_recovered=row_recovered,
+                ground_truth_expected=row_expected,
+            )
+        )
+        gc.collect()
+
+    failures = [row for row in rows if not row.passed]
+    hotspots = [_hotspot_for_row(row) for row in rows if not row.passed]
+    hotspots.sort(key=lambda item: item["budget_ratio"], reverse=True)
+    report = BenchmarkReport(
+        results=rows,
+        failures=failures,
+        hotspots=hotspots,
+        budgets={
+            "golden_path": str(golden_path),
+            "channels": len(channels),
+            "record_samples": len(traces[0]),
+            "iterations": iterations,
+            "warmups": warmups,
+            "targets": list(methods),
+            "budget_multiplier": budget_multiplier,
+            "p95_budget_ms": {name: METHOD_P95_BUDGET_MS[name] for name in methods},
+            "spike_detect_ground_truth": {"recovered": recovered, "expected": expected},
+            "notes": [
+                "spike_detect runs on raw traces (positive polarity).",
+                "network_burst / electrode_connectivity consume the detected spikes.",
+                "spike_detect must recover all injected ground-truth spikes to pass.",
+            ],
+        },
+    )
+
+    output_json = Path(output_json)
+    output_json.parent.mkdir(parents=True, exist_ok=True)
+    output_json.write_text(json.dumps(report.to_json(), indent=2) + "\n", encoding="utf-8")
+    if output_markdown is not None:
+        output_markdown = Path(output_markdown)
+        output_markdown.parent.mkdir(parents=True, exist_ok=True)
+        output_markdown.write_text(format_method_markdown_report(report), encoding="utf-8")
+    return report
+
+
+def format_method_markdown_report(report: BenchmarkReport) -> str:
+    budgets = report.budgets
+    gt = budgets.get("spike_detect_ground_truth", {})
+    lines = [
+        "# NeuroMouse MEA-Method Performance Bench",
+        "",
+        f"Workload: {budgets.get('channels')} channels x "
+        f"{budgets.get('record_samples')} samples (golden raw traces).",
+        f"Iterations: {budgets.get('iterations')} measured, "
+        f"{budgets.get('warmups')} warmups.",
+        f"spike_detect ground truth: {gt.get('recovered')}/{gt.get('expected')} spikes "
+        "recovered.",
+        "",
+        "## Results",
+        "",
+        "| Method | p50 ms | p95 ms | Peak MB | Budget p95 ms | Ground truth | Status |",
+        "| --- | ---: | ---: | ---: | ---: | --- | --- |",
+    ]
+    for row in report.results:
+        status = "PASS" if row.passed else "FAIL"
+        if row.target == "spike_detect":
+            gt_cell = f"{row.ground_truth_recovered}/{row.ground_truth_expected}"
+        else:
+            gt_cell = "n/a"
+        lines.append(
+            "| "
+            f"{row.target} | {row.p50_ms:.2f} | {row.p95_ms:.2f} | {row.peak_mb:.2f} | "
+            f"{row.budget_p95_ms:.2f} | {gt_cell} | {status} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+class _MeaDataset:
+    """Lightweight dataset view exposing ``meta.channels`` and ``mea`` like the contract."""
+
+    __slots__ = ("meta", "mea")
+
+    def __init__(self, channels: list[str], mea: dict[str, Any]) -> None:
+        self.meta = SimpleNamespace(channels=channels)
+        self.mea = mea
+
+
+def _measure_method_operation(
+    operation: Callable[[], Any],
+    *,
+    iterations: int,
+    warmups: int,
+) -> Measurement:
+    """Measure latency without tracemalloc (which would inflate allocation-heavy Python),
+    then measure peak operation memory in a single separate traced pass."""
+    for _ in range(warmups):
+        operation()
+    gc.collect()
+
+    timings_ms: list[float] = []
+    for _ in range(iterations):
+        gc.collect()
+        started = time.perf_counter()
+        result = operation()
+        timings_ms.append((time.perf_counter() - started) * 1000.0)
+        del result
+
+    gc.collect()
+    tracemalloc.start()
+    traced = operation()
+    _, peak_bytes = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    del traced
+
+    return Measurement(
+        p50_ms=_percentile(timings_ms, 50),
+        p95_ms=_percentile(timings_ms, 95),
+        operation_peak_mb=float(peak_bytes) / BYTES_PER_MB,
+    )
+
+
+def _benchmark_method(
+    name: str,
+    operation: Callable[[], Any],
+    *,
+    channels: int,
+    record_samples: int,
+    iterations: int,
+    warmups: int,
+    budget_multiplier: float,
+    ground_truth_recovered: int,
+    ground_truth_expected: int,
+) -> BenchmarkRow:
+    measurement = _measure_method_operation(operation, iterations=iterations, warmups=warmups)
+    budget_p95_ms = budget_multiplier * METHOD_P95_BUDGET_MS[name]
+    budget_peak_mb = budget_multiplier * METHOD_PEAK_BUDGET_MB[name]
+    ground_truth_ok = (
+        ground_truth_expected == 0 or ground_truth_recovered == ground_truth_expected
+    )
+    passed = (
+        measurement.p95_ms <= budget_p95_ms
+        and measurement.operation_peak_mb <= budget_peak_mb
+        and ground_truth_ok
+    )
+    return BenchmarkRow(
+        target=name,
+        channels=channels,
+        record_samples=record_samples,
+        iterations=iterations,
+        p50_ms=measurement.p50_ms,
+        p95_ms=measurement.p95_ms,
+        peak_mb=measurement.operation_peak_mb,
+        budget_p95_ms=budget_p95_ms,
+        budget_peak_mb=budget_peak_mb,
+        operation_peak_mb=measurement.operation_peak_mb,
+        time_points=record_samples,
+        file=f"methods/{name}.py",
+        function="compute",
+        passed=passed,
+        ground_truth_recovered=ground_truth_recovered,
+        ground_truth_expected=ground_truth_expected,
+    )
+
+
+def _validate_method_run_config(
+    methods: Sequence[str],
+    iterations: int,
+    warmups: int,
+) -> None:
+    if not methods:
+        raise ValueError("at least one method target is required")
+    unknown = set(methods) - set(METHOD_TARGETS)
+    if unknown:
+        raise ValueError(f"unknown method target(s): {sorted(unknown)}")
+    if iterations < 3:
+        raise ValueError("at least 3 iterations are required to compute p95")
+    if warmups < 0:
+        raise ValueError("warmups cannot be negative")
+
+
+def _load_golden_mea(golden_path: str | Path) -> dict[str, Any]:
+    return json.loads(Path(golden_path).read_text(encoding="utf-8"))
+
+
+def _golden_trace_inputs(
+    golden: dict[str, Any],
+    channel_limit: int | None,
+) -> tuple[list[str], list[list[float]], float, float]:
+    mea = golden["mea"]
+    channels = list(golden["meta"]["channels"])
+    traces = mea["traces"]
+    if channel_limit is not None:
+        channels = channels[:channel_limit]
+        traces = traces[:channel_limit]
+    sampling_rate_hz = float(mea["sampling_rate_hz"])
+    duration_sec = len(traces[0]) / sampling_rate_hz
+    return channels, traces, sampling_rate_hz, duration_sec
+
+
+def _method_operation(module: Any, dataset: Any, params: Any) -> Callable[[], Any]:
+    def operation() -> Any:
+        return module.method.compute(dataset, params)
+
+    return operation
+
+
+def _method_params(module: Any, params: dict[str, Any]) -> Any:
+    from neuromouse_sdk import build_params
+
+    return build_params(module.method.params_type, params)
+
+
+def _load_method_module(name: str) -> Any:
+    import importlib.util
+
+    path = REPO_ROOT / "methods" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"nm_bench_method_{name}", path)
+    if spec is None or spec.loader is None:
+        raise BenchmarkDependencyError(f"cannot load method plugin at {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _spike_recovery(
+    detected: dict[str, list[float]],
+    golden: dict[str, Any],
+    included_channels: set[str],
+) -> tuple[int, int]:
+    sampling_rate_hz = float(golden["mea"]["sampling_rate_hz"])
+    expected: dict[str, list[float]] = {}
+    for event in golden["spike_ground_truth"]["events"]:
+        channel = event["channel"]
+        if channel not in included_channels:
+            continue
+        expected.setdefault(channel, []).append(event["sample_index"] / sampling_rate_hz)
+
+    matched = 0
+    total = 0
+    for channel, expected_times in expected.items():
+        remaining = list(detected.get(channel, []))
+        for expected_time in expected_times:
+            total += 1
+            if not remaining:
+                continue
+            closest = min(remaining, key=lambda actual: abs(actual - expected_time))
+            if abs(closest - expected_time) <= SPIKE_MATCH_TOLERANCE_SEC:
+                matched += 1
+                remaining.remove(closest)
+    return matched, total
 
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = _build_parser().parse_args(list(argv) if argv is not None else None)
     markdown_path = Path(args.output_markdown) if args.output_markdown else None
+    if args.methods:
+        method_json = (
+            args.output_json
+            if args.output_json != "bench/perf-results.json"
+            else "bench/method-perf-results.json"
+        )
+        method_md = (
+            markdown_path
+            if args.output_markdown not in (None, "bench/perf-report.md")
+            else (None if markdown_path is None else Path("bench/method-perf-report.md"))
+        )
+        report = run_method_benchmarks(
+            methods=_parse_targets(args.method_targets),
+            iterations=args.method_iterations,
+            warmups=args.method_warmups,
+            channel_limit=args.channel_limit,
+            output_json=Path(method_json),
+            output_markdown=method_md,
+            budget_multiplier=args.budget_multiplier,
+        )
+        print(format_method_markdown_report(report))
+        return 1 if report.failures else 0
     report = run_benchmarks(
         channel_counts=_parse_int_list(args.channels),
         record_lengths=_parse_int_list(args.records),

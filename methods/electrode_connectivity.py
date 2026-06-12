@@ -5,6 +5,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from neuromouse_sdk import OutputField, OutputSpec, PanelSpec
 
 if TYPE_CHECKING:
@@ -61,40 +63,14 @@ class ElectrodeConnectivity:
 
         bin_count = max(1, math.ceil(duration_sec / bin_size_sec))
         lag_bins = int(round(max_lag_sec / bin_size_sec))
-        binned = [
-            _bin_spikes(spikes[channel], duration_sec, bin_size_sec, bin_count)
-            for channel in channels
-        ]
-        matrix = [[0.0 for _ in channels] for _ in channels]
-        links: list[dict[str, Any]] = []
-        strongest: dict[str, Any] | None = None
-        strongest_rank: tuple[float, int, int, int] | None = None
+        binned = _binned_matrix(spikes, channels, duration_sec, bin_size_sec, bin_count)
 
-        for row_index, source in enumerate(channels):
-            matrix[row_index][row_index] = 1.0
-            for column_index in range(row_index + 1, len(channels)):
-                target = channels[column_index]
-                score, lag, support = _best_lagged_score(
-                    binned[row_index],
-                    binned[column_index],
-                    lag_bins,
-                )
-                rounded_score = round(score, 6)
-                lag_ms = round(lag * bin_size_sec * 1000.0, 6)
-                matrix[row_index][column_index] = rounded_score
-                matrix[column_index][row_index] = rounded_score
-                link = {
-                    "source": source,
-                    "target": target,
-                    "score": rounded_score,
-                    "lag_ms": lag_ms,
-                    "support": support,
-                }
-                links.append(link)
-                rank = (rounded_score, support, -row_index, -column_index)
-                if strongest_rank is None or rank > strongest_rank:
-                    strongest_rank = rank
-                    strongest = link
+        matrix, links, strongest = _connectivity(
+            binned,
+            channels,
+            lag_bins=lag_bins,
+            bin_size_sec=bin_size_sec,
+        )
 
         if strongest is None:
             strongest_pair = {"source": "", "target": "", "score": 0.0, "lag_ms": 0.0}
@@ -161,51 +137,138 @@ def _spike_mapping(value: Any, channels: list[str]) -> dict[str, list[float]]:
     raise ValueError("mea.spikes must be a mapping or spike row list")
 
 
-def _bin_spikes(
-    spike_times: list[float],
+def _binned_matrix(
+    spikes: dict[str, list[float]],
+    channels: list[str],
     duration_sec: float,
     bin_size_sec: float,
     bin_count: int,
-) -> list[int]:
-    bins = [0 for _ in range(bin_count)]
-    for spike_time in spike_times:
-        if 0.0 <= spike_time <= duration_sec:
-            index = min(int(spike_time / bin_size_sec), bin_count - 1)
-            bins[index] += 1
-    return bins
+) -> np.ndarray:
+    """Channel-major spike-count matrix, bit-identical to per-channel ``_bin_spikes``."""
+    binned = np.zeros((len(channels), bin_count), dtype=np.int64)
+    last_bin = bin_count - 1
+    for row_index, channel in enumerate(channels):
+        spike_times = spikes[channel]
+        if not spike_times:
+            continue
+        times = np.asarray(spike_times, dtype=np.float64)
+        in_range = times[(times >= 0.0) & (times <= duration_sec)]
+        if in_range.size == 0:
+            continue
+        indices = np.minimum((in_range / bin_size_sec).astype(np.int64), last_bin)
+        np.add.at(binned[row_index], indices, 1)
+    return binned
 
 
-def _best_lagged_score(left: list[int], right: list[int], lag_bins: int) -> tuple[float, int, int]:
-    best_score = -1.0
-    best_lag = 0
-    best_support = 0
+def _connectivity(
+    binned: np.ndarray,
+    channels: list[str],
+    *,
+    lag_bins: int,
+    bin_size_sec: float,
+) -> tuple[list[list[float]], list[dict[str, Any]], dict[str, Any] | None]:
+    """Vectorized pairwise lagged cosine matching the reference per-pair semantics.
+
+    For each lag the normalized cross-correlation between every channel pair is computed
+    with one matmul; the best lag per pair is selected with the reference tie-break
+    ``(score, support, -abs(lag))`` evaluated in ascending lag order.
+    """
+    channel_count = len(channels)
+    bin_count = binned.shape[1]
+    binned_f = binned.astype(np.float64)
+
+    # Per-cell running best across lags. best_score starts below any real score (>= 0)
+    # so the first lag always wins, exactly like the reference loop (init -1.0).
+    best_score = np.full((channel_count, channel_count), -1.0, dtype=np.float64)
+    best_support = np.zeros((channel_count, channel_count), dtype=np.int64)
+    best_lag = np.zeros((channel_count, channel_count), dtype=np.int64)
+    best_abs_lag = np.zeros((channel_count, channel_count), dtype=np.int64)
+
     for lag in range(-lag_bins, lag_bins + 1):
-        score, support = _lagged_cosine(left, right, lag)
-        rank = (score, support, -abs(lag))
-        best_rank = (best_score, best_support, -abs(best_lag))
-        if rank > best_rank:
-            best_score = score
-            best_lag = lag
-            best_support = support
-    return max(0.0, best_score), best_lag, best_support
+        if lag >= 0:
+            left = binned_f[:, lag:]
+            right = binned_f[:, : bin_count - lag]
+        else:
+            offset = -lag
+            left = binned_f[:, : bin_count - offset]
+            right = binned_f[:, offset:]
 
+        width = left.shape[1]
+        if width == 0:
+            # Empty window -> reference returns (0.0, 0) for every pair.
+            score = np.zeros((channel_count, channel_count), dtype=np.float64)
+            support = np.zeros((channel_count, channel_count), dtype=np.int64)
+        else:
+            dot = left @ right.T  # (C, C): dot[i, j] = sum_k left[i, k] * right[j, k]
+            left_energy = np.einsum("ij,ij->i", left, left)
+            right_energy = np.einsum("ij,ij->i", right, right)
+            denom = np.sqrt(left_energy[:, None] * right_energy[None, :])
+            valid = (left_energy[:, None] > 0) & (right_energy[None, :] > 0)
+            score = np.where(valid, dot / np.where(denom > 0, denom, 1.0), 0.0)
+            support = np.where(valid, np.rint(dot).astype(np.int64), 0)
 
-def _lagged_cosine(left: list[int], right: list[int], lag: int) -> tuple[float, int]:
-    if lag >= 0:
-        left_window = left[lag:]
-        right_window = right[: len(right) - lag] if lag else right
-    else:
-        offset = -lag
-        left_window = left[: len(left) - offset]
-        right_window = right[offset:]
-    if not left_window or not right_window:
-        return 0.0, 0
-    dot = sum(a * b for a, b in zip(left_window, right_window, strict=True))
-    left_energy = sum(a * a for a in left_window)
-    right_energy = sum(b * b for b in right_window)
-    if left_energy == 0 or right_energy == 0:
-        return 0.0, 0
-    return dot / math.sqrt(left_energy * right_energy), dot
+        abs_lag = abs(lag)
+        better = (
+            (score > best_score)
+            | ((score == best_score) & (support > best_support))
+            | (
+                (score == best_score)
+                & (support == best_support)
+                & (abs_lag < best_abs_lag)
+            )
+        )
+        best_score = np.where(better, score, best_score)
+        best_support = np.where(better, support, best_support)
+        best_lag = np.where(better, lag, best_lag)
+        best_abs_lag = np.where(better, abs_lag, best_abs_lag)
+
+    best_score = np.maximum(0.0, best_score)
+    rounded = np.round(best_score, 6)
+    lag_ms = np.round(best_lag.astype(np.float64) * bin_size_sec * 1000.0, 6)
+
+    # Symmetric matrix from the upper triangle, diagonal forced to 1.0.
+    matrix_array = np.zeros((channel_count, channel_count), dtype=np.float64)
+    upper = np.triu_indices(channel_count, k=1)
+    matrix_array[upper] = rounded[upper]
+    matrix_array = matrix_array + matrix_array.T
+    np.fill_diagonal(matrix_array, 1.0)
+    matrix = matrix_array.tolist()
+
+    rows = upper[0]
+    cols = upper[1]
+    scores_u = rounded[upper]
+    supports_u = best_support[upper]
+    lags_u = lag_ms[upper]
+
+    # Strongest pair from the numpy arrays before materializing per-link dicts:
+    # max by (score, support, -row, -column). ascending lexsort -> winner is index 0.
+    strongest_index: int | None = None
+    if scores_u.size:
+        order = np.lexsort((cols, rows, -supports_u, -scores_u))
+        strongest_index = int(order[0])
+
+    source_names = [channels[row] for row in rows.tolist()]
+    target_names = [channels[col] for col in cols.tolist()]
+    links: list[dict[str, Any]] = [
+        {
+            "source": source,
+            "target": target,
+            "score": score,
+            "lag_ms": lag,
+            "support": support,
+        }
+        for source, target, score, lag, support in zip(
+            source_names,
+            target_names,
+            scores_u.tolist(),
+            lags_u.tolist(),
+            supports_u.tolist(),
+            strict=True,
+        )
+    ]
+
+    strongest = None if strongest_index is None else links[strongest_index]
+    return matrix, links, strongest
 
 
 method = ElectrodeConnectivity()

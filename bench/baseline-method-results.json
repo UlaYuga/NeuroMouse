@@ -1,0 +1,160 @@
+{
+  "budgets": {
+    "golden_path": "/Users/axel/Documents/nm-meaperf/datasets/golden/mea_synthetic.json",
+    "channels": 1024,
+    "record_samples": 64,
+    "iterations": 7,
+    "warmups": 1,
+    "targets": [
+      "spike_detect",
+      "network_burst",
+      "electrode_connectivity"
+    ],
+    "budget_multiplier": 1.0,
+    "p95_budget_ms": {
+      "spike_detect": 8.0,
+      "network_burst": 5.0,
+      "electrode_connectivity": 300.0
+    },
+    "spike_detect_ground_truth": {
+      "recovered": 57,
+      "expected": 57
+    },
+    "notes": [
+      "spike_detect runs on raw traces (positive polarity).",
+      "network_burst / electrode_connectivity consume the detected spikes.",
+      "spike_detect must recover all injected ground-truth spikes to pass."
+    ]
+  },
+  "results": [
+    {
+      "target": "spike_detect",
+      "channels": 1024,
+      "record_samples": 64,
+      "iterations": 7,
+      "p50_ms": 23.791833002178464,
+      "p95_ms": 25.790812601189828,
+      "peak_mb": 1.1670074462890625,
+      "budget_p95_ms": 8.0,
+      "budget_peak_mb": 96.0,
+      "file": "methods/spike_detect.py",
+      "function": "compute",
+      "passed": false,
+      "error": null,
+      "input_peak_mb": 0.0,
+      "operation_peak_mb": 1.1670074462890625,
+      "frequency_bins": 0,
+      "time_points": 64,
+      "ground_truth_recovered": 57,
+      "ground_truth_expected": 57
+    },
+    {
+      "target": "network_burst",
+      "channels": 1024,
+      "record_samples": 64,
+      "iterations": 7,
+      "p50_ms": 0.5208750008023344,
+      "p95_ms": 0.6428748965845443,
+      "peak_mb": 0.09313201904296875,
+      "budget_p95_ms": 5.0,
+      "budget_peak_mb": 96.0,
+      "file": "methods/network_burst.py",
+      "function": "compute",
+      "passed": true,
+      "error": null,
+      "input_peak_mb": 0.0,
+      "operation_peak_mb": 0.09313201904296875,
+      "frequency_bins": 0,
+      "time_points": 64,
+      "ground_truth_recovered": 0,
+      "ground_truth_expected": 0
+    },
+    {
+      "target": "electrode_connectivity",
+      "channels": 1024,
+      "record_samples": 64,
+      "iterations": 7,
+      "p50_ms": 12899.012207999476,
+      "p95_ms": 13852.9737294004,
+      "peak_mb": 129.29362869262695,
+      "budget_p95_ms": 300.0,
+      "budget_peak_mb": 512.0,
+      "file": "methods/electrode_connectivity.py",
+      "function": "compute",
+      "passed": false,
+      "error": null,
+      "input_peak_mb": 0.0,
+      "operation_peak_mb": 129.29362869262695,
+      "frequency_bins": 0,
+      "time_points": 64,
+      "ground_truth_recovered": 0,
+      "ground_truth_expected": 0
+    }
+  ],
+  "failures": [
+    {
+      "target": "spike_detect",
+      "channels": 1024,
+      "record_samples": 64,
+      "iterations": 7,
+      "p50_ms": 23.791833002178464,
+      "p95_ms": 25.790812601189828,
+      "peak_mb": 1.1670074462890625,
+      "budget_p95_ms": 8.0,
+      "budget_peak_mb": 96.0,
+      "file": "methods/spike_detect.py",
+      "function": "compute",
+      "passed": false,
+      "error": null,
+      "input_peak_mb": 0.0,
+      "operation_peak_mb": 1.1670074462890625,
+      "frequency_bins": 0,
+      "time_points": 64,
+      "ground_truth_recovered": 57,
+      "ground_truth_expected": 57
+    },
+    {
+      "target": "electrode_connectivity",
+      "channels": 1024,
+      "record_samples": 64,
+      "iterations": 7,
+      "p50_ms": 12899.012207999476,
+      "p95_ms": 13852.9737294004,
+      "peak_mb": 129.29362869262695,
+      "budget_p95_ms": 300.0,
+      "budget_peak_mb": 512.0,
+      "file": "methods/electrode_connectivity.py",
+      "function": "compute",
+      "passed": false,
+      "error": null,
+      "input_peak_mb": 0.0,
+      "operation_peak_mb": 129.29362869262695,
+      "frequency_bins": 0,
+      "time_points": 64,
+      "ground_truth_recovered": 0,
+      "ground_truth_expected": 0
+    }
+  ],
+  "hotspots": [
+    {
+      "target": "electrode_connectivity",
+      "channels": 1024,
+      "record_samples": 64,
+      "file": "methods/electrode_connectivity.py",
+      "function": "compute",
+      "measured_cost": "p95 13852.97 ms > 300.00 ms",
+      "budget_ratio": 46.17657909800133,
+      "reason": "latency budget exceeded"
+    },
+    {
+      "target": "spike_detect",
+      "channels": 1024,
+      "record_samples": 64,
+      "file": "methods/spike_detect.py",
+      "function": "compute",
+      "measured_cost": "p95 25.79 ms > 8.00 ms",
+      "budget_ratio": 3.2238515751487284,
+      "reason": "latency budget exceeded"
+    }
+  ]
+}
