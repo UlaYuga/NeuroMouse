@@ -110,10 +110,14 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
 ---
 
 ## 9. CURRENT STATE & roadmap  *(refresh this section after each integration)*
-- **main = `c056b40`, on origin** (run `git log --oneline -3` to confirm the exact tip). Green:
-  `uv run pytest` **118 passed, 2 skipped**, `ruff` clean, **`ty` clean (HARD gate)**, node **39/39**,
-  `mkdocs build --strict` clean, **spike_detect 57/57** on the MEA golden. `dsp.py` blob unchanged through all
-  integration (verified `git diff … -- dsp.py` empty; 1e-13 parity intact). Heavy 2M-case fuzz runs on Linux CI.
+- **main = `2abf1b3`, on origin — Linux CI fully GREEN** (both py3.11/3.12 matrices, incl. 2M-case fuzz). Green:
+  `uv run pytest` **119 passed, 2 skipped**, `ruff` clean, **`ty` clean (HARD gate)**, node **39/39**,
+  `mkdocs build --strict` clean, sdk-ts **22/22**, **spike_detect 57/57** on the MEA golden. `dsp.py` blob unchanged
+  through all integration (1e-13 parity intact). Heavy 2M-case fuzz runs on Linux CI.
+- **Fixed two CI-only failures masked locally:** `CloseEvent` is not a global on Linux node22 (test-mock fallback added),
+  and **arch P1-3 closed** — `mea.n_samples` now anchors trace width across all **4 contract validators** (was self-
+  referenced from `traces[0]`, silently accepted a row-length mismatch at channelCount=1). `n_samples` is optional-but-
+  strict; golden + property fixtures declare it. Watch-item: CI actions still on Node 20 (GitHub forces Node 24 ~2026-06-16).
 - **MODE: HANDS-ON** (since 2026-06-12) — Claude does build/git/test directly in Claude Code; the delegate-packages-
   to-external-chats experiment ended. Overrides §1. See memory [[coordinator-delegation]].
 - **Waves done:** 0 (foundation + executable contract + DSP bit-exact parity), 1 (hardening + FastAPI backend +
