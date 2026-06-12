@@ -18,10 +18,14 @@ dev = [
     "ruff>=0.12.0",
     "ty",
 ]
+docs = [
+    "mkdocs-material>=9.5",
+]
 
 [tool.uv]
 package = false
 link-mode = "clone"
+default-groups = ["dev", "docs"]
 
 [tool.uv.sources]
 neuromouse-adapters = { workspace = true }

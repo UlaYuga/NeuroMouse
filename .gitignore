@@ -8,3 +8,6 @@ bench/perf-report.md
 .DS_Store
 __pycache__/
 *.pyc
+
+# MkDocs build output
+/site/

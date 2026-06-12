@@ -1,0 +1,69 @@
+site_name: NeuroMouse Docs
+site_description: Collaborator documentation for the NeuroMouse platform — data contract, method SDK, and wetware MEA direction.
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - content.code.copy
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.details
+
+# Many docs intentionally link to source files in the code repository
+# (../packages/..., ../DATA_CONTRACT.md, ../js/...). Those targets are not
+# part of this published site, so out-of-tree links are not treated as build
+# errors. Internal cross-links between docs pages are still validated.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: ignore
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: ignore
+    anchors: warn
+    absolute_links: ignore
+    unrecognized_links: ignore
+
+nav:
+  - Home: README.md
+  - Quickstart: MEA_QUICKSTART.md
+  - Platform:
+    - Architecture: ARCHITECTURE.md
+    - Positioning: POSITIONING.md
+    - Architecture Review: ARCH-REVIEW.md
+  - Authoring:
+    - Method Authoring: METHOD_AUTHORING.md
+    - Contributing: CONTRIBUTING.md
+  - Decision Records:
+    - ADR 0001 — Monorepo & uv workspace: adr/0001-monorepo-uv-workspace.md
+    - ADR 0002 — Executable data contract: adr/0002-executable-data-contract.md
+    - ADR 0003 — Method SDK plugin surface: adr/0003-method-sdk-plugin-surface.md
+    - ADR 0004 — Montage-agnostic channel ceiling: adr/0004-montage-agnostic-channel-ceiling.md
+    - ADR 0005 — Fuzz-gated hardening: adr/0005-fuzz-gated-hardening.md
+    - ADR 0006 — uv link-mode clone: adr/0006-uv-link-mode-clone.md
+    - ADR 0007 — Wetware & MEA direction: adr/0007-wetware-mea-direction.md
