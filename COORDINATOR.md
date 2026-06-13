@@ -112,7 +112,7 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
 ## 9. CURRENT STATE & roadmap  *(refresh this section after each integration)*
 - **main on origin — Linux CI GREEN + DEPLOYED 🅰 (per-user auth LIVE)** (run `git log --oneline -3` for the exact tip).
   Green: `uv run pytest` **188 collected** (mac skips pg without a DSN — CI runs them on a `postgres:16` service, Wave-8),
-  `ruff`/`ty` clean, node **39/39** + js auth **7 pass/1 skip**, sdk-ts **22/22**, `mkdocs --strict`, sandbox **46**,
+  `ruff`/`ty` clean, node **42/42** (+3 explain) + js units **7** (playwright e2e separate), sdk-ts **22/22**, `mkdocs --strict`, sandbox **46**,
   spike_detect 57/57. `dsp.py` 1e-13 intact. 2M-fuzz on CI; CI actions opt-in to Node 24 (`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`).
 - **MODE: HANDS-ON** (since 2026-06-12) — Claude does build/git/test directly. Overrides §1. See [[coordinator-delegation]].
   **Wave-design rule:** only disjoint-independent tasks fan out in parallel; dependency chains go sequential / hands-on
@@ -147,12 +147,15 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
   invalid token → 401; `/demo/seed-mea` public → 201; `/auth/register` → 201.
 - Railway auth is **interactive-only**: user runs `railway login` once, then agent deploys via `railway up --service <svc> --detach`.
 
-### ▶ IMMEDIATE NEXT ACTION — none blocking. Optional / OUTWARD (need an explicit go):
-- **Enable `/api/explain`** — safe 503 until `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` are set on the `speedmouse` service.
-  The enabled-path is already tested (Wave-8); only the live secrets are missing.
+### ▶ IMMEDIATE NEXT ACTION — none blocking, no OUTWARD blockers left. Optional:
 - OAuth identity (GitHub/Google) as an alternative to email+password — auth-core is designed to plug it in.
 - PG connection pooling (psycopg_pool) once load grows — `_connect()` currently opens a fresh connection per request.
+- Move `/api/explain` to the official Anthropic API instead of the kie.ai gateway — more private, but needs `callClaude`
+  reworked to native `x-api-key`/`anthropic-version` (not `Bearer`) + a real `sk-ant-` key.
 
-(Managed Postgres in prod — DONE this chat: PG service up, backend wired via `DATABASE_URL` reference, migrations auto-applied, verified live.)
+(DONE this chat: **managed Postgres** — PG service up, backend wired via `DATABASE_URL` reference, migrations auto-applied,
+verified live. **`/api/explain` enabled behind login** — auth-cookie via backend `/auth/me`, `x-explain-token` optional,
+same-origin CORS bypass, fail-closed on non-official hosts; routed through the kie.ai gateway with an explicit
+`EXPLAIN_ALLOW_THIRD_PARTY_API=1` opt-in; tests rewritten 9/9; verified live: no cookie → 401, cookie → 200 + explanation.)
 
 Target reached and exceeded: a serious, demo-able, **deployed, multi-user, ownership-isolated** platform.

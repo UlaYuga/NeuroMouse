@@ -26,7 +26,7 @@
 - **`main` на GitHub** (`github.com/UlaYuga/NeuroMouse`), **полностью зелёный** — локально и на **Linux CI** (Python 3.11/3.12, Node 22; экшены опт-ин на Node 24).
 - Метрики зелёного гейта:
   - `pytest` — **188 собрано** (postgres-тесты skip на маке без DSN; на CI их прогоняет сервис `postgres:16` — Волна 8)
-  - `node --test` — **39/39** + js-auth **7 pass / 1 skip**; sandbox — **46**
+  - `node --test` — **42/42** (+3 explain) + js-юниты **7**; sandbox — **46** (playwright login-e2e гоняется отдельно)
   - `sdk-ts` тесты — **22/22**; `mkdocs build --strict` — чисто
   - 2M-кейсовый deep-fuzz на CI зелёный
   - **`spike_detect` 57/57**; **`dsp.py` 1e-13 цел** на всём протяжении
@@ -38,7 +38,7 @@
   - **Login-flow проверен вживую через прод-домен:** register 201 → login 200 → cookie установлен first-party → `/sessions` с cookie 200, без cookie 401.
   - **прод на managed Postgres** (отдельный Railway PG-сервис, приватная сеть `postgres.railway.internal`, reference `DATABASE_URL` на backend); backend **сам применяет миграции при старте** (`schema_migrations` 001/002/003 — проверено вживую). SQLite остаётся dev-default/fallback; собирается из `Dockerfile.backend` через `RAILWAY_DOCKERFILE_PATH` (`environment edit --service-config` в non-TTY shell **не сохраняется** — env-переменная); uvicorn слушает `$PORT`; старый volume `/data` сохранён, но больше не используется.
   - **Что сделано к этому (Волны 6-8):** API auth + rate-limit + CORS, async-очередь джобов + live WS, **sandbox для чужого кода (P1-4) + kernel-слой Linux (seccomp+Landlock)**, Postgres-backend (sqlite default, **CI-проверен на pg**), **per-user auth + ownership** (register/login, `owner_id` на ресурсах, изоляция), **public demo lane** (демо без логина), login frontend, **same-origin proxy** (cross-domain cookie закрыт). pentest-High (публичные сессии) закрыт.
-  - `/api/explain` на static — пока safe 503; enabled-path покрыт тестами (Волна 8), включить: `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на `speedmouse`.
+  - **`/api/explain` ВКЛЮЧЁН** — за логином (авторизация по auth-cookie через backend `/auth/me`; `x-explain-token` опционален для API-доступа); идёт через сторонний шлюз `api.kie.ai` (`EXPLAIN_ALLOW_THIRD_PARTY_API=1`, модель `claude-sonnet-4-6`). Проверено вживую: без cookie → 401, с cookie → 200 + объяснение.
 
 ---
 
@@ -101,16 +101,17 @@
 
 Платформа **развёрнута (scope 🅰)**, зелёная на CI и проверена вживую — **блокирующего ничего нет**. Остаётся опциональное и **наружу (нужно явное «го»)**.
 
-### Наружу (требует явного разрешения):
-- **Включить `/api/explain`** — сейчас safe 503; задать `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на сервисе `speedmouse`. Enabled-path уже покрыт тестами (Волна 8) — не хватает только живых секретов.
+### Наружу — блокирующего нет (всё ключевое подключено: managed Postgres + `/api/explain`).
 
 ### Опциональное развитие:
+- **Перевести `/api/explain` на официальный Anthropic** вместо kie.ai-шлюза — приватнее (отчёты юзеров не идут через посредника), но требует доработки `callClaude` (родные `x-api-key` + `anthropic-version` вместо `Bearer`) и настоящего `sk-ant-` ключа.
 - **OAuth-идентичность** (GitHub/Google) как альтернатива email+password — auth-core спроектирован под подключение.
 - **Observability** на backend (структурные логи, трейсинг, метрики) — для реальной мульти-юзер нагрузки.
 - **Connection pooling для PG** — сейчас `PostgreSQLBackendStore._connect()` открывает новое соединение на каждый запрос и проверяет миграции; при росте нагрузки добавить пул (psycopg_pool).
 - **Лимит памяти / размерности** на тело запроса (memory-DoS) — последняя часть P1-3.
 
 ### Закрытые watch-items:
+- ✅ **`/api/explain` включён** — за логином (auth-cookie через backend `/auth/me`, токен опционален), same-origin CORS-bypass, fail-closed на неофициальные хосты; через kie.ai-шлюз (явный opt-in). Тесты переписаны (9/9), проверено вживую.
 - ✅ **Managed Postgres в проде** — Railway PG-сервис поднят, backend на нём (приватная сеть, reference `DATABASE_URL`), миграции применены автоматически; проверено вживую (свежий юзер + сессия легли в PG).
 - ✅ **Node 20 → 24:** CI-экшены опт-ин через `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` (дедлайн ~16 июня пройден заранее).
 - ✅ **Docker build верифицирован** — backend и static реально собираются и стартуют в проде.
@@ -157,7 +158,7 @@
 
 Платформа уже в проде и зелёная. Возможные следующие шаги:
 1. Открыть свежий Claude Code в этой папке (`/Users/axel/Documents/SpeedMouse`). Память и `COORDINATOR.md` подтянутся.
-2. **Наружу (с явного «го»):** включить `/api/explain` (секреты `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на `speedmouse`) — см. §5. Managed Postgres уже подключён.
+2. **Наружу-блокеров нет** — managed Postgres и `/api/explain` (за логином) уже подключены. Остаётся только опциональное развитие — см. §5.
 3. **Развитие:** OAuth-логин, observability, лимит памяти на тело запроса — см. §5.
 4. Любой код-чейндж: hands-on (build/git/test сам), **push только на зелёном CI**, **деплой наружу — только с явного «го»**.
 
