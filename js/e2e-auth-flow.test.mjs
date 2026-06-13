@@ -55,8 +55,15 @@ function createCookieFetch(baseUrl) {
   };
 }
 
-test("e2e auth flow against running backend", async () => {
+test("e2e auth flow against running backend", async (t) => {
   const baseUrl = process.env.NEUROMOUSE_BACKEND_URL ?? "http://127.0.0.1:8000";
+  // Live integration test: skip cleanly when no backend is reachable.
+  try {
+    await globalThis.fetch(new URL("/health", baseUrl), { signal: AbortSignal.timeout(2000) });
+  } catch {
+    t.skip("no backend reachable — live e2e auth flow skipped");
+    return;
+  }
   const fetch = createCookieFetch(baseUrl);
   const client = new BackendClient({ baseUrl, fetch });
 
