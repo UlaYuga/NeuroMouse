@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import tempfile
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+import pytest
 
-from neuromouse_backend.storage import SQLiteBackendStore
+from neuromouse_backend.storage import PostgreSQLBackendStore, SQLiteBackendStore
 
 
 def dataset_for(channel_count: int, frequency_count: int, time_count: int) -> dict[str, Any]:
@@ -33,6 +35,32 @@ def dataset_for(channel_count: int, frequency_count: int, time_count: int) -> di
     }
 
 
+def make_backend(backend_name: str, tmp_path: Path) -> tuple[str | Path, SQLiteBackendStore | PostgreSQLBackendStore]:
+    if backend_name == "sqlite":
+        return tmp_path / "backend.sqlite3", SQLiteBackendStore(tmp_path / "backend.sqlite3")
+
+    if backend_name != "postgres":
+        raise ValueError(f"unknown backend: {backend_name}")
+
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        pytest.skip("DATABASE_URL is not set for postgres backend tests")
+
+    return database_url, PostgreSQLBackendStore(database_url=database_url)
+
+
+def _close_backend(store: SQLiteBackendStore | PostgreSQLBackendStore) -> None:
+    if hasattr(store, "close"):
+        store.close()
+
+
+def _reopen_store(backend_name: str, source: str | Path) -> SQLiteBackendStore | PostgreSQLBackendStore:
+    if backend_name == "sqlite":
+        return SQLiteBackendStore(source)
+    return PostgreSQLBackendStore(database_url=source)
+
+
+@pytest.mark.parametrize("backend_name", ["sqlite", "postgres"])
 @given(
     name=st.one_of(st.none(), st.text(alphabet=st.characters(max_codepoint=126), max_size=24)),
     channel_count=st.integers(min_value=1, max_value=6),
@@ -44,24 +72,30 @@ def dataset_for(channel_count: int, frequency_count: int, time_count: int) -> di
         max_size=24,
     ),
 )
-@settings(max_examples=40, deadline=None, derandomize=True)
-def test_sqlite_store_crud_round_trips_sessions_dataset_versions_jobs_and_events(
+@settings(
+    max_examples=40,
+    deadline=None,
+    derandomize=True,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+def test_storage_round_trips_sessions_dataset_versions_jobs_and_events_for_backends(
+    backend_name: str,
+    tmp_path: Path,
     name: str | None,
     channel_count: int,
     frequency_count: int,
     time_count: int,
     method_id: str,
 ) -> None:
-    dataset = dataset_for(channel_count, frequency_count, time_count)
-    result = {"method": method_id, "channels": channel_count}
+    source, store = make_backend(backend_name, tmp_path)
+    try:
+        dataset = dataset_for(channel_count, frequency_count, time_count)
+        result = {"method": method_id, "channels": channel_count}
 
-    with tempfile.TemporaryDirectory() as tempdir:
-        db_path = Path(tempdir) / "backend.sqlite3"
-        store = SQLiteBackendStore(db_path)
         session = store.create_session(name=name, dataset=dataset)
         assert session.dataset_version == 1
         assert store.get_session(session.id) == session
-        assert list(store.list_sessions()) == [session]
+        assert session in store.list_sessions()
 
         job = store.create_job(
             session_id=session.id,
@@ -72,13 +106,118 @@ def test_sqlite_store_crud_round_trips_sessions_dataset_versions_jobs_and_events
         assert job.status == "queued"
         assert job.events[0]["status"] == "queued"
 
-        store.append_job_event(job.id, status="running")
+        running = store.append_job_event(job.id, status="running")
         completed = store.append_job_event(job.id, status="completed", result=result)
+        assert running.status == "running"
         assert completed.result == result
         assert [event["status"] for event in completed.events] == ["queued", "running", "completed"]
-        store.close()
 
-        reopened = SQLiteBackendStore(db_path)
-        assert reopened.get_session(session.id) == session
-        assert reopened.get_job(job.id) == completed
-        reopened.close()
+        store.close()
+        reopened = _reopen_store(backend_name, source)
+        try:
+            assert reopened.get_session(session.id) == session
+            assert reopened.get_job(job.id) == completed
+        finally:
+            _close_backend(reopened)
+    finally:
+        _close_backend(store)
+
+
+@pytest.mark.parametrize("backend_name", ["sqlite", "postgres"])
+@given(
+    status_count=st.integers(min_value=3, max_value=12),
+)
+@settings(
+    max_examples=30,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+def test_concurrent_job_event_updates_do_not_deadlock_for_backends(
+    backend_name: str,
+    tmp_path: Path,
+    status_count: int,
+) -> None:
+    _, store = make_backend(backend_name, tmp_path)
+    try:
+        session = store.create_session(name="concurrent", dataset=dataset_for(2, 2, 2))
+        job = store.create_job(
+            session_id=session.id,
+            dataset_version=session.dataset_version,
+            method_id="band_power_summary",
+            params={},
+        )
+
+        def append_event(index: int) -> str:
+            status = "running" if index % 2 == 0 else "completed"
+            status_result = store.append_job_event(
+                job.id,
+                status=status,
+                result={"index": index},
+            )
+            return status_result.status
+
+        with ThreadPoolExecutor(max_workers=min(8, status_count)) as executor:
+            futures = [executor.submit(append_event, index) for index in range(status_count)]
+            for future in as_completed(futures):
+                assert future.result() in {"running", "completed"}
+
+        final_job = store.get_job(job.id)
+        assert final_job is not None
+        assert len(final_job.events) >= status_count + 1
+        assert final_job.events[0]["status"] == "queued"
+    finally:
+        _close_backend(store)
+
+
+@pytest.mark.parametrize("backend_name", ["sqlite", "postgres"])
+def test_store_migrations_apply_cleanly_before_first_use(backend_name: str, tmp_path: Path) -> None:
+    source, store = make_backend(backend_name, tmp_path)
+    try:
+        with store._connect() as connection:  # type: ignore[attr-defined]
+            cursor = connection.cursor()
+            if backend_name == "sqlite":
+                rows = {
+                    row["name"]
+                    for row in cursor.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name IN (?, ?, ?, ?, ?, ?)",
+                        (
+                            "schema_migrations",
+                            "sessions",
+                            "datasets",
+                            "jobs",
+                            "job_results",
+                            "job_events",
+                        ),
+                    ).fetchall()
+                }
+                assert rows == {
+                    "schema_migrations",
+                    "sessions",
+                    "datasets",
+                    "jobs",
+                    "job_results",
+                    "job_events",
+                }
+            else:
+                cursor.execute(
+                    """
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                      AND table_name IN ('schema_migrations', 'sessions', 'datasets', 'jobs', 'job_results', 'job_events')
+                    """
+                )
+                rows = {row["table_name"] for row in cursor.fetchall()}
+                assert rows == {
+                    "schema_migrations",
+                    "sessions",
+                    "datasets",
+                    "jobs",
+                    "job_results",
+                    "job_events",
+                }
+    finally:
+        _close_backend(store)
+
+        if backend_name == "sqlite" and isinstance(source, Path) and source.exists():
+            source.unlink()
