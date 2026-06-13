@@ -157,6 +157,13 @@ async function handleExplain(request, response) {
 
   const apiUrl = process.env.EXPLAIN_API_URL ?? DEFAULT_EXPLAIN_API_URL;
   const model = process.env.EXPLAIN_MODEL ?? "claude-sonnet-4-6";
+  let safeApiUrl;
+  try {
+    safeApiUrl = getCheckedExplainApiUrl(apiUrl);
+  } catch (error) {
+    sendJson(response, 403, { error: error.message }, request);
+    return;
+  }
 
   const system = [
     "You explain EEG / neural-signal analysis results to a researcher who does not write code.",
@@ -173,7 +180,7 @@ async function handleExplain(request, response) {
   ].join("\n");
 
   try {
-    const text = await callClaude({ apiUrl, apiKey, model, system, userText });
+    const text = await callClaude({ apiUrl: safeApiUrl, apiKey, model, system, userText });
     sendJson(response, 200, { text }, request);
   } catch (error) {
     console.error("explain error:", error.message);
@@ -182,11 +189,10 @@ async function handleExplain(request, response) {
 }
 
 async function callClaude({ apiUrl, apiKey, model, system, userText }) {
-  const safeApiUrl = getCheckedExplainApiUrl(apiUrl);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
   try {
-    const upstream = await fetch(safeApiUrl, {
+    const upstream = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "content-type": "application/json",

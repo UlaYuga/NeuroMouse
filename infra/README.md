@@ -21,19 +21,30 @@ Both services attach to the shared `neuromouse` compose network.
 
 ## Backend environment
 
-The backend container consumes these variables:
+Set these variables on the Railway service named `speedmouse` (the Node static service that exposes `/api/explain`):
 
 - `EXPLAIN_TOKEN` — required by explain endpoint in server integration path.
-- `ANTHROPIC_API_KEY` — passed through to the explain upstream.
-- `EXPLAIN_API_URL` — explain upstream URL (default: `https://api.anthropic.com/v1/messages`).
-- `EXPLAIN_MODEL` — model name for explain responses.
-- `EXPLAIN_RATE_LIMIT_PER_MIN` — per-minute request budget.
-- `EXPLAIN_CORS_ALLOW_ORIGINS` — comma-separated allowed origins.
+- `ANTHROPIC_API_KEY` — required API key for Claude.
+- `EXPLAIN_API_URL` — explain upstream URL override (optional, defaults to `https://api.anthropic.com/v1/messages`).
+- `EXPLAIN_RATE_LIMIT_PER_MIN` — per-minute request budget (optional).
+- `EXPLAIN_CORS_ALLOW_ORIGINS` — comma-separated allowed browser origins (optional, if your UI is cross-origin).
 - `NEUROMOUSE_BACKEND_DB` — backend sqlite path (container default: `/data/neuromouse_backend.sqlite3`).
 - `PORT` / `BACKEND_PORT` — backend listen port for Uvicorn.
 - `BACKEND_SCOPE` — profile signal for internal behavior/debugging.
 
 For local smoke verification, keep tokens blank unless you intentionally call explain endpoints.
+
+### How to enable `/api/explain`
+
+- Keep `speedmouse` deployed with `EXPLAIN_TOKEN` and `ANTHROPIC_API_KEY` set.
+- Leave `EXPLAIN_API_URL` unset (default official host) unless you have a private proxy and set `EXPLAIN_ALLOW_THIRD_PARTY_API=1`.
+- The frontend must send the explain token in the request header:
+
+```
+X-Explain-Token: <EXPLAIN_TOKEN>
+```
+
+Current repository UI (`js/viewer.js`) calls `/api/explain` directly without this header, so this is an outward deployment integration step.
 
 ## Static image shape
 
