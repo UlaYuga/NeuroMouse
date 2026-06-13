@@ -2,6 +2,13 @@ const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_POLL_INTERVAL_MS = 250;
 const DEFAULT_DEMO_SEED_ENDPOINT = "/demo/seed";
 const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "not_found"]);
+const DEFAULT_AUTH_ENDPOINTS = Object.freeze({
+  login: "/auth/login",
+  register: "/auth/register",
+  logout: "/auth/logout",
+  me: "/auth/me",
+  sessions: "/sessions",
+});
 export const DEFAULT_BACKEND_BASE_URL = "https://backend-production-c7a1.up.railway.app";
 
 export class BackendHttpError extends Error {
@@ -21,6 +28,7 @@ export class BackendClient {
     WebSocket: WebSocketImpl = globalThis.WebSocket,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
+    auth = {},
   } = {}) {
     if (typeof fetchImpl !== "function") {
       throw new Error("BackendClient requires fetch");
@@ -30,6 +38,15 @@ export class BackendClient {
     this.WebSocket = WebSocketImpl;
     this.timeoutMs = timeoutMs;
     this.pollIntervalMs = pollIntervalMs;
+    this.authState = {
+      authenticated: false,
+      user: null,
+      session: null,
+      endpoints: {
+        ...DEFAULT_AUTH_ENDPOINTS,
+        ...auth,
+      },
+    };
   }
 
   async seedDemoDataset({ name = "NeuroMouse demo dataset", dataset, seedEndpoint = DEFAULT_DEMO_SEED_ENDPOINT } = {}) {
@@ -75,6 +92,71 @@ export class BackendClient {
       body: { name, dataset },
     });
     return normalizeSession(response);
+  }
+
+  isAuthenticated() {
+    return this.authState.authenticated;
+  }
+
+  getCurrentUser() {
+    return this.authState.user;
+  }
+
+  async login({ email, password, ...payload } = {}) {
+    const response = await this.requestJson(this.authState.endpoints.login, {
+      method: "POST",
+      body: normalizeAuthPayload({ email, password, ...payload }),
+    });
+    const user = extractAuthUser(response);
+    this.authState.user = user;
+    this.authState.authenticated = true;
+    this.authState.session = response?.session ?? null;
+    return user;
+  }
+
+  async register({ email, username, password, ...payload } = {}) {
+    const response = await this.requestJson(this.authState.endpoints.register, {
+      method: "POST",
+      body: normalizeAuthPayload({ email, username, password, ...payload }),
+    });
+    const user = extractAuthUser(response);
+    this.authState.user = user;
+    this.authState.authenticated = true;
+    this.authState.session = response?.session ?? null;
+    return user;
+  }
+
+  async logout() {
+    try {
+      await this.requestJson(this.authState.endpoints.logout, { method: "POST" });
+    } finally {
+      this.authState.authenticated = false;
+      this.authState.user = null;
+      this.authState.session = null;
+    }
+  }
+
+  async refreshSession() {
+    try {
+      const response = await this.requestJson(this.authState.endpoints.me);
+      const user = extractAuthUser(response);
+      this.authState.user = user;
+      this.authState.authenticated = user !== null;
+      this.authState.session = response?.session ?? null;
+      return user;
+    } catch (error) {
+      if (error instanceof BackendHttpError && (error.status === 401 || error.status === 403 || error.status === 404)) {
+        this.authState.authenticated = false;
+        this.authState.user = null;
+        this.authState.session = null;
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async listSessions() {
+    return this.requestJson(this.authState.endpoints.sessions);
   }
 
   async listMethods() {
@@ -211,6 +293,7 @@ export class BackendClient {
     try {
       const response = await this.fetch(url, {
         method,
+        credentials: "include",
         headers: {
           accept: "application/json",
           ...(body == null ? {} : { "content-type": "application/json" }),
@@ -326,7 +409,7 @@ export function normalizePanelSpec(panelSpec, method = {}) {
 }
 
 function normalizeSession(session) {
-  const normalized = session;
+const normalized = session;
   if (!normalized?.id) {
     if (normalized?.session_id != null) normalized.id = normalized.session_id;
     else if (normalized?.sessionId != null) normalized.id = normalized.sessionId;
@@ -349,6 +432,24 @@ async function readResponseBody(response) {
   } catch {
     return text;
   }
+}
+
+function extractAuthUser(response) {
+  const user = response?.user ?? response?.profile ?? response;
+  if (!user || typeof user !== "object") return null;
+  return {
+    ...user,
+    id: user.id ?? user.user_id ?? user.userId ?? user.sub ?? null,
+    displayName: user.name ?? user.display_name ?? user.email ?? user.username ?? user.sub ?? null,
+  };
+}
+
+function normalizeAuthPayload(payload) {
+  const normalized = {};
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") normalized[key] = value;
+  });
+  return normalized;
 }
 
 function errorMessage(response, payload) {
