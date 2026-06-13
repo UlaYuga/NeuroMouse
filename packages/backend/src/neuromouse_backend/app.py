@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from neuromouse_backend.storage import BackendStore, JobRecord, SessionRecord, SQLiteBackendStore
+from neuromouse_backend.security import install_security_middlewares
 from neuromouse_contract import DatasetValidationError, validate_dataset
 from neuromouse_sdk import Method, build_params
 from neuromouse_sdk.examples.band_power_summary import band_power_summary
@@ -181,6 +182,23 @@ def create_app(
         version="0.0.0",
         description="FastAPI backend for contract-validated NeuroMouse method jobs.",
     )
+    install_security_middlewares(app)
+
+    @app.get("/health")
+    async def health_check() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/healthz")
+    async def health_check_alt() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/ready")
+    async def readiness() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/readyz")
+    async def readiness_alt() -> dict[str, str]:
+        return {"status": "ok"}
 
     @app.post(
         "/sessions",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import httpx
 import pytest
@@ -13,6 +13,8 @@ from neuromouse_backend.storage import SQLiteBackendStore
 
 ROOT = Path(__file__).resolve().parents[3]
 GOLDEN_PATH = ROOT / "datasets" / "golden" / "data.json"
+API_TOKEN: Final = "neuromouse-api-token"
+AUTH_HEADERS: Final = {"Authorization": f"Bearer {API_TOKEN}"}
 
 
 def minimal_dataset(channel_count: int = 2) -> dict[str, Any]:
@@ -61,9 +63,120 @@ def minimal_dataset(channel_count: int = 2) -> dict[str, Any]:
 
 
 @pytest.fixture
-def app(tmp_path):
+def app(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    monkeypatch.setenv("NEUROMOUSE_RATE_LIMIT_PER_IP", "1000")
+    monkeypatch.setenv("NEUROMOUSE_RATE_LIMIT_WINDOW_SECONDS", "60")
+    monkeypatch.setenv("NEUROMOUSE_CORS_ALLOWLIST", "https://example.org")
     store = SQLiteBackendStore(tmp_path / "backend.sqlite3")
     return create_app(store=store)
+
+
+@pytest.mark.asyncio
+async def test_auth_required_for_protected_routes_and_health_is_public(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        protected_response = await client.get("/sessions")
+        assert protected_response.status_code == 401
+
+        invalid_response = await client.get(
+            "/sessions",
+            headers={"Authorization": "Bearer invalid"},
+        )
+        assert invalid_response.status_code == 401
+
+        public_response = await client.get("/health")
+        assert public_response.status_code == 200
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+        headers=AUTH_HEADERS,
+    ) as client:
+        authorized_response = await client.get("/sessions")
+        assert authorized_response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_api_disabled_without_token_by_default(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("NEUROMOUSE_API_TOKEN", raising=False)
+    app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/sessions")
+        assert response.status_code == 401
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        public_response = await client.get("/ready")
+        assert public_response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_returns_429_after_budget_exhausted(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    monkeypatch.setenv("NEUROMOUSE_RATE_LIMIT_PER_IP", "2")
+    app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+        headers=AUTH_HEADERS,
+    ) as client:
+        assert (await client.get("/methods")).status_code == 200
+        assert (await client.get("/methods")).status_code == 200
+        too_many_response = await client.get("/methods")
+        assert too_many_response.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_cors_preflight_honors_allowlist(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    monkeypatch.setenv(
+        "NEUROMOUSE_CORS_ALLOWLIST",
+        "https://allowed.example.com,https://another.example.com",
+    )
+    app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
+
+    preflight_headers = {
+        "Origin": "https://allowed.example.com",
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "authorization",
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        allowed_response = await client.options("/sessions", headers=preflight_headers)
+
+    assert allowed_response.status_code == 200
+    assert allowed_response.headers["access-control-allow-origin"] == "https://allowed.example.com"
+
+    blocked_headers = {
+        "Origin": "https://blocked.example.com",
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "authorization",
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        blocked_response = await client.options("/sessions", headers=blocked_headers)
+
+    assert blocked_response.status_code in {200, 400}
+    assert "access-control-allow-origin" not in (
+        key.lower() for key in blocked_response.headers.keys()
+    )
 
 
 @pytest.mark.asyncio
@@ -71,6 +184,7 @@ async def test_openapi_generates_and_lists_backend_paths(app) -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         response = await client.get("/openapi.json")
 
@@ -92,6 +206,7 @@ async def test_rest_happy_path_creates_session_runs_job_and_returns_result(app) 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         create_response = await client.post(
             "/sessions",
@@ -155,6 +270,7 @@ async def test_methods_include_render_specs_and_params_schema(app) -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         response = await client.get("/methods")
 
@@ -206,6 +322,7 @@ async def test_demo_seed_creates_runnable_session_from_golden_dataset(app) -> No
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         seed_response = await client.post("/demo/seed")
         assert seed_response.status_code == 201
@@ -244,7 +361,7 @@ async def test_demo_seed_creates_runnable_session_from_golden_dataset(app) -> No
 
 
 def test_job_and_live_websockets_stream_progress_and_echo(app) -> None:
-    with TestClient(app) as client:
+    with TestClient(app, headers=AUTH_HEADERS) as client:
         session_response = client.post(
             "/sessions",
             json={"name": "ws-session", "dataset": minimal_dataset()},
@@ -256,13 +373,16 @@ def test_job_and_live_websockets_stream_progress_and_echo(app) -> None:
         )
         job_id = job_response.json()["id"]
 
-        with client.websocket_connect(f"/ws/jobs/{job_id}") as websocket:
+        with client.websocket_connect(
+            f"/ws/jobs/{job_id}",
+            headers=AUTH_HEADERS,
+        ) as websocket:
             events = [websocket.receive_json() for _ in range(3)]
 
         assert [event["status"] for event in events] == ["queued", "running", "completed"]
         assert events[-1]["result"]["band_power_summary"]["top_channel"]["channel"] == "C0"
 
-        with client.websocket_connect("/ws/live") as websocket:
+        with client.websocket_connect("/ws/live", headers=AUTH_HEADERS) as websocket:
             websocket.send_json({"kind": "ping", "samples": [1, 2, 3]})
             assert websocket.receive_json() == {"kind": "ping", "samples": [1, 2, 3]}
 
@@ -275,6 +395,7 @@ async def test_invalid_dataset_returns_422_with_clear_contract_error(app) -> Non
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         response = await client.post("/sessions", json={"dataset": dataset})
 
@@ -283,12 +404,13 @@ async def test_invalid_dataset_returns_422_with_clear_contract_error(app) -> Non
     assert "non-empty" in response.text
 
 
-def test_job_lifecycle_persists_across_sqlite_store_reopen(tmp_path) -> None:
+def test_job_lifecycle_persists_across_sqlite_store_reopen(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
     db_path = tmp_path / "backend.sqlite3"
     store = SQLiteBackendStore(db_path)
     app = create_app(store=store)
 
-    with TestClient(app) as client:
+    with TestClient(app, headers=AUTH_HEADERS) as client:
         session_response = client.post(
             "/sessions",
             json={"name": "persistent", "dataset": minimal_dataset(channel_count=3)},
@@ -308,7 +430,7 @@ def test_job_lifecycle_persists_across_sqlite_store_reopen(tmp_path) -> None:
     store.close()
 
     restarted_app = create_app(store=SQLiteBackendStore(db_path))
-    with TestClient(restarted_app) as client:
+    with TestClient(restarted_app, headers=AUTH_HEADERS) as client:
         session_after_restart = client.get(f"/sessions/{session['id']}")
         assert session_after_restart.status_code == 200
         assert session_after_restart.json()["dataset"] == session["dataset"]
@@ -318,7 +440,7 @@ def test_job_lifecycle_persists_across_sqlite_store_reopen(tmp_path) -> None:
         assert job_after_restart.status_code == 200
         assert job_after_restart.json() == job
 
-        with client.websocket_connect(f"/ws/jobs/{job['id']}") as websocket:
+        with client.websocket_connect(f"/ws/jobs/{job['id']}", headers=AUTH_HEADERS) as websocket:
             events = [websocket.receive_json() for _ in range(3)]
         assert [event["status"] for event in events] == ["queued", "running", "completed"]
 
@@ -343,6 +465,7 @@ async def test_malformed_inputs_return_clean_4xx_not_5xx(
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         response = await client.request(method, path, **kwargs)
 
@@ -354,6 +477,7 @@ async def test_demo_seed_mea_creates_1024ch_session_valid_per_contract(app) -> N
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         seed_response = await client.post("/demo/seed-mea")
         assert seed_response.status_code == 201
@@ -377,6 +501,7 @@ async def test_methods_list_includes_all_three_mea_methods(app) -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         response = await client.get("/methods")
 
@@ -393,6 +518,7 @@ async def test_spike_detect_on_mea_seed_returns_57_spikes(app) -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         seed_response = await client.post("/demo/seed-mea")
         assert seed_response.status_code == 201
