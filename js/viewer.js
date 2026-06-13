@@ -1,5 +1,5 @@
 import { createDisposables } from "./disposables.js";
-import { createBackendClient } from "./backend-client.js";
+import { createBackendClient, resolveBackendBaseUrl } from "./backend-client.js";
 import { createLiveSource, createStaticSource, loadDatasetFiles, setSource } from "./loader.js";
 import { createSessionStore, MAX_SESSIONS } from "./session-store.js";
 import { createViewerState } from "./viewer-state.js";
@@ -381,7 +381,7 @@ function bindSessionControls() {
 
 function setupBackendMode() {
   if (backendUi || !dashboard) return;
-  backend = backend ?? createBackendClient({ baseUrl: backendBaseUrl });
+  backend = backend ?? createBackendClient({ baseUrl: resolveBackendBaseUrl(backendBaseUrl) });
   backendUi = createBackendUi();
   if (workbench && typeof workbench.after === "function") {
     workbench.after(backendUi.section);

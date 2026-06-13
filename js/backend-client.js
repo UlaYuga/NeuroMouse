@@ -2,6 +2,7 @@ const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_POLL_INTERVAL_MS = 250;
 const DEFAULT_DEMO_SEED_ENDPOINT = "/demo/seed";
 const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "not_found"]);
+export const DEFAULT_BACKEND_BASE_URL = "https://backend-production-c7a1.up.railway.app";
 
 export class BackendHttpError extends Error {
   constructor(message, { status, body, url } = {}) {
@@ -24,7 +25,7 @@ export class BackendClient {
     if (typeof fetchImpl !== "function") {
       throw new Error("BackendClient requires fetch");
     }
-    this.baseUrl = normalizeBaseUrl(baseUrl);
+    this.baseUrl = resolveBackendBaseUrl(baseUrl);
     this.fetch = fetchImpl;
     this.WebSocket = WebSocketImpl;
     this.timeoutMs = timeoutMs;
@@ -36,19 +37,25 @@ export class BackendClient {
     const normalizedEndpoint = normalizeSeedEndpoint(seedEndpoint);
     const allowCreateSessionFallback = normalizedEndpoint === DEFAULT_DEMO_SEED_ENDPOINT;
     const allowSeedNoBody = /^\/demo\/seed/.test(normalizedEndpoint);
+    const seedMeaEndpoint = /^\/demo\/seed-mea/.test(normalizedEndpoint);
     try {
-      const response = await requestSeedDemo(this.requestJson.bind(this), normalizedEndpoint, {
-        method: "POST",
-        body: { name, dataset },
-      });
+      const response = await requestSeedDemo(
+        this.requestJson.bind(this),
+        normalizedEndpoint,
+        seedMeaEndpoint
+          ? { method: "POST" }
+          : { method: "POST", body: { name, dataset } },
+      );
       return normalizeSession(response.session ?? response);
     } catch (error) {
-      if (
-        allowSeedNoBody &&
-        error instanceof BackendHttpError &&
-        error.status === 422 &&
-        dataset
-      ) {
+      if (seedMeaEndpoint) {
+        const response = await requestSeedDemo(this.requestJson.bind(this), normalizedEndpoint, {
+          method: "POST",
+          body: { name, dataset },
+        });
+        return normalizeSession(response.session ?? response);
+      }
+      if (allowSeedNoBody && error instanceof BackendHttpError && error.status === 422 && dataset) {
         const response = await requestSeedDemo(this.requestJson.bind(this), normalizedEndpoint, {
           method: "POST",
         });
@@ -251,6 +258,24 @@ export function createBackendClient(options = {}) {
   return new BackendClient(options);
 }
 
+export function resolveBackendBaseUrl(baseUrl = "") {
+  if (typeof baseUrl === "string" && baseUrl.trim()) {
+    return normalizeBaseUrl(baseUrl);
+  }
+
+  const explicitWindowUrl = resolveWindowBackendUrl();
+  if (explicitWindowUrl) {
+    return explicitWindowUrl;
+  }
+
+  const buildTimeUrl = resolveBuildTimeBackendUrl();
+  if (buildTimeUrl) {
+    return buildTimeUrl;
+  }
+
+  return DEFAULT_BACKEND_BASE_URL;
+}
+
 export function normalizeSeedEndpoint(seedEndpoint = DEFAULT_DEMO_SEED_ENDPOINT) {
   if (!seedEndpoint) return DEFAULT_DEMO_SEED_ENDPOINT;
   if (/^https?:\/\//i.test(seedEndpoint)) return seedEndpoint;
@@ -335,6 +360,28 @@ function errorMessage(response, payload) {
 
 function normalizeBaseUrl(baseUrl) {
   return String(baseUrl ?? "").trim().replace(/\/+$/, "");
+}
+
+function resolveWindowBackendUrl() {
+  const direct = globalThis?.NEUROMOUSE_BACKEND_URL;
+  if (typeof direct === "string" && direct.trim()) {
+    return normalizeBaseUrl(direct);
+  }
+  const windowUrl = globalThis?.window?.NEUROMOUSE_BACKEND_URL;
+  if (typeof windowUrl === "string" && windowUrl.trim()) {
+    return normalizeBaseUrl(windowUrl);
+  }
+  return "";
+}
+
+function resolveBuildTimeBackendUrl() {
+  if (typeof globalThis?.NEUROMOUSE_BACKEND_URL__ === "string" && globalThis.NEUROMOUSE_BACKEND_URL__.trim()) {
+    return normalizeBaseUrl(globalThis.NEUROMOUSE_BACKEND_URL__);
+  }
+  if (typeof globalThis?.__NEUROMOUSE_BACKEND_URL__ === "string" && globalThis.__NEUROMOUSE_BACKEND_URL__.trim()) {
+    return normalizeBaseUrl(globalThis.__NEUROMOUSE_BACKEND_URL__);
+  }
+  return "";
 }
 
 function currentOrigin() {
