@@ -110,42 +110,36 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
 ---
 
 ## 9. CURRENT STATE & roadmap  *(refresh this section after each integration)*
-- **main = `ceeb1c3`, on origin — Linux CI GREEN + DEPLOYED to Railway 🅰** (both py3.11/3.12 matrices, incl. 2M-case fuzz). Green:
-  `uv run pytest` **119 passed, 2 skipped**, `ruff` clean, **`ty` clean (HARD gate)**, node **39/39**,
-  `mkdocs build --strict` clean, sdk-ts **22/22**, **spike_detect 57/57** on the MEA golden. `dsp.py` blob unchanged
-  through all integration (1e-13 parity intact). Heavy 2M-case fuzz runs on Linux CI.
-- **MODE: HANDS-ON** (since 2026-06-12) — Claude does build/git/test directly in Claude Code; the delegate-packages-
-  to-external-chats experiment ended. Overrides §1. See memory [[coordinator-delegation]].
-- **Waves done:** 0 (foundation + executable contract + DSP bit-exact parity), 1 (hardening + FastAPI backend +
-  method-SDK + adapters + TS contract + env fix), 2 + 2.5 (run-engine, backend jobs + sqlite + WS, frontend
-  lib-ization, **live slice = method→panel demo**), 3 (wetware/MEA: HD-MEA adapter, method templates, sorter seam,
-  repro manifest, MEA docs) + MEA raw-traces contract, **4 (deep)**, **5 (ship)**.
-- **Wave-4 (deep) DONE:** MEA demo backend (`/demo/seed-mea` + 3 methods) + frontend (seed→spike_detect→panel +
-  **wetware screenshot**), security audit v2, **MEA-method perf** (`electrode_connectivity` ~70× faster, ground-truth
-  holds), fuzz-until-dry (8 new targets), arch/prod critique. Plus **🔴 P0 `/api/explain` (V2-01) CLOSED** — auth token
-  + rate-limit + official-host default + CORS allowlist.
-- **Wave-5 (ship) DONE:** mkdocs docs-site, `examples/quickstart_mea.py`, docker-compose (static + FastAPI backend).
-  **Docker images verified building AND running** (`POST /demo/seed-mea -> 201` locally). Fixed en route: backend
-  workspace-deps undeclared in pyproject, `native-startup` excluded by `.dockerignore`, `uv run` re-syncing dev at
-  startup, uvicorn hardcoding port instead of `$PORT`.
+- **main on origin — Linux CI GREEN + DEPLOYED 🅰 (per-user auth LIVE)** (run `git log --oneline -3` for the exact tip).
+  Green: `uv run pytest` **177 passed, 6 skipped** (postgres skipped, no local DSN), `ruff`/`ty` clean, node **39/39** +
+  js auth **7 pass/1 skip**, sdk-ts **22/22**, `mkdocs --strict`, sandbox **41**, spike_detect 57/57. `dsp.py` 1e-13 intact.
+  2M-fuzz on CI; CI actions opt-in to Node 24 (`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`).
+- **MODE: HANDS-ON** (since 2026-06-12) — Claude does build/git/test directly. Overrides §1. See [[coordinator-delegation]].
+  **Wave-design rule:** only disjoint-independent tasks fan out in parallel; dependency chains go sequential / hands-on
+  (see [[wave-design-dependent-packages]] — Wave-7 auth had to be rebuilt hands-on after a parallel fan-out collided).
+- **Waves done:** 0–3 (foundation → wetware/MEA), **4 (deep)**, **5 (ship)**, **6 (production hardening)**, **7 (per-user auth)**.
+- **Wave-4/5:** MEA demo (backend + frontend + wetware screenshot), audit v2, mea-perf (~70×), fuzz-until-dry, arch
+  critique, mkdocs docs-site, quickstart example, docker-compose. Plus **🔴 P0 `/api/explain` (V2-01) CLOSED**.
+- **Wave-6 (hardening) DONE:** API auth + rate-limit + CORS, async job queue + live WS streaming, Postgres storage
+  backend (sqlite default), **sandbox isolating method/sorter exec (P1-4)**, frontend→prod-backend wiring; arch **P1-3
+  closed** (`mea.n_samples`); CloseEvent node22 CI fix.
+- **Wave-7 (per-user auth) DONE — rebuilt hands-on after a botched parallel fan-out:** auth-core (register/login/logout/me,
+  pbkdf2 hashing, storage-backed session tokens, httpOnly cookie) + `owner_id` on every session/dataset/job (migration 003;
+  owner-scoped queries) + per-user authz middleware (replaced the shared token) + **public anonymous demo lane**
+  (`/demo/seed-mea` + `/demo/sessions/{id}/jobs` + `/demo/jobs`) + login frontend. **pentest High (unauth sessions) CLOSED.**
 
-### ▶ DEPLOYED — scope 🅰 hosted platform is LIVE on Railway (project `SpeedMouse`, env `production`):
-- **static** (demo + viewer): **https://neuromouse.up.railway.app** — root `Dockerfile`, `server.mjs`.
-- **backend** (FastAPI): **https://backend-production-c7a1.up.railway.app** — `Dockerfile.backend` selected via env var
-  **`RAILWAY_DOCKERFILE_PATH=Dockerfile.backend`** (the `environment edit --service-config` path did NOT persist in the
-  non-TTY shell — use the env var). Listens on `$PORT`. `/openapi.json` 200, `/demo/seed-mea` 201. Persistent **volume**
-  `/data` for SQLite (`NEUROMOUSE_BACKEND_DB`). `EXPLAIN_TOKEN` is set on backend, but **`/api/explain` lives on STATIC** —
-  it's a safe 503 there until `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` are set on the `speedmouse` service.
-- Railway auth is **interactive-only** (no TTY in the agent shell): the user runs `railway login` once in their terminal,
-  then the agent deploys with `railway up --service <svc> --detach`. CI-fixes also landed: `CloseEvent` node22 mock
-  fallback; **arch P1-3 closed** (`mea.n_samples` anchors trace width across all 4 validators, optional-but-strict).
-  Watch: CI actions on Node 20 (GitHub forces Node 24 ~2026-06-16).
+### ▶ DEPLOYED — scope 🅰 hosted MULTI-USER platform LIVE on Railway (project `SpeedMouse`, env `production`):
+- **static** (login UI + demo + viewer): **https://neuromouse.up.railway.app**
+- **backend** (FastAPI, per-user auth): **https://backend-production-c7a1.up.railway.app**
+  — built from `Dockerfile.backend` via env **`RAILWAY_DOCKERFILE_PATH`** (NOT `environment edit --service-config`, which
+  doesn't persist in the non-TTY shell); listens on `$PORT`; persistent **volume** `/data` (SQLite + users/auth_sessions).
+- **Live pentest-verified:** `/sessions` unauth → 401; cross-user IDOR → 404 (isolated); no session leak in listing;
+  invalid token → 401; `/demo/seed-mea` public → 201; `/auth/register` → 201.
+- Railway auth is **interactive-only**: user runs `railway login` once, then agent deploys via `railway up --service <svc> --detach`.
 
-### ▶ IMMEDIATE NEXT ACTION — finish the hosted experience + harden for open code:
-1. **Wire frontend → prod backend** — point static's `js/backend-client.js` at the backend domain (env/config) so the
-   live UI calls the real FastAPI. Currently the demo is self-contained; backend is a separate live API.
-2. **P1 hardening (before accepting third-party code publicly):** sandbox method/sorter execution (P1-4), async/queue
-   instead of sync-in-event-loop (P1-1), auth/rate-limit/CORS on FastAPI. Current state = **preview-grade** (built-in
-   demo methods, controlled). See `docs/ARCH-REVIEW.md` + `audit/REPORT-v2.md`.
+### ▶ IMMEDIATE NEXT ACTION — none blocking. Optional:
+- `/api/explain` on static is a safe 503 until `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` are set on the `speedmouse` service.
+- Postgres backend code exists but is runtime-unverified (no local PG); switch via `DATABASE_URL` when a managed PG is added.
+- OAuth identity (GitHub/Google) as an alternative to email+password — auth-core is designed to plug it in.
 
-Target reached: a serious, demo-able, **deployed** handoff. Now hardening toward an open multi-user platform.
+Target reached and exceeded: a serious, demo-able, **deployed, multi-user, ownership-isolated** platform.
