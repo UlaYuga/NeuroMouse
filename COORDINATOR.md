@@ -110,14 +110,10 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
 ---
 
 ## 9. CURRENT STATE & roadmap  *(refresh this section after each integration)*
-- **main = `2abf1b3`, on origin — Linux CI fully GREEN** (both py3.11/3.12 matrices, incl. 2M-case fuzz). Green:
+- **main = `ceeb1c3`, on origin — Linux CI GREEN + DEPLOYED to Railway 🅰** (both py3.11/3.12 matrices, incl. 2M-case fuzz). Green:
   `uv run pytest` **119 passed, 2 skipped**, `ruff` clean, **`ty` clean (HARD gate)**, node **39/39**,
   `mkdocs build --strict` clean, sdk-ts **22/22**, **spike_detect 57/57** on the MEA golden. `dsp.py` blob unchanged
   through all integration (1e-13 parity intact). Heavy 2M-case fuzz runs on Linux CI.
-- **Fixed two CI-only failures masked locally:** `CloseEvent` is not a global on Linux node22 (test-mock fallback added),
-  and **arch P1-3 closed** — `mea.n_samples` now anchors trace width across all **4 contract validators** (was self-
-  referenced from `traces[0]`, silently accepted a row-length mismatch at channelCount=1). `n_samples` is optional-but-
-  strict; golden + property fixtures declare it. Watch-item: CI actions still on Node 20 (GitHub forces Node 24 ~2026-06-16).
 - **MODE: HANDS-ON** (since 2026-06-12) — Claude does build/git/test directly in Claude Code; the delegate-packages-
   to-external-chats experiment ended. Overrides §1. See memory [[coordinator-delegation]].
 - **Waves done:** 0 (foundation + executable contract + DSP bit-exact parity), 1 (hardening + FastAPI backend +
@@ -128,17 +124,28 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
   **wetware screenshot**), security audit v2, **MEA-method perf** (`electrode_connectivity` ~70× faster, ground-truth
   holds), fuzz-until-dry (8 new targets), arch/prod critique. Plus **🔴 P0 `/api/explain` (V2-01) CLOSED** — auth token
   + rate-limit + official-host default + CORS allowlist.
-- **Wave-5 (ship) DONE:** mkdocs docs-site, `examples/quickstart_mea.py` (public register→run on the golden), docker-
-  compose (static + FastAPI backend, profiles 🅰 hosted / 🅱 workbench) — **addresses arch P0-1** (backend was
-  undeployable). Caveat: docker images validated by `compose config` only; real `docker build` not yet run (no local
-  daemon → verify on CI/at deploy).
+- **Wave-5 (ship) DONE:** mkdocs docs-site, `examples/quickstart_mea.py`, docker-compose (static + FastAPI backend).
+  **Docker images verified building AND running** (`POST /demo/seed-mea -> 201` locally). Fixed en route: backend
+  workspace-deps undeclared in pyproject, `native-startup` excluded by `.dockerignore`, `uv run` re-syncing dev at
+  startup, uvicorn hardcoding port instead of `$PORT`.
 
-### ▶ IMMEDIATE NEXT ACTION — the last, OUTWARD step: **Railway deploy**, only on the user's explicit go.
-Decide scope first (arch-review `docs/ARCH-REVIEW.md` frames this as THE fork):
-- 🅰 **hosted multi-user platform** — deploy static + FastAPI; then owe sandbox for third-party code (arch P1-4),
-  persistent storage (P1-2), real auth/rate-limit on FastAPI. Big track, but it's the positioning promise.
-- 🅱 **workbench + public demo** — ship static demo + docs-site + pip SDK; backend stays dev-only. Fast handoff;
-  the wetware screenshot already exists. (Coordinator recommendation: 🅱 now, 🅰 as a flagged "next".)
-Also before deploy: run a real `docker build` to confirm the images actually build.
+### ▶ DEPLOYED — scope 🅰 hosted platform is LIVE on Railway (project `SpeedMouse`, env `production`):
+- **static** (demo + viewer): **https://neuromouse.up.railway.app** — root `Dockerfile`, `server.mjs`.
+- **backend** (FastAPI): **https://backend-production-c7a1.up.railway.app** — `Dockerfile.backend` selected via env var
+  **`RAILWAY_DOCKERFILE_PATH=Dockerfile.backend`** (the `environment edit --service-config` path did NOT persist in the
+  non-TTY shell — use the env var). Listens on `$PORT`. `/openapi.json` 200, `/demo/seed-mea` 201. Persistent **volume**
+  `/data` for SQLite (`NEUROMOUSE_BACKEND_DB`). `EXPLAIN_TOKEN` is set on backend, but **`/api/explain` lives on STATIC** —
+  it's a safe 503 there until `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` are set on the `speedmouse` service.
+- Railway auth is **interactive-only** (no TTY in the agent shell): the user runs `railway login` once in their terminal,
+  then the agent deploys with `railway up --service <svc> --detach`. CI-fixes also landed: `CloseEvent` node22 mock
+  fallback; **arch P1-3 closed** (`mea.n_samples` anchors trace width across all 4 validators, optional-but-strict).
+  Watch: CI actions on Node 20 (GitHub forces Node 24 ~2026-06-16).
 
-Target: ~5 waves to a serious, demo-able handoff. **We're essentially there** — only the outward deploy remains.
+### ▶ IMMEDIATE NEXT ACTION — finish the hosted experience + harden for open code:
+1. **Wire frontend → prod backend** — point static's `js/backend-client.js` at the backend domain (env/config) so the
+   live UI calls the real FastAPI. Currently the demo is self-contained; backend is a separate live API.
+2. **P1 hardening (before accepting third-party code publicly):** sandbox method/sorter execution (P1-4), async/queue
+   instead of sync-in-event-loop (P1-1), auth/rate-limit/CORS on FastAPI. Current state = **preview-grade** (built-in
+   demo methods, controlled). See `docs/ARCH-REVIEW.md` + `audit/REPORT-v2.md`.
+
+Target reached: a serious, demo-able, **deployed** handoff. Now hardening toward an open multi-user platform.

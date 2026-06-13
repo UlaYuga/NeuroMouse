@@ -23,7 +23,7 @@
 
 ## 2. Текущее состояние (что есть прямо сейчас)
 
-- **`main = 29a349f`**, на GitHub (`github.com/UlaYuga/NeuroMouse`), **полностью зелёный** — и локально, и на **Linux CI** (две матрицы: Python 3.11 и 3.12, Node 22).
+- **`main = ceeb1c3`**, на GitHub (`github.com/UlaYuga/NeuroMouse`), **полностью зелёный** — и локально, и на **Linux CI** (две матрицы: Python 3.11 и 3.12, Node 22).
 - Метрики зелёного гейта:
   - `pytest` — **119 passed, 2 skipped**
   - `node --test` — **39/39**
@@ -33,6 +33,13 @@
   - **`spike_detect` 57/57** на golden-датасете MEA
   - **`dsp.py` неизменён** — bit-exact парность 1e-13 цела на всём протяжении
 - **Режим работы сейчас: hands-on** — ассистент делает build/git/test сам внутри Claude Code (раньше был эксперимент с раздачей задач по внешним чатам — свёрнут).
+- **🚀 ЗАДЕПЛОЕНО на Railway (scope 🅰 хостед-платформа), LIVE:**
+  - static (демо + viewer): **https://neuromouse.up.railway.app**
+  - backend (FastAPI): **https://backend-production-c7a1.up.railway.app** (`/openapi.json` → 200, `POST /demo/seed-mea` → 201, 1024 канала)
+  - persistent **volume** `/data` под SQLite; проект Railway `SpeedMouse`, env `production`.
+  - Backend собирается из `Dockerfile.backend` через env-переменную `RAILWAY_DOCKERFILE_PATH` (важно: `environment edit --service-config` в non-TTY shell **не сохраняется** — используй env-переменную), uvicorn слушает `$PORT`.
+  - `/api/explain` живёт на **static** и пока выключен (safe 503) — для включения задать `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на сервисе `speedmouse`.
+  - Это **preview-grade** (встроенные демо-методы, контролируемо). Для открытого приёма чужого кода — трек P1: sandbox (P1-4), async (P1-1), auth/rate-limit на FastAPI.
 
 ---
 
