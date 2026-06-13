@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -115,6 +118,14 @@ class MethodExecutionError(ValueError):
 
 
 @dataclass(frozen=True)
+class _QueuedJob:
+    job_id: str
+    session_id: str
+    method_id: str
+    params: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class MethodCatalog:
     methods: dict[str, Method[Any]]
 
@@ -199,6 +210,82 @@ def create_app(
     @app.get("/readyz")
     async def readiness_alt() -> dict[str, str]:
         return {"status": "ok"}
+
+    job_queue: asyncio.Queue[_QueuedJob] = asyncio.Queue()
+    watchers: dict[str, set[asyncio.Queue[None]]] = defaultdict(set)
+    workers: list[asyncio.Task[None]] = []
+    worker_bootstrap = asyncio.Lock()
+
+    def _broadcast_job_update(event: dict[str, Any]) -> None:
+        for queue in list(watchers.get(event["job_id"], set())):
+            queue.put_nowait(None)
+
+    async def _execute_job(queued_job: _QueuedJob) -> None:
+        try:
+            session = backend_store.get_session(queued_job.session_id)
+            if session is None:
+                failed = backend_store.append_job_event(
+                    queued_job.job_id,
+                    status="failed",
+                    error="Session not found",
+                )
+                _broadcast_job_update(failed.events[-1])
+                return
+
+            running = backend_store.append_job_event(queued_job.job_id, status="running")
+            _broadcast_job_update(running.events[-1])
+
+            result = await asyncio.to_thread(
+                methods.run,
+                queued_job.method_id,
+                session.dataset,
+                params=queued_job.params,
+            )
+            completed = backend_store.append_job_event(
+                queued_job.job_id,
+                status="completed",
+                result=jsonable_encoder(result),
+            )
+            _broadcast_job_update(completed.events[-1])
+        except MethodExecutionError as exc:
+            failed = backend_store.append_job_event(
+                queued_job.job_id,
+                status="failed",
+                error=str(exc),
+            )
+            _broadcast_job_update(failed.events[-1])
+        except Exception as exc:  # pragma: no cover - defensive boundary for future methods
+            failed = backend_store.append_job_event(
+                queued_job.job_id,
+                status="failed",
+                error=str(exc),
+            )
+            _broadcast_job_update(failed.events[-1])
+
+    async def _job_worker_loop() -> None:
+        while True:
+            queued_job = await job_queue.get()
+            try:
+                await _execute_job(queued_job)
+            finally:
+                job_queue.task_done()
+
+    async def _start_workers() -> None:
+        async with worker_bootstrap:
+            if workers:
+                return
+            workers.append(asyncio.create_task(_job_worker_loop()))
+
+    async def _stop_workers() -> None:
+        for task in workers:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+        workers.clear()
+        watchers.clear()
+
+    app.add_event_handler("startup", _start_workers)
+    app.add_event_handler("shutdown", _stop_workers)
 
     @app.post(
         "/sessions",
@@ -309,17 +396,15 @@ def create_app(
             method_id=request.method_id,
             params=request.params,
         )
-        backend_store.append_job_event(job.id, status="running")
-        try:
-            result = jsonable_encoder(
-                methods.run(request.method_id, session.dataset, params=request.params)
-            )
-        except MethodExecutionError as exc:
-            job = backend_store.append_job_event(job.id, status="failed", error=str(exc))
-        except Exception as exc:  # pragma: no cover - defensive boundary for future methods
-            job = backend_store.append_job_event(job.id, status="failed", error=str(exc))
-        else:
-            job = backend_store.append_job_event(job.id, status="completed", result=result)
+        await _start_workers()
+        await job_queue.put(
+            _QueuedJob(
+                job_id=job.id,
+                session_id=session.id,
+                method_id=request.method_id,
+                params=request.params,
+            ),
+        )
         return _job_response(job, methods=methods)
 
     @app.get("/jobs/{job_id}", response_model=JobResponse)
@@ -349,9 +434,29 @@ def create_app(
             await websocket.send_json({"status": "not_found", "error": "Job not found"})
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        for event in job.events:
-            await websocket.send_json(event)
-        await websocket.close()
+        queue: asyncio.Queue[None] = asyncio.Queue()
+        watchers[job_id].add(queue)
+        try:
+            sent = 0
+            while True:
+                current = backend_store.get_job(job_id)
+                if current is None:
+                    return
+                if len(current.events) > sent:
+                    for event in current.events[sent:]:
+                        await websocket.send_json(event)
+                        sent += 1
+                    if current.status in {"completed", "failed"}:
+                        return
+                await queue.get()
+        except WebSocketDisconnect:
+            return
+        finally:
+            active = watchers.get(job_id)
+            if active is not None:
+                active.discard(queue)
+                if not active:
+                    watchers.pop(job_id, None)
 
     @app.get(
         "/ws/live",

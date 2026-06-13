@@ -11,3 +11,6 @@ __pycache__/
 
 # MkDocs build output
 /site/
+
+# backend runtime DB
+*.sqlite3

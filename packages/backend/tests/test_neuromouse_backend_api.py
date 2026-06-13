@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import time
 import json
 from pathlib import Path
 from typing import Any, Final
@@ -8,8 +10,10 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from neuromouse_backend.app import create_app
+from neuromouse_backend.app import MethodCatalog, create_app
 from neuromouse_backend.storage import SQLiteBackendStore
+from neuromouse_sdk import Method
+from neuromouse_sdk.examples.band_power_summary import BandPowerParams, band_power_summary
 
 ROOT = Path(__file__).resolve().parents[3]
 GOLDEN_PATH = ROOT / "datasets" / "golden" / "data.json"
@@ -60,6 +64,70 @@ def minimal_dataset(channel_count: int = 2) -> dict[str, Any]:
             for channel in channels
         ],
     }
+
+
+class SlowBandPowerMethod(Method[Any]):
+    name = "band_power_summary"
+    version = "0.0.0"
+    params_type = BandPowerParams
+    required_inputs = band_power_summary.required_inputs
+    output = band_power_summary.output
+
+    def __init__(self, delay_seconds: float) -> None:
+        self.delay_seconds = delay_seconds
+
+    def compute(self, dataset: Any, params: BandPowerParams) -> dict[str, Any]:
+        time.sleep(self.delay_seconds)
+        return band_power_summary.compute(dataset, params)
+
+
+def _slow_job_app(tmp_path: Path, delay_seconds: float = 0.4):
+    return create_app(
+        store=SQLiteBackendStore(tmp_path / "backend.sqlite3"),
+        method_catalog=MethodCatalog(methods={"band_power_summary": SlowBandPowerMethod(delay_seconds)}),
+    )
+
+
+async def _wait_job_done(
+    client: httpx.AsyncClient,
+    job_id: str,
+    *,
+    timeout: float = 5.0,
+    poll_interval: float = 0.01,
+) -> dict[str, Any]:
+    deadline = time.perf_counter() + timeout
+    while True:
+        response = await client.get(f"/jobs/{job_id}")
+        assert response.status_code == 200
+        job = response.json()
+        if job["status"] in {"completed", "failed"}:
+            return job
+        if job["status"] not in {"queued", "running"}:
+            raise AssertionError(f"unexpected status {job['status']}")
+        if time.perf_counter() >= deadline:
+            raise AssertionError(f"job {job_id} did not complete in {timeout} seconds")
+        await asyncio.sleep(poll_interval)
+
+
+def _wait_job_done_sync(
+    client: TestClient,
+    job_id: str,
+    *,
+    timeout: float = 5.0,
+    poll_interval: float = 0.01,
+) -> dict[str, Any]:
+    deadline = time.perf_counter() + timeout
+    while True:
+        response = client.get(f"/jobs/{job_id}")
+        assert response.status_code == 200
+        job = response.json()
+        if job["status"] in {"completed", "failed"}:
+            return job
+        if job["status"] not in {"queued", "running"}:
+            raise AssertionError(f"unexpected status {job['status']}")
+        if time.perf_counter() >= deadline:
+            raise AssertionError(f"job {job_id} did not complete in {timeout} seconds")
+        time.sleep(poll_interval)
 
 
 @pytest.fixture
@@ -249,6 +317,8 @@ async def test_rest_happy_path_creates_session_runs_job_and_returns_result(app) 
         )
         assert job_response.status_code == 201
         job = job_response.json()
+        assert job["status"] == "queued"
+        job = await _wait_job_done(client, job["id"])
         assert job["status"] == "completed"
         assert job["dataset_version"] == 1
         assert job["params"] == {"min_hz": 8.0, "max_hz": 12.0}
@@ -344,6 +414,8 @@ async def test_demo_seed_creates_runnable_session_from_golden_dataset(app) -> No
         )
         assert job_response.status_code == 201
         job = job_response.json()
+        assert job["status"] == "queued"
+        job = await _wait_job_done(client, job["id"])
         assert job["status"] == "completed"
         assert job["result"]["panel"] == {
             "id": "band_power_summary",
@@ -360,7 +432,8 @@ async def test_demo_seed_creates_runnable_session_from_golden_dataset(app) -> No
         assert get_job_response.json()["result"] == job["result"]
 
 
-def test_job_and_live_websockets_stream_progress_and_echo(app) -> None:
+def test_job_and_live_websockets_stream_progress_and_echo(tmp_path) -> None:
+    app = _slow_job_app(tmp_path, delay_seconds=0.4)
     with TestClient(app, headers=AUTH_HEADERS) as client:
         session_response = client.post(
             "/sessions",
@@ -369,8 +442,10 @@ def test_job_and_live_websockets_stream_progress_and_echo(app) -> None:
         session_id = session_response.json()["id"]
         job_response = client.post(
             f"/sessions/{session_id}/jobs",
-            json={"method_id": "band_power_summary"},
+            json={"method_id": "band_power_summary", "params": {"min_hz": 8.0, "max_hz": 12.0}},
         )
+        assert job_response.status_code == 201
+        assert job_response.json()["status"] == "queued"
         job_id = job_response.json()["id"]
 
         with client.websocket_connect(
@@ -387,6 +462,73 @@ def test_job_and_live_websockets_stream_progress_and_echo(app) -> None:
             assert websocket.receive_json() == {"kind": "ping", "samples": [1, 2, 3]}
 
 
+@pytest.mark.asyncio
+async def test_async_jobs_are_non_blocking(tmp_path) -> None:
+    app = _slow_job_app(tmp_path, delay_seconds=1.0)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        session_response = await client.post(
+            "/sessions",
+            json={"name": "concurrent", "dataset": minimal_dataset()},
+        )
+        assert session_response.status_code == 201
+        session_id = session_response.json()["id"]
+
+        slow_job_task = asyncio.create_task(
+            client.post(
+                f"/sessions/{session_id}/jobs",
+                json={"method_id": "band_power_summary", "params": {"min_hz": 8.0, "max_hz": 12.0}},
+            )
+        )
+        methods_response = await asyncio.wait_for(client.get("/methods"), timeout=0.2)
+        assert methods_response.status_code == 200
+
+        slow_job_response = await asyncio.wait_for(slow_job_task, timeout=1.0)
+        assert slow_job_response.status_code == 201
+        slow_job = slow_job_response.json()
+        assert slow_job["status"] == "queued"
+
+        final_job = await _wait_job_done(client, slow_job["id"], timeout=3.0)
+        assert final_job["status"] == "completed"
+        assert final_job["result"]["output"]["band_power_summary"]["mean_power"] == pytest.approx(0.8)
+
+
+@pytest.mark.asyncio
+async def test_job_lifecycle_states_are_queued_running_and_completed(tmp_path) -> None:
+    app = _slow_job_app(tmp_path, delay_seconds=0.4)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        session_response = await client.post(
+            "/sessions",
+            json={"name": "lifecycle", "dataset": minimal_dataset()},
+        )
+        assert session_response.status_code == 201
+        session_id = session_response.json()["id"]
+
+        job_response = await client.post(
+            f"/sessions/{session_id}/jobs",
+            json={"method_id": "band_power_summary", "params": {"min_hz": 8.0, "max_hz": 12.0}},
+        )
+        assert job_response.status_code == 201
+        job_id = job_response.json()["id"]
+
+        seen_statuses = []
+        deadline = time.perf_counter() + 3.0
+        while time.perf_counter() < deadline:
+            response = await client.get(f"/jobs/{job_id}")
+            assert response.status_code == 200
+            status = response.json()["status"]
+            if not seen_statuses or seen_statuses[-1] != status:
+                seen_statuses.append(status)
+            if status == "completed":
+                break
+            await asyncio.sleep(0.01)
+
+        assert seen_statuses == ["queued", "running", "completed"]
 @pytest.mark.asyncio
 async def test_invalid_dataset_returns_422_with_clear_contract_error(app) -> None:
     dataset = minimal_dataset()
@@ -425,6 +567,8 @@ def test_job_lifecycle_persists_across_sqlite_store_reopen(tmp_path, monkeypatch
         )
         assert job_response.status_code == 201
         job = job_response.json()
+        assert job["status"] == "queued"
+        job = _wait_job_done_sync(client, job["id"])
         assert job["status"] == "completed"
 
     store.close()
@@ -438,7 +582,7 @@ def test_job_lifecycle_persists_across_sqlite_store_reopen(tmp_path, monkeypatch
 
         job_after_restart = client.get(f"/jobs/{job['id']}")
         assert job_after_restart.status_code == 200
-        assert job_after_restart.json() == job
+        assert job_after_restart.json() == _wait_job_done_sync(client, job["id"])
 
         with client.websocket_connect(f"/ws/jobs/{job['id']}", headers=AUTH_HEADERS) as websocket:
             events = [websocket.receive_json() for _ in range(3)]
@@ -529,7 +673,7 @@ async def test_spike_detect_on_mea_seed_returns_57_spikes(app) -> None:
             json={"method_id": "spike_detect"},
         )
         assert job_response.status_code == 201
-        job = job_response.json()
+        job = await _wait_job_done(client, job_response.json()["id"])
         assert job["status"] == "completed", job.get("error")
         summary = job["result"]["output"]["spike_detect"]["summary"]
         assert summary["total_spikes"] == 53
