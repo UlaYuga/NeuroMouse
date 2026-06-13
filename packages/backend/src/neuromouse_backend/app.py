@@ -15,7 +15,12 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from neuromouse_backend.storage import BackendStore, JobRecord, SessionRecord, SQLiteBackendStore
+from neuromouse_backend.storage import (
+    BackendStore,
+    JobRecord,
+    SessionRecord,
+    create_backend_store,
+)
 from neuromouse_backend.security import install_security_middlewares
 from neuromouse_contract import DatasetValidationError, validate_dataset
 from neuromouse_sdk import Method, build_params
@@ -186,7 +191,7 @@ def create_app(
     store: BackendStore | None = None,
     method_catalog: MethodCatalog | None = None,
 ) -> FastAPI:
-    backend_store = store or SQLiteBackendStore()
+    backend_store = store or create_backend_store()
     methods = method_catalog or create_default_method_catalog()
     app = FastAPI(
         title="NeuroMouse Backend",
