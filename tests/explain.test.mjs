@@ -216,14 +216,17 @@ test("POST /api/explain is disabled when EXPLAIN_TOKEN is unset", async () => {
 });
 
 test("POST /api/explain blocks non-official API hosts unless explicitly allowed", async () => {
-  await withExplainServer({ explainToken: "expected-secret" }, async ({ port, mockApi }) => {
+  await withExplainServer({
+    explainToken: "expected-secret",
+    apiUrl: "http://localhost/v1/messages",
+  }, async ({ port, mockApi }) => {
     const response = await postExplain(port, "expected-secret", {
       context: { score: 12 },
       question: "What does this mean?",
     });
 
-    assert.equal(response.status, 502);
-    assert.equal(response.body.error, "Explanation service failed. Check server logs.");
+    assert.equal(response.status, 403);
+    assert.equal(response.body.error, "Refusing non-official explain API host without explicit opt-in.");
     assert.equal(mockApi.getRequestCount(), 0);
   });
 });
