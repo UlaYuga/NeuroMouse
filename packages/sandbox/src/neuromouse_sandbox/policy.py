@@ -113,6 +113,9 @@ _DENIED_EXACT = frozenset(
         "smtplib.connect",
         "socket.getaddrinfo",
         "winreg.OpenKey",
+        # Prevent a method from walking back into trusted worker frames.
+        "sys._getframe",
+        "sys._getframemodulename",
         # Changing directory would desync the kernel's live cwd from the cached
         # cwd this policy uses to resolve relative paths — a method could then
         # read a sensitive file through a relative name. Methods never need it.

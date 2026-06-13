@@ -33,6 +33,7 @@ from neuromouse_sandbox.contract import (
     ResponseEnvelope,
     SandboxLimits,
 )
+from neuromouse_sandbox.kernel import kernel_env_for_child
 from neuromouse_sandbox.policy import apply_resource_limits
 
 
@@ -268,7 +269,7 @@ def _clean_env(workdir: str) -> dict[str, str]:
     the worker and the NeuroMouse packages."""
 
     pythonpath = _child_pythonpath()
-    return {
+    env = {
         "PATH": "/usr/bin:/bin",
         "HOME": workdir,
         "TMPDIR": workdir,
@@ -288,6 +289,8 @@ def _clean_env(workdir: str) -> dict[str, str]:
         "LC_ALL": "C.UTF-8",
         "LANG": "C.UTF-8",
     }
+    env.update(kernel_env_for_child())
+    return env
 
 
 def _kill_group(proc: subprocess.Popen[bytes]) -> None:

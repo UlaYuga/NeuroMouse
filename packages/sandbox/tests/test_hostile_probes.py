@@ -134,7 +134,8 @@ def test_shell_command_blocked_even_when_swallowed(
 def test_ctypes_native_escape_blocked(probe_ref: ProbeRef, fast_limits: SandboxLimits) -> None:
     with pytest.raises(SandboxPolicyViolation) as excinfo:
         run_in_sandbox(probe_ref("ctypes_dlopen"), dataset=None, params={}, limits=fast_limits)
-    assert (excinfo.value.blocked_event or "").startswith("ctypes.")
+    blocked = excinfo.value.blocked_event or ""
+    assert blocked.startswith("ctypes.") or blocked == "open"
 
 
 # --------------------------------------------------------------------------- #

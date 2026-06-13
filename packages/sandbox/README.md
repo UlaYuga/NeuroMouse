@@ -43,8 +43,34 @@ into a failed job — the API process is never affected.
 | `RLIMIT_NPROC` | per-user process ceiling | fork bombs (bounds concurrent processes) |
 | `RLIMIT_FSIZE` / `RLIMIT_CORE` | file-size cap, no core dumps | disk write amplification |
 | Scrubbed env | minimal `PATH`, `HOME`/`TMPDIR` → work dir, no inherited vars, single-threaded BLAS | secret/token exfiltration via env |
+| `no_new_privs` + non-dumpable | Linux `prctl(PR_SET_NO_NEW_PRIVS)` and `PR_SET_DUMPABLE=0` | privilege gain via exec, same-UID ptrace/proc inspection by sibling processes |
+| Seccomp-bpf | Linux `libseccomp` deny rules before untrusted import | raw syscall network egress, process/exec, namespace entry, mount/chroot, ptrace, `bpf`, `perf_event_open`, module/kexec/keyring/io_uring surfaces |
+| Landlock | Linux path rules before untrusted import: read allow-list + workdir write-only area | raw `openat`/`os.open` bypasses against `/proc`, secrets, and host paths outside the method/package allow-list |
 | `sys.addaudithook` policy | irrevocable audit hook installed before untrusted import | network, filesystem escape, process spawn, `ctypes` |
 | Work-dir split | response/request files live outside the child's only writable dir | result-envelope forgery |
+
+### Linux kernel policy
+
+The kernel layer is controlled by `NEUROMOUSE_SANDBOX_KERNEL`:
+
+- `auto` (default): enable seccomp/Landlock on Linux when available; no-op on macOS
+  and other dev platforms.
+- `required`: fail the method closed if the Linux kernel layer cannot be installed.
+  `Dockerfile.backend` sets this for hosted deployment and installs `libseccomp2`.
+- `off`: keep only the portable subprocess/audit-hook/rlimit policy.
+
+The worker installs seccomp before untrusted import and denies syscall families that
+do not belong in method code: networking, process creation/exec, namespace creation
+or entry, mount/chroot/pivot-root, ptrace/cross-process memory, kernel-module/kexec,
+keyring, `bpf`, `perf_event_open`, `userfaultfd`, and `io_uring`.
+
+Landlock is installed in the same trusted phase. It allows reads only under the
+Python/runtime/package/method directories already used by the audit-hook read
+allow-list, and allows writes only under the per-run work dir. This is the kernel
+path layer for raw `openat("/proc/self/environ")` and similar tricks that do not
+emit Python audit events. Landlock is not a mount namespace and does not hide the
+existence of the broader filesystem; it denies access when the worker tries to open
+or mutate paths outside the ruleset.
 
 ### Audit-hook policy (denied)
 
@@ -72,17 +98,31 @@ grown adversarially. Two consecutive rounds with **no** successful escape ended 
 | 4 | **`os.chdir` + relative `open`** | **leaked `/etc/passwd`** | deny `os.chdir`/`os.fchdir` |
 | 5 | thread bomb, self-rlimit-raise then OOM, local `socketpair` | none | — |
 | 6 | full regression of all probes | none | — |
+| 7 | raw Linux syscalls for `socket`, `ptrace`, `unshare`; raw `openat("/proc/self/environ")` | **missing kernel layer** | add seccomp-bpf deny-list and Landlock path confinement; backend image sets `NEUROMOUSE_SANDBOX_KERNEL=required` |
+| 8 | Linux full sandbox regression under required kernel mode, including `spike_detect` 57/57 | none | — |
+| 9 | repeated Linux full sandbox regression under required kernel mode | none | — |
 
 ## Residual risks (documented, accepted for this layer)
 
-- **No kernel-level sandbox.** This is a defense-in-depth Python-level boundary
-  (audit hook + rlimits + subprocess), not a container/seccomp/namespace jail. For
-  hard multi-tenant isolation, run the worker inside a container or gVisor as a
-  further layer.
+- **Not a complete kernel jail.** The hosted worker now has seccomp-bpf and
+  Landlock, but it does not create new PID/mount/user/network namespaces. The
+  backend container/runtime remains the outer isolation boundary.
+- **Kernel feature dependency.** `required` mode needs Linux with libseccomp and
+  Landlock support. If either cannot be installed, the worker fails closed. macOS
+  development keeps using the Python audit-hook/rlimit/watchdog fallback.
+- **Seccomp is a syscall-family deny-list, not a full allow-list.** It blocks the
+  high-risk escape families listed above while preserving enough of CPython for
+  legitimate scientific methods. Unknown future syscalls should be reviewed before
+  treating this as a hard multi-tenant boundary.
+- **Landlock is path-based, not a hidden filesystem view.** It prevents opens and
+  mutations outside the allow-list, including raw `/proc` opens, but it does not
+  make `/proc` or other mounts disappear. Some local Docker bind mounts behave
+  differently from the hosted image `COPY` layout; hosted proof should run from
+  container-owned files.
 - **Symlinks are not dereferenced** in path checks (we avoid `realpath` to keep the
-  hook non-recursive). Creating a symlink that escapes is blocked (the target path
-  is checked), but a pre-existing symlink inside an allow-listed dir pointing
-  outside it could be followed. Low value given reads are already allow-listed.
+  hook non-recursive). Creating a symlink that escapes is blocked by the Python
+  policy, and Landlock denies kernel opens outside allowed trees on Linux; on
+  non-Linux fallback, pre-existing symlink edge cases remain lower-confidence.
 - **`RLIMIT_CPU` / `RLIMIT_AS` are unreliable on macOS.** The wall-clock and RSS
   watchdogs are the cross-platform backstops; Linux CI additionally enforces both
   rlimits.

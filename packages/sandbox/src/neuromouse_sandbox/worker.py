@@ -32,6 +32,12 @@ from neuromouse_sandbox.contract import (
     RequestEnvelope,
     ResponseEnvelope,
 )
+from neuromouse_sandbox.kernel import (
+    KernelIsolationError,
+    apply_kernel_filesystem_policy,
+    apply_kernel_isolation,
+    kernel_mode_from_env,
+)
 from neuromouse_sandbox.policy import PolicyViolation, install_runtime_policy
 
 
@@ -67,7 +73,19 @@ def main(argv: list[str]) -> int:
         return 0
 
     # --- lock down, then enter untrusted territory --------------------------
-    _install_policy(request.method)
+    try:
+        kernel_mode = kernel_mode_from_env()
+        apply_kernel_isolation(mode=kernel_mode, phase="loader")
+        read_prefixes = _read_prefixes(request.method, os.getcwd())
+        apply_kernel_filesystem_policy(
+            mode=kernel_mode,
+            read_allow_prefixes=read_prefixes,
+            write_allow_prefixes=(os.getcwd(),),
+        )
+    except KernelIsolationError as exc:
+        return _emit(_kernel_error(exc, "kernel.isolation.loader"))
+
+    _install_policy(workdir=os.getcwd(), read_prefixes=read_prefixes)
 
     try:
         module = _load_module(request.method)
@@ -121,15 +139,26 @@ def main(argv: list[str]) -> int:
     return _emit(ResponseEnvelope(status=STATUS_OK, result=result))
 
 
-def _install_policy(ref: MethodRef) -> None:
-    workdir = os.getcwd()
+def _kernel_error(exc: KernelIsolationError, event: str) -> ResponseEnvelope:
+    return ResponseEnvelope(
+        status=STATUS_POLICY_VIOLATION,
+        error_message=f"kernel isolation unavailable: {exc}",
+        blocked_event=event,
+    )
+
+
+def _read_prefixes(ref: MethodRef, workdir: str) -> tuple[str, ...]:
     read_prefixes: list[str] = [sys.base_prefix, sys.prefix, sys.exec_prefix, workdir]
     read_prefixes.extend(p for p in sys.path if p and os.path.isdir(p))
     if ref.kind == "file" and ref.path:
         read_prefixes.append(os.path.dirname(os.path.abspath(ref.path)))
+    return tuple(dict.fromkeys(read_prefixes))
+
+
+def _install_policy(*, workdir: str, read_prefixes: tuple[str, ...]) -> None:
     install_runtime_policy(
         workdir=workdir,
-        read_allow_prefixes=tuple(dict.fromkeys(read_prefixes)),
+        read_allow_prefixes=read_prefixes,
         write_allow_prefixes=(),
     )
 
