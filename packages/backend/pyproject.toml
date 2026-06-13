@@ -12,6 +12,7 @@ dependencies = [
     "uvicorn>=0.34.0",
     "neuromouse-contract",
     "neuromouse-core",
+    "neuromouse-sandbox",
     "neuromouse-sdk",
 ]
 
