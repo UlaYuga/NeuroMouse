@@ -651,6 +651,110 @@ input[type="number"]:focus-visible {
   font-weight: 600;
 }
 
+.backend-auth-panel {
+  display: grid;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+  padding: var(--s3) var(--s4) 0;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.backend-auth-mode,
+.backend-auth-user {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backend-auth-mode {
+  color: var(--accent-amber);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.backend-auth-forms {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+}
+
+.backend-auth-forms h3 {
+  margin-bottom: 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.backend-auth-forms form {
+  display: grid;
+  gap: var(--s2);
+}
+
+.backend-auth-field {
+  display: grid;
+  gap: 4px;
+}
+
+.backend-auth-field label {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.backend-auth-field input {
+  width: 100%;
+  min-height: 33px;
+}
+
+.backend-auth-actions {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.backend-auth-actions .is-danger {
+  background: rgba(255, 22, 39, 0.13);
+  border-color: rgba(255, 22, 39, 0.45);
+  color: #ff7982;
+}
+
+.backend-auth-actions .is-danger:hover {
+  background: rgba(255, 22, 39, 0.2);
+}
+
+.backend-private-session-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.backend-private-session-title {
+  color: var(--accent-amber);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.backend-private-session-item {
+  border-left: 2px solid var(--border-accent);
+  padding-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backend-method-controls {
+  margin: var(--s3) 0;
+  padding: 0 var(--s4) var(--s4);
+}
+
 .primary-action {
   border-color: rgba(0, 212, 160, 0.46);
   background:
