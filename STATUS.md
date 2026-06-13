@@ -1,7 +1,7 @@
 # NeuroMouse — статус проекта и хэндофф
 
 > Подробный обзор: что это за проект, что уже сделано, что осталось, к какому результату идём.
-> Дата среза: **2026-06-12**. Текущий `main` = **`29a349f`**, зелёный локально и на Linux CI.
+> Дата среза: **2026-06-13**. Текущий `main` = **`82f5ecc`**, зелёный на Linux CI и **задеплоен** (scope 🅰, мульти-юзер, LIVE).
 > Связанные документы: операционный мануал — [`COORDINATOR.md`](COORDINATOR.md); архитектурная критика — [`docs/ARCH-REVIEW.md`](docs/ARCH-REVIEW.md); аудиты — [`audit/`](audit/); позиционирование — [`docs/POSITIONING.md`](docs/POSITIONING.md).
 
 ---
@@ -25,19 +25,20 @@
 
 - **`main` на GitHub** (`github.com/UlaYuga/NeuroMouse`), **полностью зелёный** — локально и на **Linux CI** (Python 3.11/3.12, Node 22; экшены опт-ин на Node 24).
 - Метрики зелёного гейта:
-  - `pytest` — **177 passed** (postgres-тесты skip без локального DSN)
-  - `node --test` — **39/39** + js-auth **7 pass / 1 skip**; sandbox — **41**
+  - `pytest` — **188 собрано** (postgres-тесты skip на маке без DSN; на CI их прогоняет сервис `postgres:16` — Волна 8)
+  - `node --test` — **39/39** + js-auth **7 pass / 1 skip**; sandbox — **46**
   - `sdk-ts` тесты — **22/22**; `mkdocs build --strict` — чисто
   - 2M-кейсовый deep-fuzz на CI зелёный
   - **`spike_detect` 57/57**; **`dsp.py` 1e-13 цел** на всём протяжении
 - **Режим работы: hands-on** — ассистент делает build/git/test сам внутри Claude Code.
 - **🚀 ЗАДЕПЛОЕНО на Railway — настоящая МУЛЬТИ-ЮЗЕР платформа (scope 🅰), LIVE:**
-  - static (login UI + демо + viewer): **https://neuromouse.up.railway.app**
+  - static (login UI + демо + viewer, **same-origin API-proxy → cookie логина first-party**): **https://neuromouse.up.railway.app**
   - backend (FastAPI, per-user auth): **https://backend-production-c7a1.up.railway.app**
   - **Pentest-verified вживую:** `/sessions` без auth → 401; cross-user IDOR → 404 (изолировано, нет утечки в списке); невалидный токен → 401; `/demo/seed-mea` (public) → 201; `/auth/register` → 201.
+  - **Login-flow проверен вживую через прод-домен:** register 201 → login 200 → cookie установлен first-party → `/sessions` с cookie 200, без cookie 401.
   - persistent **volume** `/data` (SQLite + users/auth_sessions); собирается из `Dockerfile.backend` через `RAILWAY_DOCKERFILE_PATH` (`environment edit --service-config` в non-TTY shell **не сохраняется** — env-переменная); uvicorn слушает `$PORT`.
-  - **Что сделано к этому (Волны 6-7):** API auth + rate-limit + CORS, async-очередь джобов + live WS, **sandbox для чужого кода (P1-4)**, Postgres-backend (sqlite default), **per-user auth + ownership** (register/login, `owner_id` на ресурсах, изоляция), **public demo lane** (демо без логина), login frontend. pentest-High (публичные сессии) закрыт.
-  - `/api/explain` на static — пока safe 503 (включить: `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на `speedmouse`).
+  - **Что сделано к этому (Волны 6-8):** API auth + rate-limit + CORS, async-очередь джобов + live WS, **sandbox для чужого кода (P1-4) + kernel-слой Linux (seccomp+Landlock)**, Postgres-backend (sqlite default, **CI-проверен на pg**), **per-user auth + ownership** (register/login, `owner_id` на ресурсах, изоляция), **public demo lane** (демо без логина), login frontend, **same-origin proxy** (cross-domain cookie закрыт). pentest-High (публичные сессии) закрыт.
+  - `/api/explain` на static — пока safe 503; enabled-path покрыт тестами (Волна 8), включить: `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на `speedmouse`.
 
 ---
 
@@ -53,6 +54,9 @@
 | **3 — Wetware / MEA** | **HD-MEA адаптер**; шаблоны MEA-методов (`spike_detect`, `network_burst`, `electrode_connectivity`); шов **«принеси свой спайк-сортер»** (`packages/sorting`); манифест воспроизводимости; MEA-доки; контракт сырых MEA-трейсов |
 | **4 — Глубокая (этот чат)** | MEA-демо бэкенд (`POST /demo/seed-mea` + 3 метода) + фронтенд (seed→spike_detect→панель + **скриншот wetware**); **adversarial security audit v2**; **perf**: `electrode_connectivity` ускорен **~70×** (13.9с → 0.2с) при сохранении ground-truth; fuzz-until-dry (8 новых таргетов); архитектурная критика |
 | **5 — Ship (этот чат)** | **docs-site** (mkdocs-material); **example-скрипт** `examples/quickstart_mea.py`; **docker-compose** (статик + FastAPI-бэкенд, профили под оба сценария) |
+| **6 — Production hardening** | API auth-token + rate-limit + CORS + health; **async-очередь джобов + live WS** вне event-loop (P1-1); **Postgres-backend** + миграции (sqlite по умолчанию, P1-2); **sandbox для чужого кода методов/сортеров (P1-4)**; фронт→prod-backend; arch P1-3 (`mea.n_samples`); CloseEvent node22 CI-фикс |
+| **7 — Per-user auth** (rebuilt hands-on) | auth-core (register/login/logout/me, pbkdf2, storage-backed session-токены, httpOnly-cookie); `owner_id` на каждой сессии/датасете/джобе (миграция 003, owner-scoped запросы); per-user authz middleware; **public anonymous demo lane**; login frontend. pentest-High (анонимные сессии) закрыт |
+| **8 — Polish (этот чат)** | postgres-suite **runtime-проверена на CI** (`postgres:16` + `DATABASE_URL`); browser-verified login e2e + UI-фиксы/скриншоты; **kernel-sandbox Linux** (seccomp-bpf + Landlock + `no_new_privs`); `/api/explain` enabled-path тесты + infra-доки; **cross-domain cookie закрыт** (same-origin proxy → cookie first-party) |
 
 **Дополнительно в этом чате (важное):**
 - 🔴 **Закрыта живая дыра безопасности V2-01** (`/api/explain`): была открытая неаутентифицированная LLM-ручка, утекавшая API-ключ на сторонний хост. Добавлены auth-токен, rate-limit, официальный хост по умолчанию, CORS-allowlist.
@@ -95,26 +99,26 @@
 
 ## 5. Что осталось сделать (план)
 
-### Прямо следующий шаг — ФИНАЛЬНЫЙ, наружу: **Railway deploy**
-Перед ним нужно:
-1. **Выбрать scope** (главная развилка, см. §6).
-2. **Реально собрать Docker-образы** (`docker compose build`) — на маке не было запущенного Docker-демона, поэтому сборка пока **не проверена**, только `compose config` валиден. ← *планируем сделать вместе, когда запустишь Docker.*
-3. Поднять Railway-сервис(ы) под выбранный scope. **Наружу — только с явного «деплой».**
+Платформа **развёрнута (scope 🅰)**, зелёная на CI и проверена вживую — **блокирующего ничего нет**. Остаётся опциональное и **наружу (нужно явное «го»)**.
 
-### Если выбираем путь 🅰 (хостед-платформа) — ещё предстоит (из arch-критики):
-- **Песочница (sandbox) для чужого кода** методов/сортеров (P1-4) — центральная нерешённая проблема для «слоя Hugging Face»: чужой код на общем хосте.
-- **Persistent storage** вместо эфемерной ФС Railway (P1-2) — иначе данные стираются на каждом редеплое; нужны миграции.
-- **Async-обработка** методов вне event-loop + реальная очередь джобов (P1-1).
-- **Лимиты тела запроса / размерностей** (P1-3 частично закрыт `n_samples`; остаётся memory-DoS лимит).
-- Auth / CORS / rate-limit / observability на самом FastAPI (сейчас их нет — бэкенд был dev-only).
+### Наружу (требует явного разрешения):
+- **Включить `/api/explain`** — сейчас safe 503; задать `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на сервисе `speedmouse`. Enabled-path уже покрыт тестами (Волна 8) — не хватает только живых секретов.
+- **Перевести прод на managed Postgres** — поднять Railway-PG, задать `DATABASE_URL` на backend. Код проверен на pg в CI (Волна 8); сейчас прод на SQLite + volume `/data`.
 
-### Мелкие watch-items:
-- ⚠️ CI-actions на **Node 20** — GitHub форсит Node 24 **~16 июня 2026**; обновить версии экшенов в `.github/workflows/ci.yml`.
-- Docker build не верифицирован (см. выше).
+### Опциональное развитие:
+- **OAuth-идентичность** (GitHub/Google) как альтернатива email+password — auth-core спроектирован под подключение.
+- **Observability** на backend (структурные логи, трейсинг, метрики) — для реальной мульти-юзер нагрузки.
+- **Лимит памяти / размерности** на тело запроса (memory-DoS) — последняя часть P1-3.
+
+### Закрытые watch-items:
+- ✅ **Node 20 → 24:** CI-экшены опт-ин через `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` (дедлайн ~16 июня пройден заранее).
+- ✅ **Docker build верифицирован** — backend и static реально собираются и стартуют в проде.
+- ✅ **sandbox (P1-4) + kernel-слой / persistence (P1-2) / async (P1-1) / auth + CORS + rate-limit** — сделано в Волнах 6-8.
+- ✅ **cross-domain cookie** — закрыт same-origin proxy (Волна 8 / этот чат).
 
 ---
 
-## 6. Главная развилка: scope деплоя 🅰 vs 🅱
+## 6. Главная развилка: scope деплоя 🅰 vs 🅱 — ✅ РЕШЕНО (выбран 🅰, развёрнут)
 
 Это **решает, что вообще деплоить** и сколько ещё работы. Архитектурная критика (`docs/ARCH-REVIEW.md`) называет это ключевым вопросом.
 
@@ -125,15 +129,15 @@
 | Что ещё нужно | sandbox, persistent storage, auth, async, лимиты (см. §5) | почти ничего — оно готово |
 | Срок | Большой трек | Быстрый «demo-able handoff» |
 
-**Рекомендация ассистента:** идти **🅱 сейчас** (максимум демо-ценности быстро, привлечь людей), а 🅰 — явно помеченным «next», когда демо приведёт пользователей и появится реальная мульти-юзер нагрузка. Платформу-без-пользователей не стоит усложнять раньше времени.
+**Решение (принято и выполнено):** выбран путь **🅰 — хостед мульти-юзер платформа**, и она **развёрнута на Railway** (см. §2). Изначально ассистент рекомендовал начать с 🅱 ради скорости демо, но пользователь повёл сразу в 🅰: sandbox (+ kernel-слой), persistence, async, auth и per-user ownership реализованы (Волны 6-8) и работают в проде. Развилка закрыта.
 
 ---
 
 ## 7. К какому результату идём
 
-- **Ближняя цель (≈5 волн):** серьёзный, **демонстрируемый хэндофф** — то, что можно показать друзьям-учёным и сказать «вставь свой метод/сортер — получи живую панель». **Мы фактически здесь.**
-- **Средняя цель:** если демо привлекает людей → развернуть **🅰 хостед-платформу** (с песочницей и persistence) — это и есть обещание позиционирования.
-- **Дальняя цель:** стать дефолтным «слоем поверх» для wetware/MEA-сообщества — местом, куда плагином приносят метод/сортер, как модель на Hugging Face.
+- **Ближняя цель (≈5 волн):** серьёзный, **демонстрируемый хэндофф** — «вставь свой метод/сортер → получи живую панель». ✅ **Достигнута и перевыполнена.**
+- **Средняя цель:** развернуть **🅰 хостед-платформу** (с песочницей и persistence) — обещание позиционирования. ✅ **Сделано:** мульти-юзер, per-user ownership, sandbox (+ kernel-слой), persistence, async, auth — LIVE на Railway (Волны 6-8).
+- **Дальняя цель (остаётся):** стать дефолтным «слоем поверх» для wetware/MEA-сообщества — местом, куда плагином приносят метод/сортер, как модель на Hugging Face. Дальше — реальные пользователи (друзья-учёные), их методы/сортеры, и развитие из §5.
 
 ---
 
@@ -150,12 +154,11 @@
 
 ## 9. Как продолжить, когда вернёшься
 
+Платформа уже в проде и зелёная. Возможные следующие шаги:
 1. Открыть свежий Claude Code в этой папке (`/Users/axel/Documents/SpeedMouse`). Память и `COORDINATOR.md` подтянутся.
-2. Сказать: какой **scope (🅰/🅱)** выбираем.
-3. **Запустить Docker Desktop** — тогда ассистент соберёт образы (`docker compose build`), проверит, что они реально собираются и стартуют.
-4. Дать команду на **Railway deploy** (наружу) — и поедем в прод.
-
-Параллельно при желании: обновить Node 20 → Node 24 в CI-экшенах (дедлайн ~16 июня).
+2. **Наружу (с явного «го»):** включить `/api/explain` (секреты `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на `speedmouse`) и/или перевести прод на managed Postgres (`DATABASE_URL` на backend) — см. §5.
+3. **Развитие:** OAuth-логин, observability, лимит памяти на тело запроса — см. §5.
+4. Любой код-чейндж: hands-on (build/git/test сам), **push только на зелёном CI**, **деплой наружу — только с явного «го»**.
 
 ---
 

@@ -111,13 +111,13 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
 
 ## 9. CURRENT STATE & roadmap  *(refresh this section after each integration)*
 - **main on origin — Linux CI GREEN + DEPLOYED 🅰 (per-user auth LIVE)** (run `git log --oneline -3` for the exact tip).
-  Green: `uv run pytest` **177 passed, 6 skipped** (postgres skipped, no local DSN), `ruff`/`ty` clean, node **39/39** +
-  js auth **7 pass/1 skip**, sdk-ts **22/22**, `mkdocs --strict`, sandbox **41**, spike_detect 57/57. `dsp.py` 1e-13 intact.
-  2M-fuzz on CI; CI actions opt-in to Node 24 (`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`).
+  Green: `uv run pytest` **188 collected** (mac skips pg without a DSN — CI runs them on a `postgres:16` service, Wave-8),
+  `ruff`/`ty` clean, node **39/39** + js auth **7 pass/1 skip**, sdk-ts **22/22**, `mkdocs --strict`, sandbox **46**,
+  spike_detect 57/57. `dsp.py` 1e-13 intact. 2M-fuzz on CI; CI actions opt-in to Node 24 (`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`).
 - **MODE: HANDS-ON** (since 2026-06-12) — Claude does build/git/test directly. Overrides §1. See [[coordinator-delegation]].
   **Wave-design rule:** only disjoint-independent tasks fan out in parallel; dependency chains go sequential / hands-on
   (see [[wave-design-dependent-packages]] — Wave-7 auth had to be rebuilt hands-on after a parallel fan-out collided).
-- **Waves done:** 0–3 (foundation → wetware/MEA), **4 (deep)**, **5 (ship)**, **6 (production hardening)**, **7 (per-user auth)**.
+- **Waves done:** 0–3 (foundation → wetware/MEA), **4 (deep)**, **5 (ship)**, **6 (production hardening)**, **7 (per-user auth)**, **8 (polish)**.
 - **Wave-4/5:** MEA demo (backend + frontend + wetware screenshot), audit v2, mea-perf (~70×), fuzz-until-dry, arch
   critique, mkdocs docs-site, quickstart example, docker-compose. Plus **🔴 P0 `/api/explain` (V2-01) CLOSED**.
 - **Wave-6 (hardening) DONE:** API auth + rate-limit + CORS, async job queue + live WS streaming, Postgres storage
@@ -127,9 +127,16 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
   pbkdf2 hashing, storage-backed session tokens, httpOnly cookie) + `owner_id` on every session/dataset/job (migration 003;
   owner-scoped queries) + per-user authz middleware (replaced the shared token) + **public anonymous demo lane**
   (`/demo/seed-mea` + `/demo/sessions/{id}/jobs` + `/demo/jobs`) + login frontend. **pentest High (unauth sessions) CLOSED.**
+- **Wave-8 (polish) DONE:** postgres storage suite now **runtime-verified on CI** (`postgres:16` service + `DATABASE_URL`);
+  browser-verified login e2e + UI fixes/screenshots; **Linux kernel sandbox layer** (seccomp-bpf + Landlock + `no_new_privs`,
+  set `NEUROMOUSE_SANDBOX_KERNEL=required` to enforce on Linux); `/api/explain` enabled-path tests + infra docs.
+- **Cross-domain cookie CLOSED (this chat):** static server proxies backend API paths (`/auth|/sessions|/jobs|/demo|/methods`)
+  **same-origin**, stripping the cookie `Domain` — so the auth cookie is first-party and login works on the live static domain
+  (frontend `DEFAULT_BACKEND_BASE_URL=""`). Verified live: register 201, login 200, cookie set, `/sessions` w/cookie 200, w/o 401.
+  This is the *real* fix (first-party cookie), not the e2e bridge.
 
 ### ▶ DEPLOYED — scope 🅰 hosted MULTI-USER platform LIVE on Railway (project `SpeedMouse`, env `production`):
-- **static** (login UI + demo + viewer): **https://neuromouse.up.railway.app**
+- **static** (login UI + demo + viewer, **same-origin API proxy → first-party auth cookie**): **https://neuromouse.up.railway.app**
 - **backend** (FastAPI, per-user auth): **https://backend-production-c7a1.up.railway.app**
   — built from `Dockerfile.backend` via env **`RAILWAY_DOCKERFILE_PATH`** (NOT `environment edit --service-config`, which
   doesn't persist in the non-TTY shell); listens on `$PORT`; persistent **volume** `/data` (SQLite + users/auth_sessions).
@@ -137,9 +144,10 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
   invalid token → 401; `/demo/seed-mea` public → 201; `/auth/register` → 201.
 - Railway auth is **interactive-only**: user runs `railway login` once, then agent deploys via `railway up --service <svc> --detach`.
 
-### ▶ IMMEDIATE NEXT ACTION — none blocking. Optional:
-- `/api/explain` on static is a safe 503 until `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` are set on the `speedmouse` service.
-- Postgres backend code exists but is runtime-unverified (no local PG); switch via `DATABASE_URL` when a managed PG is added.
+### ▶ IMMEDIATE NEXT ACTION — none blocking. Optional / OUTWARD (need an explicit go):
+- **Enable `/api/explain`** — safe 503 until `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` are set on the `speedmouse` service.
+  The enabled-path is already tested (Wave-8); only the live secrets are missing.
+- **Switch prod to managed Postgres** — provision a Railway PG, set `DATABASE_URL` on the backend. Code is now CI-verified on pg.
 - OAuth identity (GitHub/Google) as an alternative to email+password — auth-core is designed to plug it in.
 
 Target reached and exceeded: a serious, demo-able, **deployed, multi-user, ownership-isolated** platform.
