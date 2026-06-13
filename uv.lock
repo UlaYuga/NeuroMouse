@@ -12,6 +12,7 @@ members = [
     "neuromouse-backend",
     "neuromouse-contract",
     "neuromouse-core",
+    "neuromouse-sandbox",
     "neuromouse-sdk",
     "neuromouse-sorting",
     "neuromouse-workspace",
@@ -717,6 +718,7 @@ dependencies = [
     { name = "httpx" },
     { name = "neuromouse-contract" },
     { name = "neuromouse-core" },
+    { name = "neuromouse-sandbox" },
     { name = "neuromouse-sdk" },
     { name = "pydantic" },
     { name = "pytest-asyncio" },
@@ -730,6 +732,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "neuromouse-contract", editable = "contracts" },
     { name = "neuromouse-core", editable = "packages/core" },
+    { name = "neuromouse-sandbox", editable = "packages/sandbox" },
     { name = "neuromouse-sdk", editable = "packages/sdk" },
     { name = "pydantic", specifier = "==2.11.0" },
     { name = "pytest-asyncio", specifier = ">=0.24.0" },
@@ -779,6 +782,21 @@ version = "0.0.0"
 source = { directory = "tools/native-startup" }
 
 [[package]]
+name = "neuromouse-sandbox"
+version = "0.0.0"
+source = { editable = "packages/sandbox" }
+dependencies = [
+    { name = "neuromouse-contract" },
+    { name = "neuromouse-sdk" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "neuromouse-contract", editable = "contracts" },
+    { name = "neuromouse-sdk", editable = "packages/sdk" },
+]
+
+[[package]]
 name = "neuromouse-sdk"
 version = "0.0.0"
 source = { editable = "packages/sdk" }
@@ -812,6 +830,7 @@ dependencies = [
     { name = "neuromouse-backend" },
     { name = "neuromouse-contract" },
     { name = "neuromouse-core" },
+    { name = "neuromouse-sandbox" },
     { name = "neuromouse-sdk" },
     { name = "neuromouse-sorting" },
 ]
@@ -833,6 +852,7 @@ requires-dist = [
     { name = "neuromouse-backend", editable = "packages/backend" },
     { name = "neuromouse-contract", editable = "contracts" },
     { name = "neuromouse-core", editable = "packages/core" },
+    { name = "neuromouse-sandbox", editable = "packages/sandbox" },
     { name = "neuromouse-sdk", editable = "packages/sdk" },
     { name = "neuromouse-sorting", editable = "packages/sorting" },
 ]

@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sys
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -14,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from neuromouse_backend.storage import BackendStore, JobRecord, SessionRecord, SQLiteBackendStore
 from neuromouse_contract import DatasetValidationError, validate_dataset
+from neuromouse_sandbox import MethodRef, SandboxError, SandboxLimits, run_in_sandbox
 from neuromouse_sdk import Method, build_params
 from neuromouse_sdk.examples.band_power_summary import band_power_summary
 
@@ -116,6 +118,11 @@ class MethodExecutionError(ValueError):
 @dataclass(frozen=True)
 class MethodCatalog:
     methods: dict[str, Method[Any]]
+    # Process-isolation locators. When a method has a ``MethodRef`` its
+    # ``compute`` runs in a sandboxed subprocess (the P1-4 boundary); methods
+    # without one fall back to the legacy in-process path for compatibility.
+    refs: dict[str, MethodRef] = dataclass_field(default_factory=dict)
+    limits: SandboxLimits = dataclass_field(default_factory=SandboxLimits)
 
     def lookup(self, method_id: str) -> Method[Any]:
         try:
@@ -131,6 +138,43 @@ class MethodCatalog:
         params: dict[str, Any],
     ) -> dict[str, Any]:
         method = self.lookup(method_id)
+        ref = self.refs.get(_normalize_method_id(method_id))
+        if ref is None:
+            return self._run_in_process(method, dataset, params)
+        return self._run_sandboxed(method, ref, dataset, params)
+
+    def _run_sandboxed(
+        self,
+        method: Method[Any],
+        ref: MethodRef,
+        dataset: dict[str, Any],
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
+        # The dataset is contract-validated in-process (trusted) so the untrusted
+        # child only ever sees well-formed input; ``compute`` (and the untrusted
+        # module import + param construction it implies) runs across the boundary.
+        try:
+            dataset_payload = validate_dataset(dataset).model_dump(mode="json")
+        except DatasetValidationError as exc:
+            raise MethodExecutionError(f"method {method.name!r} failed: {exc}") from exc
+        try:
+            return run_in_sandbox(
+                ref,
+                dataset_payload,
+                dict(params),
+                limits=self.limits,
+                required_inputs=tuple(method.required_inputs),
+                output_fields=tuple(field_.path for field_ in method.output.fields),
+            )
+        except SandboxError as exc:
+            raise MethodExecutionError(f"method {method.name!r} failed: {exc}") from exc
+
+    def _run_in_process(
+        self,
+        method: Method[Any],
+        dataset: dict[str, Any],
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
         try:
             dataset_model = validate_dataset(dataset)
             typed_params = build_params(method.params_type, params)
@@ -139,7 +183,7 @@ class MethodCatalog:
             result: dict[str, Any] = dict(raw)
             _require_declared_paths(
                 result,
-                [field.path for field in method.output.fields],
+                [field_.path for field_ in method.output.fields],
                 owner=method.name,
             )
             return result
@@ -162,12 +206,26 @@ def _load_mea_method(name: str) -> Method[Any]:
 
 def create_default_method_catalog() -> MethodCatalog:
     methods: dict[str, Method[Any]] = {}
-    for method in (band_power_summary,):
-        methods[_normalize_method_id(method.name)] = method
+    refs: dict[str, MethodRef] = {}
+
+    band_id = _normalize_method_id(band_power_summary.name)
+    methods[band_id] = band_power_summary
+    refs[band_id] = MethodRef(
+        kind="module",
+        module="neuromouse_sdk.examples.band_power_summary",
+        attr="band_power_summary",
+    )
+
     for mea_name in ("spike_detect", "network_burst", "electrode_connectivity"):
         mea_method = _load_mea_method(mea_name)
-        methods[_normalize_method_id(mea_method.name)] = mea_method
-    return MethodCatalog(methods=methods)
+        method_id = _normalize_method_id(mea_method.name)
+        methods[method_id] = mea_method
+        refs[method_id] = MethodRef(
+            kind="file",
+            path=str(ROOT / "methods" / f"{mea_name}.py"),
+            attr="method",
+        )
+    return MethodCatalog(methods=methods, refs=refs)
 
 
 def create_app(
