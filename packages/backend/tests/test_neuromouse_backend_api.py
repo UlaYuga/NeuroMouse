@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
 import time
 from pathlib import Path
 from typing import Any, Final
@@ -9,6 +10,7 @@ from typing import Any, Final
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from neuromouse_backend.app import MethodCatalog, create_app
 from neuromouse_backend.storage import SQLiteBackendStore
@@ -17,8 +19,11 @@ from neuromouse_sdk.examples.band_power_summary import BandPowerParams, band_pow
 
 ROOT = Path(__file__).resolve().parents[3]
 GOLDEN_PATH = ROOT / "datasets" / "golden" / "data.json"
-API_TOKEN: Final = "neuromouse-api-token"
-AUTH_HEADERS: Final = {"Authorization": f"Bearer {API_TOKEN}"}
+USER_A_TOKEN: Final = "neuromouse-user-a-token"
+USER_B_TOKEN: Final = "neuromouse-user-b-token"
+AUTH_HEADERS: Final = {"Authorization": f"Bearer {USER_A_TOKEN}"}
+USER_B_HEADERS: Final = {"Authorization": f"Bearer {USER_B_TOKEN}"}
+SESSION_TOKENS: Final = f"{USER_A_TOKEN}:user-a,{USER_B_TOKEN}:user-b"
 
 
 def minimal_dataset(channel_count: int = 2) -> dict[str, Any]:
@@ -82,7 +87,7 @@ class SlowBandPowerMethod(Method[Any]):
 
 
 def _slow_job_app(tmp_path: Path, monkeypatch, delay_seconds: float = 0.4):
-    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
     monkeypatch.setenv("NEUROMOUSE_RATE_LIMIT_PER_IP", "1000")
     return create_app(
         store=SQLiteBackendStore(tmp_path / "backend.sqlite3"),
@@ -136,7 +141,7 @@ def _wait_job_done_sync(
 
 @pytest.fixture
 def app(tmp_path, monkeypatch):
-    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
     monkeypatch.setenv("NEUROMOUSE_RATE_LIMIT_PER_IP", "1000")
     monkeypatch.setenv("NEUROMOUSE_RATE_LIMIT_WINDOW_SECONDS", "60")
     monkeypatch.setenv("NEUROMOUSE_CORS_ALLOWLIST", "https://example.org")
@@ -146,7 +151,8 @@ def app(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_auth_required_for_protected_routes_and_health_is_public(tmp_path, monkeypatch) -> None:  # noqa: E501
-    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
+    monkeypatch.delenv("NEUROMOUSE_API_TOKEN", raising=False)
     app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
 
     async with httpx.AsyncClient(
@@ -176,6 +182,7 @@ async def test_auth_required_for_protected_routes_and_health_is_public(tmp_path,
 
 @pytest.mark.asyncio
 async def test_api_disabled_without_token_by_default(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("NEUROMOUSE_SESSION_TOKENS", raising=False)
     monkeypatch.delenv("NEUROMOUSE_API_TOKEN", raising=False)
     app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
 
@@ -196,7 +203,7 @@ async def test_api_disabled_without_token_by_default(tmp_path, monkeypatch) -> N
 
 @pytest.mark.asyncio
 async def test_rate_limit_returns_429_after_budget_exhausted(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
     monkeypatch.setenv("NEUROMOUSE_RATE_LIMIT_PER_IP", "2")
     app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
 
@@ -213,7 +220,7 @@ async def test_rate_limit_returns_429_after_budget_exhausted(tmp_path, monkeypat
 
 @pytest.mark.asyncio
 async def test_cors_preflight_honors_allowlist(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
     monkeypatch.setenv(
         "NEUROMOUSE_CORS_ALLOWLIST",
         "https://allowed.example.com,https://another.example.com",
@@ -337,6 +344,139 @@ async def test_rest_happy_path_creates_session_runs_job_and_returns_result(app) 
         get_job_response = await client.get(f"/jobs/{job['id']}")
         assert get_job_response.status_code == 200
         assert get_job_response.json() == job
+
+
+@pytest.mark.asyncio
+async def test_users_only_list_read_and_run_their_own_sessions_and_jobs(app) -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        user_a_session_response = await client.post(
+            "/sessions",
+            headers=AUTH_HEADERS,
+            json={"name": "user-a-session", "dataset": minimal_dataset()},
+        )
+        assert user_a_session_response.status_code == 201
+        user_a_session = user_a_session_response.json()
+
+        user_a_job_response = await client.post(
+            f"/sessions/{user_a_session['id']}/jobs",
+            headers=AUTH_HEADERS,
+            json={"method_id": "band_power_summary"},
+        )
+        assert user_a_job_response.status_code == 201
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://testserver",
+            headers=AUTH_HEADERS,
+        ) as user_a_client:
+            user_a_job = await _wait_job_done(
+                user_a_client,
+                user_a_job_response.json()["id"],
+            )
+        assert user_a_job["status"] == "completed"
+
+        user_b_list_response = await client.get("/sessions", headers=USER_B_HEADERS)
+        assert user_b_list_response.status_code == 200
+        assert user_b_list_response.json() == []
+
+        user_b_get_session_response = await client.get(
+            f"/sessions/{user_a_session['id']}",
+            headers=USER_B_HEADERS,
+        )
+        assert user_b_get_session_response.status_code == 404
+        assert "user-a-session" not in user_b_get_session_response.text
+        assert user_a_session["id"] not in user_b_get_session_response.text
+
+        user_b_run_job_response = await client.post(
+            f"/sessions/{user_a_session['id']}/jobs",
+            headers=USER_B_HEADERS,
+            json={"method_id": "band_power_summary"},
+        )
+        assert user_b_run_job_response.status_code == 404
+        assert user_a_session["id"] not in user_b_run_job_response.text
+
+        user_b_get_job_response = await client.get(
+            f"/jobs/{user_a_job['id']}",
+            headers=USER_B_HEADERS,
+        )
+        assert user_b_get_job_response.status_code == 404
+        assert user_a_job["id"] not in user_b_get_job_response.text
+        assert user_a_session["id"] not in user_b_get_job_response.text
+
+        user_b_session_response = await client.post(
+            "/sessions",
+            headers=USER_B_HEADERS,
+            json={"name": "user-b-session", "dataset": minimal_dataset(channel_count=3)},
+        )
+        assert user_b_session_response.status_code == 201
+        user_b_session = user_b_session_response.json()
+
+        user_a_list_response = await client.get("/sessions", headers=AUTH_HEADERS)
+        assert user_a_list_response.status_code == 200
+        assert [session["id"] for session in user_a_list_response.json()] == [
+            user_a_session["id"]
+        ]
+
+        user_b_list_response = await client.get("/sessions", headers=USER_B_HEADERS)
+        assert user_b_list_response.status_code == 200
+        assert [session["id"] for session in user_b_list_response.json()] == [
+            user_b_session["id"]
+        ]
+
+
+@pytest.mark.asyncio
+async def test_routes_persist_owner_id_in_storage_and_complete_owned_job(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
+    monkeypatch.setenv("NEUROMOUSE_RATE_LIMIT_PER_IP", "1000")
+    db_path = tmp_path / "backend.sqlite3"
+    app = create_app(store=SQLiteBackendStore(db_path))
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
+        headers=AUTH_HEADERS,
+    ) as client:
+        session_response = await client.post(
+            "/sessions",
+            json={"name": "stored-owner", "dataset": minimal_dataset()},
+        )
+        assert session_response.status_code == 201
+        session = session_response.json()
+
+        job_response = await client.post(
+            f"/sessions/{session['id']}/jobs",
+            json={"method_id": "band_power_summary"},
+        )
+        assert job_response.status_code == 201
+        completed_job = await _wait_job_done(client, job_response.json()["id"])
+
+    assert completed_job["status"] == "completed"
+    with sqlite3.connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        session_owner = connection.execute(
+            "SELECT owner_id FROM sessions WHERE id = ?",
+            (session["id"],),
+        ).fetchone()
+        dataset_owner = connection.execute(
+            "SELECT owner_id FROM datasets WHERE session_id = ?",
+            (session["id"],),
+        ).fetchone()
+        job_owner = connection.execute(
+            "SELECT owner_id FROM jobs WHERE id = ?",
+            (completed_job["id"],),
+        ).fetchone()
+
+    assert session_owner is not None
+    assert dataset_owner is not None
+    assert job_owner is not None
+    assert session_owner["owner_id"] == "user-a"
+    assert dataset_owner["owner_id"] == "user-a"
+    assert job_owner["owner_id"] == "user-a"
 
 
 @pytest.mark.asyncio
@@ -466,6 +606,36 @@ def test_job_and_live_websockets_stream_progress_and_echo(tmp_path, monkeypatch)
             assert websocket.receive_json() == {"kind": "ping", "samples": [1, 2, 3]}
 
 
+def test_job_websocket_does_not_stream_cross_user_job(tmp_path, monkeypatch) -> None:
+    app = _slow_job_app(tmp_path, monkeypatch, delay_seconds=0.4)
+    with TestClient(app) as client:
+        session_response = client.post(
+            "/sessions",
+            headers=AUTH_HEADERS,
+            json={"name": "ws-owner", "dataset": minimal_dataset()},
+        )
+        assert session_response.status_code == 201
+        session_id = session_response.json()["id"]
+        job_response = client.post(
+            f"/sessions/{session_id}/jobs",
+            headers=AUTH_HEADERS,
+            json={"method_id": "band_power_summary"},
+        )
+        assert job_response.status_code == 201
+        job_id = job_response.json()["id"]
+
+        with client.websocket_connect(
+            f"/ws/jobs/{job_id}",
+            headers=USER_B_HEADERS,
+        ) as websocket:
+            denied = websocket.receive_json()
+            assert denied == {"status": "not_found", "error": "Job not found"}
+            assert job_id not in json.dumps(denied)
+            assert session_id not in json.dumps(denied)
+            with pytest.raises(WebSocketDisconnect):
+                websocket.receive_json()
+
+
 @pytest.mark.asyncio
 async def test_async_jobs_are_non_blocking(tmp_path, monkeypatch) -> None:
     app = _slow_job_app(tmp_path, monkeypatch, delay_seconds=1.0)
@@ -554,7 +724,8 @@ async def test_invalid_dataset_returns_422_with_clear_contract_error(app) -> Non
 
 
 def test_job_lifecycle_persists_across_sqlite_store_reopen(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
+    monkeypatch.delenv("NEUROMOUSE_API_TOKEN", raising=False)
     db_path = tmp_path / "backend.sqlite3"
     store = SQLiteBackendStore(db_path)
     app = create_app(store=store)

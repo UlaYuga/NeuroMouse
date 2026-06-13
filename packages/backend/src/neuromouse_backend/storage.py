@@ -25,6 +25,7 @@ def _require_psycopg():
 
 _MIGRATIONS_ROOT = Path(__file__).resolve().parents[2] / "migrations"
 _KNOWN_POSTGRES_PREFIXES = ("postgres://", "postgresql://")
+_ANONYMOUS_OWNER_ID = "anonymous"
 
 
 def utc_now() -> str:
@@ -39,6 +40,7 @@ class SessionRecord:
     dataset: dict[str, Any]
     dataset_version: int
     created_at: str
+    owner_id: str = _ANONYMOUS_OWNER_ID
 
 
 @dataclass
@@ -54,14 +56,29 @@ class JobRecord:
     result: dict[str, Any] | None = None
     error: str | None = None
     events: list[dict[str, Any]] = field(default_factory=list)
+    owner_id: str = _ANONYMOUS_OWNER_ID
 
 
 class BackendStore(Protocol):
-    def create_session(self, *, name: str | None, dataset: dict[str, Any]) -> SessionRecord: ...
+    def create_session(
+        self,
+        *,
+        name: str | None,
+        dataset: dict[str, Any],
+        owner_id: str | None = None,
+    ) -> SessionRecord: ...
 
-    def list_sessions(self) -> Iterable[SessionRecord]: ...
+    def create_session_with_owner(
+        self,
+        *,
+        name: str | None,
+        dataset: dict[str, Any],
+        owner_id: str,
+    ) -> SessionRecord: ...
 
-    def get_session(self, session_id: str) -> SessionRecord | None: ...
+    def list_sessions(self, owner_id: str | None = None) -> Iterable[SessionRecord]: ...
+
+    def get_session(self, session_id: str, owner_id: str | None = None) -> SessionRecord | None: ...
 
     def create_job(
         self,
@@ -70,9 +87,20 @@ class BackendStore(Protocol):
         dataset_version: int,
         method_id: str,
         params: dict[str, Any] | None = None,
+        owner_id: str | None = None,
     ) -> JobRecord: ...
 
-    def get_job(self, job_id: str) -> JobRecord | None: ...
+    def create_job_with_owner(
+        self,
+        *,
+        session_id: str,
+        dataset_version: int,
+        method_id: str,
+        params: dict[str, Any] | None = None,
+        owner_id: str,
+    ) -> JobRecord: ...
+
+    def get_job(self, job_id: str, owner_id: str | None = None) -> JobRecord | None: ...
 
     def append_job_event(
         self,
@@ -81,7 +109,12 @@ class BackendStore(Protocol):
         status: str,
         result: dict[str, Any] | None = None,
         error: str | None = None,
+        owner_id: str | None = None,
     ) -> JobRecord: ...
+
+
+def _normalize_owner_id(owner_id: str | None) -> str:
+    return owner_id if owner_id is not None else _ANONYMOUS_OWNER_ID
 
 
 class InMemoryBackendStore:
@@ -89,23 +122,49 @@ class InMemoryBackendStore:
         self._sessions: dict[str, SessionRecord] = {}
         self._jobs: dict[str, JobRecord] = {}
 
-    def create_session(self, *, name: str | None, dataset: dict[str, Any]) -> SessionRecord:
+    def create_session(
+        self,
+        *,
+        name: str | None,
+        dataset: dict[str, Any],
+        owner_id: str | None = None,
+    ) -> SessionRecord:
+        return self.create_session_with_owner(
+            name=name,
+            dataset=dataset,
+            owner_id=_normalize_owner_id(owner_id),
+        )
+
+    def create_session_with_owner(
+        self,
+        *,
+        name: str | None,
+        dataset: dict[str, Any],
+        owner_id: str,
+    ) -> SessionRecord:
+        owner_id = _normalize_owner_id(owner_id)
         session = SessionRecord(
             id=str(uuid4()),
             dataset_id=str(uuid4()),
             name=name,
             dataset=dataset,
             dataset_version=1,
+            owner_id=owner_id,
             created_at=utc_now(),
         )
         self._sessions[session.id] = session
         return session
 
-    def list_sessions(self) -> Iterable[SessionRecord]:
-        return self._sessions.values()
+    def list_sessions(self, owner_id: str | None = None) -> Iterable[SessionRecord]:
+        owner_id = _normalize_owner_id(owner_id)
+        return [session for session in self._sessions.values() if session.owner_id == owner_id]
 
-    def get_session(self, session_id: str) -> SessionRecord | None:
-        return self._sessions.get(session_id)
+    def get_session(self, session_id: str, owner_id: str | None = None) -> SessionRecord | None:
+        owner_id = _normalize_owner_id(owner_id)
+        session = self._sessions.get(session_id)
+        if session is None or session.owner_id != owner_id:
+            return None
+        return session
 
     def create_job(
         self,
@@ -114,7 +173,29 @@ class InMemoryBackendStore:
         dataset_version: int,
         method_id: str,
         params: dict[str, Any] | None = None,
+        owner_id: str | None = None,
     ) -> JobRecord:
+        return self.create_job_with_owner(
+            session_id=session_id,
+            dataset_version=dataset_version,
+            method_id=method_id,
+            params=params,
+            owner_id=_normalize_owner_id(owner_id),
+        )
+
+    def create_job_with_owner(
+        self,
+        *,
+        session_id: str,
+        dataset_version: int,
+        method_id: str,
+        params: dict[str, Any] | None = None,
+        owner_id: str,
+    ) -> JobRecord:
+        owner_id = _normalize_owner_id(owner_id)
+        if self.get_session(session_id, owner_id=owner_id) is None:
+            raise KeyError(f"unknown session: {session_id}")
+
         timestamp = utc_now()
         job = JobRecord(
             id=str(uuid4()),
@@ -125,13 +206,18 @@ class InMemoryBackendStore:
             status="queued",
             created_at=timestamp,
             updated_at=timestamp,
+            owner_id=owner_id,
         )
         job.events.append(self._event(job, status="queued"))
         self._jobs[job.id] = job
         return job
 
-    def get_job(self, job_id: str) -> JobRecord | None:
-        return self._jobs.get(job_id)
+    def get_job(self, job_id: str, owner_id: str | None = None) -> JobRecord | None:
+        owner_id = _normalize_owner_id(owner_id)
+        job = self._jobs.get(job_id)
+        if job is None or job.owner_id != owner_id:
+            return None
+        return job
 
     def append_job_event(
         self,
@@ -140,8 +226,12 @@ class InMemoryBackendStore:
         status: str,
         result: dict[str, Any] | None = None,
         error: str | None = None,
+        owner_id: str | None = None,
     ) -> JobRecord:
-        job = self._jobs[job_id]
+        owner_id = _normalize_owner_id(owner_id)
+        job = self.get_job(job_id, owner_id=owner_id)
+        if job is None:
+            raise KeyError(f"unknown job: {job_id}")
         job.status = status
         job.updated_at = utc_now()
         job.result = result
@@ -205,7 +295,27 @@ class SQLiteBackendStore:
                 self._connection.close()
                 self._connection = None
 
-    def create_session(self, *, name: str | None, dataset: dict[str, Any]) -> SessionRecord:
+    def create_session(
+        self,
+        *,
+        name: str | None,
+        dataset: dict[str, Any],
+        owner_id: str | None = None,
+    ) -> SessionRecord:
+        return self.create_session_with_owner(
+            name=name,
+            dataset=dataset,
+            owner_id=_normalize_owner_id(owner_id),
+        )
+
+    def create_session_with_owner(
+        self,
+        *,
+        name: str | None,
+        dataset: dict[str, Any],
+        owner_id: str,
+    ) -> SessionRecord:
+        owner_id = _normalize_owner_id(owner_id)
         session_id = str(uuid4())
         created_at = utc_now()
         dataset_id = str(uuid4())
@@ -213,60 +323,78 @@ class SQLiteBackendStore:
             connection = self._connect()
             with connection:
                 connection.execute(
-                    "INSERT INTO sessions (id, name, created_at) VALUES (?, ?, ?)",
-                    (session_id, name, created_at),
+                    "INSERT INTO sessions (id, name, owner_id, created_at) VALUES (?, ?, ?, ?)",
+                    (session_id, name, owner_id, created_at),
                 )
                 connection.execute(
                     """
-                    INSERT INTO datasets (id, session_id, version, payload_json, created_at)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO datasets (
+                        id,
+                        session_id,
+                        owner_id,
+                        version,
+                        payload_json,
+                        created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (dataset_id, session_id, 1, _dump_json(dataset), created_at),
+                    (dataset_id, session_id, owner_id, 1, _dump_json(dataset), created_at),
                 )
-            session = self.get_session(session_id)
+            session = self.get_session(session_id, owner_id=owner_id)
             if session is None:  # pragma: no cover - sqlite transaction invariant
                 raise RuntimeError("created session could not be reloaded")
             return session
 
-    def list_sessions(self) -> Iterable[SessionRecord]:
+    def list_sessions(self, owner_id: str | None = None) -> Iterable[SessionRecord]:
+        owner_id = _normalize_owner_id(owner_id)
         with self._lock:
             rows = self._connect().execute(
                 """
                 SELECT
                     s.id,
                     s.name,
+                    s.owner_id,
                     s.created_at,
                     d.id AS dataset_id,
                     d.version AS dataset_version,
+                    d.owner_id AS dataset_owner_id,
                     d.payload_json AS dataset_json
                 FROM sessions AS s
                 JOIN datasets AS d ON d.session_id = s.id
-                WHERE d.version = (
+                WHERE s.owner_id = ?
+                  AND d.owner_id = ?
+                  AND d.version = (
                     SELECT MAX(version) FROM datasets WHERE session_id = s.id
                 )
                 ORDER BY s.created_at, s.id
-                """
+                """,
+                (owner_id, owner_id),
             )
             return [_session_from_row(row) for row in rows]
 
-    def get_session(self, session_id: str) -> SessionRecord | None:
+    def get_session(self, session_id: str, owner_id: str | None = None) -> SessionRecord | None:
+        owner_id = _normalize_owner_id(owner_id)
         with self._lock:
             row = self._connect().execute(
                 """
                 SELECT
                     s.id,
                     s.name,
+                    s.owner_id,
                     s.created_at,
                     d.id AS dataset_id,
                     d.version AS dataset_version,
+                    d.owner_id AS dataset_owner_id,
                     d.payload_json AS dataset_json
                 FROM sessions AS s
                 JOIN datasets AS d ON d.session_id = s.id
                 WHERE s.id = ?
+                  AND s.owner_id = ?
+                  AND d.owner_id = ?
                 ORDER BY d.version DESC
                 LIMIT 1
                 """,
-                (session_id,),
+                (session_id, owner_id, owner_id),
             ).fetchone()
             return _session_from_row(row) if row is not None else None
 
@@ -277,8 +405,28 @@ class SQLiteBackendStore:
         dataset_version: int,
         method_id: str,
         params: dict[str, Any] | None = None,
+        owner_id: str | None = None,
     ) -> JobRecord:
-        if self.get_session(session_id) is None:
+        owner_id = _normalize_owner_id(owner_id)
+        return self.create_job_with_owner(
+            session_id=session_id,
+            dataset_version=dataset_version,
+            method_id=method_id,
+            params=params,
+            owner_id=owner_id,
+        )
+
+    def create_job_with_owner(
+        self,
+        *,
+        session_id: str,
+        dataset_version: int,
+        method_id: str,
+        params: dict[str, Any] | None = None,
+        owner_id: str,
+    ) -> JobRecord:
+        owner_id = _normalize_owner_id(owner_id)
+        if self.get_session(session_id, owner_id=owner_id) is None:
             raise KeyError(f"unknown session: {session_id}")
 
         timestamp = utc_now()
@@ -292,6 +440,7 @@ class SQLiteBackendStore:
                     INSERT INTO jobs (
                         id,
                         session_id,
+                        owner_id,
                         dataset_version,
                         method_id,
                         params_json,
@@ -300,11 +449,12 @@ class SQLiteBackendStore:
                         created_at,
                         updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         job_id,
                         session_id,
+                        owner_id,
                         dataset_version,
                         method_id,
                         params_json,
@@ -325,12 +475,13 @@ class SQLiteBackendStore:
                         "timestamp": timestamp,
                     },
                 )
-            job = self.get_job(job_id)
+            job = self.get_job(job_id, owner_id=owner_id)
             if job is None:  # pragma: no cover - sqlite transaction invariant
                 raise RuntimeError("created job could not be reloaded")
             return job
 
-    def get_job(self, job_id: str) -> JobRecord | None:
+    def get_job(self, job_id: str, owner_id: str | None = None) -> JobRecord | None:
+        owner_id = _normalize_owner_id(owner_id)
         with self._lock:
             connection = self._connect()
             row = connection.execute(
@@ -340,6 +491,7 @@ class SQLiteBackendStore:
                     j.session_id,
                     j.dataset_version,
                     j.method_id,
+                    j.owner_id,
                     j.params_json,
                     j.status,
                     j.error,
@@ -349,8 +501,9 @@ class SQLiteBackendStore:
                 FROM jobs AS j
                 LEFT JOIN job_results AS r ON r.job_id = j.id
                 WHERE j.id = ?
+                  AND j.owner_id = ?
                 """,
-                (job_id,),
+                (job_id, owner_id),
             ).fetchone()
             if row is None:
                 return None
@@ -375,9 +528,11 @@ class SQLiteBackendStore:
         status: str,
         result: dict[str, Any] | None = None,
         error: str | None = None,
+        owner_id: str | None = None,
     ) -> JobRecord:
+        owner_id = _normalize_owner_id(owner_id)
         with self._lock:
-            existing = self.get_job(job_id)
+            existing = self.get_job(job_id, owner_id=owner_id)
             if existing is None:
                 raise KeyError(f"unknown job: {job_id}")
 
@@ -388,9 +543,9 @@ class SQLiteBackendStore:
                     """
                     UPDATE jobs
                     SET status = ?, error = ?, updated_at = ?
-                    WHERE id = ?
+                    WHERE id = ? AND owner_id = ?
                     """,
-                    (status, error, timestamp, job_id),
+                    (status, error, timestamp, job_id, owner_id),
                 )
                 if result is not None:
                     connection.execute(
@@ -420,7 +575,7 @@ class SQLiteBackendStore:
                     event["error"] = error
                 self._insert_job_event(connection, event)
 
-            updated = self.get_job(job_id)
+            updated = self.get_job(job_id, owner_id=owner_id)
             if updated is None:  # pragma: no cover - sqlite transaction invariant
                 raise RuntimeError("updated job could not be reloaded")
             return updated
@@ -493,7 +648,27 @@ class PostgreSQLBackendStore:
     def close(self) -> None:
         return None
 
-    def create_session(self, *, name: str | None, dataset: dict[str, Any]) -> SessionRecord:
+    def create_session(
+        self,
+        *,
+        name: str | None,
+        dataset: dict[str, Any],
+        owner_id: str | None = None,
+    ) -> SessionRecord:
+        return self.create_session_with_owner(
+            name=name,
+            dataset=dataset,
+            owner_id=_normalize_owner_id(owner_id),
+        )
+
+    def create_session_with_owner(
+        self,
+        *,
+        name: str | None,
+        dataset: dict[str, Any],
+        owner_id: str,
+    ) -> SessionRecord:
+        owner_id = _normalize_owner_id(owner_id)
         session_id = str(uuid4())
         created_at = utc_now()
         dataset_id = str(uuid4())
@@ -501,22 +676,33 @@ class PostgreSQLBackendStore:
             with connection:
                 with connection.cursor() as cursor:
                     cursor.execute(
-                        "INSERT INTO sessions (id, name, created_at) VALUES (%s, %s, %s)",
-                        (session_id, name, created_at),
+                        """
+                        INSERT INTO sessions (id, name, owner_id, created_at)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (session_id, name, owner_id, created_at),
                     )
                     cursor.execute(
                         """
-                        INSERT INTO datasets (id, session_id, version, payload_json, created_at)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO datasets (
+                            id,
+                            session_id,
+                            owner_id,
+                            version,
+                            payload_json,
+                            created_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         """,
-                        (dataset_id, session_id, 1, _dump_json(dataset), created_at),
+                        (dataset_id, session_id, owner_id, 1, _dump_json(dataset), created_at),
                     )
-        session = self.get_session(session_id)
+        session = self.get_session(session_id, owner_id=owner_id)
         if session is None:  # pragma: no cover - postgres transaction invariant
             raise RuntimeError("created session could not be reloaded")
         return session
 
-    def list_sessions(self) -> Iterable[SessionRecord]:
+    def list_sessions(self, owner_id: str | None = None) -> Iterable[SessionRecord]:
+        owner_id = _normalize_owner_id(owner_id)
         with self._connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
@@ -524,21 +710,27 @@ class PostgreSQLBackendStore:
                     SELECT
                         s.id,
                         s.name,
+                        s.owner_id,
                         s.created_at,
                         d.id AS dataset_id,
                         d.version AS dataset_version,
+                        d.owner_id AS dataset_owner_id,
                         d.payload_json AS dataset_json
                     FROM sessions AS s
                     JOIN datasets AS d ON d.session_id = s.id
-                    WHERE d.version = (
+                    WHERE s.owner_id = %s
+                      AND d.owner_id = %s
+                      AND d.version = (
                         SELECT MAX(version) FROM datasets WHERE session_id = s.id
                     )
                     ORDER BY s.created_at, s.id
-                    """
+                    """,
+                    (owner_id, owner_id),
                 )
                 return [_session_from_row(row) for row in cursor.fetchall()]
 
-    def get_session(self, session_id: str) -> SessionRecord | None:
+    def get_session(self, session_id: str, owner_id: str | None = None) -> SessionRecord | None:
+        owner_id = _normalize_owner_id(owner_id)
         with self._connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
@@ -546,17 +738,21 @@ class PostgreSQLBackendStore:
                     SELECT
                         s.id,
                         s.name,
+                        s.owner_id,
                         s.created_at,
                         d.id AS dataset_id,
                         d.version AS dataset_version,
+                        d.owner_id AS dataset_owner_id,
                         d.payload_json AS dataset_json
                     FROM sessions AS s
                     JOIN datasets AS d ON d.session_id = s.id
                     WHERE s.id = %s
+                      AND s.owner_id = %s
+                      AND d.owner_id = %s
                     ORDER BY d.version DESC
                     LIMIT 1
                     """,
-                    (session_id,),
+                    (session_id, owner_id, owner_id),
                 )
                 row = cursor.fetchone()
                 return _session_from_row(row) if row is not None else None
@@ -568,8 +764,28 @@ class PostgreSQLBackendStore:
         dataset_version: int,
         method_id: str,
         params: dict[str, Any] | None = None,
+        owner_id: str | None = None,
     ) -> JobRecord:
-        if self.get_session(session_id) is None:
+        owner_id = _normalize_owner_id(owner_id)
+        return self.create_job_with_owner(
+            session_id=session_id,
+            dataset_version=dataset_version,
+            method_id=method_id,
+            params=params,
+            owner_id=owner_id,
+        )
+
+    def create_job_with_owner(
+        self,
+        *,
+        session_id: str,
+        dataset_version: int,
+        method_id: str,
+        params: dict[str, Any] | None = None,
+        owner_id: str,
+    ) -> JobRecord:
+        owner_id = _normalize_owner_id(owner_id)
+        if self.get_session(session_id, owner_id=owner_id) is None:
             raise KeyError(f"unknown session: {session_id}")
 
         timestamp = utc_now()
@@ -583,6 +799,7 @@ class PostgreSQLBackendStore:
                         INSERT INTO jobs (
                             id,
                             session_id,
+                            owner_id,
                             dataset_version,
                             method_id,
                             params_json,
@@ -591,11 +808,12 @@ class PostgreSQLBackendStore:
                             created_at,
                             updated_at
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         (
                             job_id,
                             session_id,
+                            owner_id,
                             dataset_version,
                             method_id,
                             params_json,
@@ -626,12 +844,13 @@ class PostgreSQLBackendStore:
                             timestamp,
                         ),
                     )
-        job = self.get_job(job_id)
+        job = self.get_job(job_id, owner_id=owner_id)
         if job is None:  # pragma: no cover - postgres transaction invariant
             raise RuntimeError("created job could not be reloaded")
         return job
 
-    def get_job(self, job_id: str) -> JobRecord | None:
+    def get_job(self, job_id: str, owner_id: str | None = None) -> JobRecord | None:
+        owner_id = _normalize_owner_id(owner_id)
         with self._connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
@@ -641,6 +860,7 @@ class PostgreSQLBackendStore:
                         j.session_id,
                         j.dataset_version,
                         j.method_id,
+                        j.owner_id,
                         j.params_json,
                         j.status,
                         j.error,
@@ -650,8 +870,9 @@ class PostgreSQLBackendStore:
                     FROM jobs AS j
                     LEFT JOIN job_results AS r ON r.job_id = j.id
                     WHERE j.id = %s
+                      AND j.owner_id = %s
                     """,
-                    (job_id,),
+                    (job_id, owner_id),
                 )
                 row = cursor.fetchone()
                 if row is None:
@@ -675,8 +896,10 @@ class PostgreSQLBackendStore:
         status: str,
         result: dict[str, Any] | None = None,
         error: str | None = None,
+        owner_id: str | None = None,
     ) -> JobRecord:
-        existing = self.get_job(job_id)
+        owner_id = _normalize_owner_id(owner_id)
+        existing = self.get_job(job_id, owner_id=owner_id)
         if existing is None:
             raise KeyError(f"unknown job: {job_id}")
 
@@ -688,9 +911,9 @@ class PostgreSQLBackendStore:
                         """
                         UPDATE jobs
                         SET status = %s, error = %s, updated_at = %s
-                        WHERE id = %s
+                        WHERE id = %s AND owner_id = %s
                         """,
-                        (status, error, timestamp, job_id),
+                        (status, error, timestamp, job_id, owner_id),
                     )
                     if result is not None:
                         cursor.execute(
@@ -731,7 +954,7 @@ class PostgreSQLBackendStore:
                             timestamp,
                         ),
                     )
-        updated = self.get_job(job_id)
+        updated = self.get_job(job_id, owner_id=owner_id)
         if updated is None:  # pragma: no cover - postgres transaction invariant
             raise RuntimeError("updated job could not be reloaded")
         return updated
@@ -816,6 +1039,7 @@ def _session_from_row(row: Mapping[str, Any]) -> SessionRecord:
         dataset=_load_json(row["dataset_json"]),
         dataset_version=row["dataset_version"],
         created_at=row["created_at"],
+        owner_id=row["owner_id"],
     )
 
 
@@ -832,4 +1056,5 @@ def _job_from_row(row: Mapping[str, Any], *, events: list[dict[str, Any]]) -> Jo
         result=_load_json(row["result_json"]),
         error=row["error"],
         events=events,
+        owner_id=row["owner_id"],
     )

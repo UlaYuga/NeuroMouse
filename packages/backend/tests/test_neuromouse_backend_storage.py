@@ -61,6 +61,107 @@ def _reopen_store(backend_name: str, source: str | Path) -> SQLiteBackendStore |
 
 
 @pytest.mark.parametrize("backend_name", ["sqlite", "postgres"])
+def test_storage_ownerscope_by_query_identity(
+    backend_name: str,
+    tmp_path: Path,
+) -> None:
+    source, store = make_backend(backend_name, tmp_path)
+    try:
+        owner_a = "owner-a"
+        owner_b = "owner-b"
+        dataset_a = dataset_for(3, 2, 2)
+
+        session_a = store.create_session_with_owner(
+            name="owner-a",
+            dataset=dataset_a,
+            owner_id=owner_a,
+        )
+        session_b = store.create_session_with_owner(
+            name="owner-b",
+            dataset=dataset_a,
+            owner_id=owner_b,
+        )
+
+        assert session_a.owner_id == owner_a
+        assert session_b.owner_id == owner_b
+        assert session_a in store.list_sessions(owner_id=owner_a)
+        assert session_b not in store.list_sessions(owner_id=owner_a)
+        assert session_b in store.list_sessions(owner_id=owner_b)
+        assert session_a not in store.list_sessions(owner_id=owner_b)
+        assert store.get_session(session_a.id, owner_id=owner_b) is None
+        assert store.get_session(session_a.id, owner_id=owner_a) == session_a
+
+        demo_session = store.create_session(name="demo", dataset=dataset_a)
+        assert demo_session.owner_id == "anonymous"
+        assert demo_session in store.list_sessions()
+        assert store.get_session(demo_session.id) == demo_session
+
+        job_a = store.create_job_with_owner(
+            session_id=session_a.id,
+            dataset_version=session_a.dataset_version,
+            method_id="band_power_summary",
+            params={"frequency_count": 2},
+            owner_id=owner_a,
+        )
+        job_b = store.create_job_with_owner(
+            session_id=session_b.id,
+            dataset_version=session_b.dataset_version,
+            method_id="band_power_summary",
+            params={"frequency_count": 2},
+            owner_id=owner_b,
+        )
+        anonymous_job = store.create_job(
+            session_id=demo_session.id,
+            dataset_version=demo_session.dataset_version,
+            method_id="band_power_summary",
+            params={"frequency_count": 2},
+        )
+
+        assert store.get_job(job_a.id, owner_id=owner_a) == job_a
+        assert store.get_job(job_a.id, owner_id=owner_b) is None
+        assert store.get_job(job_b.id, owner_id=owner_b) == job_b
+        assert store.get_job(job_b.id, owner_id=owner_a) is None
+        assert store.get_job(anonymous_job.id) == anonymous_job
+
+        with store._connect() as connection:  # type: ignore[attr-defined]
+            if backend_name == "sqlite":
+                session_owner = connection.execute(
+                    "SELECT owner_id FROM sessions WHERE id = ?",
+                    (session_a.id,),
+                ).fetchone()
+                dataset_owner = connection.execute(
+                    "SELECT owner_id FROM datasets WHERE session_id = ?",
+                    (session_a.id,),
+                ).fetchone()
+                job_owner = connection.execute(
+                    "SELECT owner_id FROM jobs WHERE id = ?",
+                    (job_a.id,),
+                ).fetchone()
+            else:
+                session_owner = connection.execute(
+                    "SELECT owner_id FROM sessions WHERE id = %s",
+                    (session_a.id,),
+                ).fetchone()
+                dataset_owner = connection.execute(
+                    "SELECT owner_id FROM datasets WHERE session_id = %s",
+                    (session_a.id,),
+                ).fetchone()
+                job_owner = connection.execute(
+                    "SELECT owner_id FROM jobs WHERE id = %s",
+                    (job_a.id,),
+                ).fetchone()
+
+            assert session_owner is not None
+            assert dataset_owner is not None
+            assert job_owner is not None
+            assert session_owner["owner_id"] == owner_a
+            assert dataset_owner["owner_id"] == owner_a
+            assert job_owner["owner_id"] == owner_a
+    finally:
+        _close_backend(store)
+
+
+@pytest.mark.parametrize("backend_name", ["sqlite", "postgres"])
 @given(
     name=st.one_of(st.none(), st.text(alphabet=st.characters(max_codepoint=126), max_size=24)),
     channel_count=st.integers(min_value=1, max_value=6),

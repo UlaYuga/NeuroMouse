@@ -1,25 +1,36 @@
 from __future__ import annotations
 
-import hmac
+import json
 import os
 import time
 from collections import defaultdict, deque
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Final
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 DEFAULT_RATE_LIMIT_REQUESTS: Final = 120
 DEFAULT_RATE_LIMIT_WINDOW_SECONDS: Final = 60
+DEFAULT_SESSION_COOKIE_NAME: Final = "neuromouse_session"
 
 PUBLIC_PATHS: Final = ("/health", "/healthz", "/ready", "/readyz")
 
 
 @dataclass(frozen=True)
+class AuthenticatedUser:
+    id: str
+
+
+SessionTokenResolver = Callable[[str], AuthenticatedUser | None]
+
+
+@dataclass(frozen=True)
 class SecurityConfig:
-    api_token: str
+    session_token_resolver: SessionTokenResolver
+    session_cookie_name: str
     rate_limit_requests: int
     rate_limit_window_seconds: int
     cors_allowlist: tuple[str, ...]
@@ -35,15 +46,68 @@ def _parse_positive_int(value: str | None, default: int) -> int:
     return max(0, parsed)
 
 
-def _load_security_config() -> SecurityConfig:
-    token = os.getenv("NEUROMOUSE_API_TOKEN", "").strip()
+class EnvSessionTokenResolver:
+    def __init__(self, token_to_user_id: Mapping[str, str]) -> None:
+        self._token_to_user_id = dict(token_to_user_id)
+
+    @classmethod
+    def from_env(cls) -> EnvSessionTokenResolver:
+        return cls(_parse_session_token_mapping(os.getenv("NEUROMOUSE_SESSION_TOKENS", "")))
+
+    def resolve(self, token: str) -> AuthenticatedUser | None:
+        user_id = self._token_to_user_id.get(token)
+        if user_id is None:
+            return None
+        return AuthenticatedUser(id=user_id)
+
+
+def _parse_session_token_mapping(raw: str) -> dict[str, str]:
+    value = raw.strip()
+    if not value:
+        return {}
+    if value.startswith("{"):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        return {
+            str(token).strip(): str(user_id).strip()
+            for token, user_id in parsed.items()
+            if str(token).strip() and str(user_id).strip()
+        }
+
+    token_to_user_id: dict[str, str] = {}
+    for entry in value.split(","):
+        item = entry.strip()
+        if not item:
+            continue
+        separator = ":" if ":" in item else "="
+        if separator not in item:
+            continue
+        token, user_id = item.split(separator, maxsplit=1)
+        token = token.strip()
+        user_id = user_id.strip()
+        if token and user_id:
+            token_to_user_id[token] = user_id
+    return token_to_user_id
+
+
+def _load_security_config(
+    session_token_resolver: SessionTokenResolver | None = None,
+) -> SecurityConfig:
     cors_allowlist = tuple(
         origin.strip()
         for origin in os.getenv("NEUROMOUSE_CORS_ALLOWLIST", "").split(",")
         if origin.strip()
     )
     return SecurityConfig(
-        api_token=token,
+        session_token_resolver=session_token_resolver or EnvSessionTokenResolver.from_env().resolve,
+        session_cookie_name=(
+            os.getenv("NEUROMOUSE_SESSION_COOKIE", DEFAULT_SESSION_COOKIE_NAME).strip()
+            or DEFAULT_SESSION_COOKIE_NAME
+        ),
         rate_limit_requests=_parse_positive_int(
             os.getenv("NEUROMOUSE_RATE_LIMIT_PER_IP"),
             DEFAULT_RATE_LIMIT_REQUESTS,
@@ -56,14 +120,51 @@ def _load_security_config() -> SecurityConfig:
     )
 
 
-def _parse_auth_token(request: Request) -> str:
-    header_token = request.headers.get("x-api-token", "").strip()
+def _parse_session_token_from_request(request: Request, *, cookie_name: str) -> str:
+    header_token = request.headers.get("x-session-token", "").strip()
     if header_token:
         return header_token
     authorization = request.headers.get("authorization", "")
     if authorization.lower().startswith("bearer "):
         return authorization[7:].strip()
-    return ""
+    return request.cookies.get(cookie_name, "").strip()
+
+
+def _parse_session_token_from_websocket(websocket: WebSocket, *, cookie_name: str) -> str:
+    header_token = websocket.headers.get("x-session-token", "").strip()
+    if header_token:
+        return header_token
+    authorization = websocket.headers.get("authorization", "")
+    if authorization.lower().startswith("bearer "):
+        return authorization[7:].strip()
+    return websocket.cookies.get(cookie_name, "").strip()
+
+
+def _resolve_session_token(
+    token: str,
+    *,
+    resolver: SessionTokenResolver,
+) -> AuthenticatedUser | None:
+    if not token:
+        return None
+    return resolver(token)
+
+
+def user_from_request(request: Request) -> AuthenticatedUser:
+    user = getattr(request.state, "user", None)
+    if not isinstance(user, AuthenticatedUser):  # pragma: no cover - route misuse guard
+        raise RuntimeError("authenticated user was not attached to the request")
+    return user
+
+
+def user_from_websocket(websocket: WebSocket) -> AuthenticatedUser | None:
+    app = websocket.scope["app"]
+    resolver = getattr(app.state, "session_token_resolver", None)
+    cookie_name = getattr(app.state, "session_cookie_name", DEFAULT_SESSION_COOKIE_NAME)
+    if resolver is None:
+        return None
+    token = _parse_session_token_from_websocket(websocket, cookie_name=cookie_name)
+    return _resolve_session_token(token, resolver=resolver)
 
 
 def _is_public_path(path: str) -> bool:
@@ -71,8 +172,14 @@ def _is_public_path(path: str) -> bool:
     return normalized in PUBLIC_PATHS
 
 
-def install_security_middlewares(app: FastAPI) -> None:
-    config = _load_security_config()
+def install_security_middlewares(
+    app: FastAPI,
+    *,
+    session_token_resolver: SessionTokenResolver | None = None,
+) -> None:
+    config = _load_security_config(session_token_resolver)
+    app.state.session_token_resolver = config.session_token_resolver
+    app.state.session_cookie_name = config.session_cookie_name
 
     app.add_middleware(
         CORSMiddleware,
@@ -126,16 +233,16 @@ def install_security_middlewares(app: FastAPI) -> None:
         ):
             return await call_next(request)
 
-        if not config.api_token:
+        token = _parse_session_token_from_request(
+            request,
+            cookie_name=config.session_cookie_name,
+        )
+        user = _resolve_session_token(token, resolver=config.session_token_resolver)
+        if user is None:
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"detail": "API token is not configured"},
+                content={"detail": "Missing or invalid session token"},
             )
 
-        if not hmac.compare_digest(_parse_auth_token(request), config.api_token):
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"detail": "Missing or invalid API token"},
-            )
-
+        request.state.user = user
         return await call_next(request)

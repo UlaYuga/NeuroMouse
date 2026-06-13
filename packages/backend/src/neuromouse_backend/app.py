@@ -11,12 +11,17 @@ from dataclasses import field as dataclass_field
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from neuromouse_backend.security import install_security_middlewares
+from neuromouse_backend.security import (
+    SessionTokenResolver,
+    install_security_middlewares,
+    user_from_request,
+    user_from_websocket,
+)
 from neuromouse_backend.storage import (
     BackendStore,
     JobRecord,
@@ -128,6 +133,7 @@ class MethodExecutionError(ValueError):
 class _QueuedJob:
     job_id: str
     session_id: str
+    owner_id: str
     method_id: str
     params: dict[str, Any]
 
@@ -248,6 +254,7 @@ def create_default_method_catalog() -> MethodCatalog:
 def create_app(
     store: BackendStore | None = None,
     method_catalog: MethodCatalog | None = None,
+    session_token_resolver: SessionTokenResolver | None = None,
 ) -> FastAPI:
     backend_store = store or create_backend_store()
     methods = method_catalog or create_default_method_catalog()
@@ -256,7 +263,7 @@ def create_app(
         version="0.0.0",
         description="FastAPI backend for contract-validated NeuroMouse method jobs.",
     )
-    install_security_middlewares(app)
+    install_security_middlewares(app, session_token_resolver=session_token_resolver)
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:
@@ -285,17 +292,25 @@ def create_app(
 
     async def _execute_job(queued_job: _QueuedJob) -> None:
         try:
-            session = backend_store.get_session(queued_job.session_id)
+            session = backend_store.get_session(
+                queued_job.session_id,
+                owner_id=queued_job.owner_id,
+            )
             if session is None:
                 failed = backend_store.append_job_event(
                     queued_job.job_id,
                     status="failed",
                     error="Session not found",
+                    owner_id=queued_job.owner_id,
                 )
                 _broadcast_job_update(failed.events[-1])
                 return
 
-            running = backend_store.append_job_event(queued_job.job_id, status="running")
+            running = backend_store.append_job_event(
+                queued_job.job_id,
+                status="running",
+                owner_id=queued_job.owner_id,
+            )
             _broadcast_job_update(running.events[-1])
 
             result = await asyncio.to_thread(
@@ -308,6 +323,7 @@ def create_app(
                 queued_job.job_id,
                 status="completed",
                 result=jsonable_encoder(result),
+                owner_id=queued_job.owner_id,
             )
             _broadcast_job_update(completed.events[-1])
         except MethodExecutionError as exc:
@@ -315,6 +331,7 @@ def create_app(
                 queued_job.job_id,
                 status="failed",
                 error=str(exc),
+                owner_id=queued_job.owner_id,
             )
             _broadcast_job_update(failed.events[-1])
         except Exception as exc:  # pragma: no cover - defensive boundary for future methods
@@ -322,6 +339,7 @@ def create_app(
                 queued_job.job_id,
                 status="failed",
                 error=str(exc),
+                owner_id=queued_job.owner_id,
             )
             _broadcast_job_update(failed.events[-1])
 
@@ -358,7 +376,11 @@ def create_app(
             UNPROCESSABLE_ENTITY: {"description": "Dataset contract or request validation error"}
         },
     )
-    async def create_session(request: SessionCreateRequest) -> SessionResponse:
+    async def create_session(
+        http_request: Request,
+        request: SessionCreateRequest,
+    ) -> SessionResponse:
+        user = user_from_request(http_request)
         try:
             dataset = validate_dataset(request.dataset).model_dump(mode="json")
         except DatasetValidationError as exc:
@@ -373,16 +395,25 @@ def create_app(
                 ],
             ) from exc
 
-        session = backend_store.create_session(name=request.name, dataset=dataset)
+        session = backend_store.create_session(
+            name=request.name,
+            dataset=dataset,
+            owner_id=user.id,
+        )
         return _session_response(session)
 
     @app.get("/sessions", response_model=list[SessionSummary])
-    async def list_sessions() -> list[SessionSummary]:
-        return [_session_summary(session) for session in backend_store.list_sessions()]
+    async def list_sessions(http_request: Request) -> list[SessionSummary]:
+        user = user_from_request(http_request)
+        return [
+            _session_summary(session)
+            for session in backend_store.list_sessions(owner_id=user.id)
+        ]
 
     @app.get("/sessions/{session_id}", response_model=SessionResponse)
-    async def get_session(session_id: str) -> SessionResponse:
-        session = backend_store.get_session(session_id)
+    async def get_session(http_request: Request, session_id: str) -> SessionResponse:
+        user = user_from_request(http_request)
+        session = backend_store.get_session(session_id, owner_id=user.id)
         if session is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
         return _session_response(session)
@@ -392,7 +423,8 @@ def create_app(
         return [_method_response(method) for method in methods.methods.values()]
 
     @app.post("/demo/seed", response_model=DemoSeedResponse, status_code=status.HTTP_201_CREATED)
-    async def seed_demo() -> DemoSeedResponse:
+    async def seed_demo(http_request: Request) -> DemoSeedResponse:
+        user = user_from_request(http_request)
         try:
             payload = json.loads(DEMO_DATASET_PATH.read_text(encoding="utf-8"))
             dataset = validate_dataset(payload).model_dump(mode="json")
@@ -402,7 +434,11 @@ def create_app(
                 detail=f"Demo dataset could not be loaded: {exc}",
             ) from exc
 
-        session = backend_store.create_session(name="Golden demo dataset", dataset=dataset)
+        session = backend_store.create_session(
+            name="Golden demo dataset",
+            dataset=dataset,
+            owner_id=user.id,
+        )
         return DemoSeedResponse(
             session_id=session.id,
             dataset_id=session.dataset_id,
@@ -415,7 +451,8 @@ def create_app(
         response_model=DemoSeedResponse,
         status_code=status.HTTP_201_CREATED,
     )
-    async def seed_demo_mea() -> DemoSeedResponse:
+    async def seed_demo_mea(http_request: Request) -> DemoSeedResponse:
+        user = user_from_request(http_request)
         try:
             payload = json.loads(MEA_DEMO_DATASET_PATH.read_text(encoding="utf-8"))
             dataset = validate_dataset(payload).model_dump(mode="json")
@@ -426,7 +463,9 @@ def create_app(
             ) from exc
 
         session = backend_store.create_session(
-            name="MEA golden demo (1024-ch synthetic)", dataset=dataset
+            name="MEA golden demo (1024-ch synthetic)",
+            dataset=dataset,
+            owner_id=user.id,
         )
         return DemoSeedResponse(
             session_id=session.id,
@@ -440,8 +479,13 @@ def create_app(
         response_model=JobResponse,
         status_code=status.HTTP_201_CREATED,
     )
-    async def create_job(session_id: str, request: JobCreateRequest) -> JobResponse:
-        session = backend_store.get_session(session_id)
+    async def create_job(
+        http_request: Request,
+        session_id: str,
+        request: JobCreateRequest,
+    ) -> JobResponse:
+        user = user_from_request(http_request)
+        session = backend_store.get_session(session_id, owner_id=user.id)
         if session is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
@@ -458,12 +502,14 @@ def create_app(
             dataset_version=session.dataset_version,
             method_id=request.method_id,
             params=request.params,
+            owner_id=user.id,
         )
         await _start_workers()
         await job_queue.put(
             _QueuedJob(
                 job_id=job.id,
                 session_id=session.id,
+                owner_id=user.id,
                 method_id=request.method_id,
                 params=request.params,
             ),
@@ -471,8 +517,9 @@ def create_app(
         return _job_response(job, methods=methods)
 
     @app.get("/jobs/{job_id}", response_model=JobResponse)
-    async def get_job(job_id: str) -> JobResponse:
-        job = backend_store.get_job(job_id)
+    async def get_job(http_request: Request, job_id: str) -> JobResponse:
+        user = user_from_request(http_request)
+        job = backend_store.get_job(job_id, owner_id=user.id)
         if job is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
         return _job_response(job, methods=methods)
@@ -483,7 +530,10 @@ def create_app(
         responses={426: {"description": "Use a WebSocket client for this endpoint"}},
         tags=["websocket"],
     )
-    async def websocket_job_http_fallback(job_id: str) -> JSONResponse:
+    async def websocket_job_http_fallback(http_request: Request, job_id: str) -> JSONResponse:
+        user = user_from_request(http_request)
+        if backend_store.get_job(job_id, owner_id=user.id) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
         return JSONResponse(
             status_code=status.HTTP_426_UPGRADE_REQUIRED,
             content={"detail": f"Use WebSocket /ws/jobs/{job_id} for job progress"},
@@ -491,8 +541,12 @@ def create_app(
 
     @app.websocket("/ws/jobs/{job_id}")
     async def job_progress(websocket: WebSocket, job_id: str) -> None:
+        user = user_from_websocket(websocket)
+        if user is None:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
         await websocket.accept()
-        job = backend_store.get_job(job_id)
+        job = backend_store.get_job(job_id, owner_id=user.id)
         if job is None:
             await websocket.send_json({"status": "not_found", "error": "Job not found"})
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -502,7 +556,7 @@ def create_app(
         try:
             sent = 0
             while True:
-                current = backend_store.get_job(job_id)
+                current = backend_store.get_job(job_id, owner_id=user.id)
                 if current is None:
                     return
                 if len(current.events) > sent:
@@ -535,6 +589,9 @@ def create_app(
 
     @app.websocket("/ws/live")
     async def live_echo(websocket: WebSocket) -> None:
+        if user_from_websocket(websocket) is None:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
         await websocket.accept()
         try:
             while True:
