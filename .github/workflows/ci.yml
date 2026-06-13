@@ -15,6 +15,19 @@ jobs:
   quality-gate:
     name: Linux Quality Gate (py${{ matrix.python-version }} / node${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: neuromouse
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=6
+          --health-start-period=10s
     strategy:
       fail-fast: false
       matrix:
@@ -66,6 +79,8 @@ jobs:
           npm ci --prefix packages/sdk-ts
 
       - name: Run pytest
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/neuromouse"
         run: uv run pytest
 
       - name: Run Ruff

@@ -12,6 +12,20 @@ services:
     networks:
       - neuromouse
 
+  postgres:
+    image: postgres:16
+    container_name: neuromouse-postgres
+    profiles:
+      - hosted
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-neuromouse}
+    volumes:
+      - neuromouse-postgres-data:/var/lib/postgresql/data
+    networks:
+      - neuromouse
+
   backend:
     build:
       context: .
@@ -42,3 +56,4 @@ networks:
 
 volumes:
   neuromouse-backend-data:
+  neuromouse-postgres-data:
