@@ -9,7 +9,10 @@ const DEFAULT_AUTH_ENDPOINTS = Object.freeze({
   me: "/auth/me",
   sessions: "/sessions",
 });
-export const DEFAULT_BACKEND_BASE_URL = "https://backend-production-c7a1.up.railway.app";
+// Same-origin by default: the static server proxies /auth, /sessions, /jobs, /demo,
+// /methods to the backend, so the session cookie stays first-party. An explicit
+// backendBaseUrl / NEUROMOUSE_BACKEND_URL still overrides (e.g. for direct e2e).
+export const DEFAULT_BACKEND_BASE_URL = "";
 
 export class BackendHttpError extends Error {
   constructor(message, { status, body, url } = {}) {

@@ -31,9 +31,10 @@ test("resolveBackendBaseUrl uses window-scoped runtime config when present", () 
   assert.equal(resolved, "https://window-env.invalid");
 });
 
-test("resolveBackendBaseUrl defaults to deployed backend URL when nothing is configured", () => {
+test("resolveBackendBaseUrl defaults to same-origin (empty) so the static proxy is used", () => {
   cleanBackendUrlEnv();
   assert.equal(resolveBackendBaseUrl(""), DEFAULT_BACKEND_BASE_URL);
+  assert.equal(DEFAULT_BACKEND_BASE_URL, "");
 });
 
 test("resolveBackendBaseUrl prefers explicit backendBaseUrl over env/build-time config", () => {

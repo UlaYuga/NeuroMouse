@@ -15,6 +15,17 @@ const DEFAULT_EXPLAIN_RATE_LIMIT = 30;
 
 const explainRateState = new Map();
 
+// Same-origin API proxy: the static server forwards backend API paths to the
+// FastAPI backend, so the browser talks to ONE origin and the auth session
+// cookie works (no cross-site SameSite problem).
+const BACKEND_URL = (
+  process.env.NEUROMOUSE_BACKEND_URL ?? "https://backend-production-c7a1.up.railway.app"
+).replace(/\/$/, "");
+
+function isBackendApiPath(pathname) {
+  return /^\/(auth|sessions|jobs|demo|methods)(?:\/|$)/.test(pathname);
+}
+
 const mimeTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".csv", "text/csv; charset=utf-8"],
@@ -45,6 +56,11 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (isBackendApiPath(url.pathname)) {
+      await proxyToBackend(request, response, url);
+      return;
+    }
+
     const target = await resolveRequestPath(url.pathname);
     if (!target) {
       sendText(response, 404, "Not found\n");
@@ -68,6 +84,55 @@ const server = createServer(async (request, response) => {
 server.listen(port, host, () => {
   console.log(`NeuroMouse listening on ${host}:${port}`);
 });
+
+async function proxyToBackend(request, response, url) {
+  const target = BACKEND_URL + url.pathname + url.search;
+  const headers = {};
+  for (const [key, value] of Object.entries(request.headers)) {
+    if (key === "host" || key === "connection" || key === "content-length") continue;
+    headers[key] = Array.isArray(value) ? value.join(", ") : value;
+  }
+  const method = request.method ?? "GET";
+  const hasBody = method !== "GET" && method !== "HEAD";
+  const body = hasBody ? await readRawBody(request) : undefined;
+  try {
+    const upstream = await fetch(target, { method, headers, body, redirect: "manual" });
+    const outHeaders = {};
+    upstream.headers.forEach((value, key) => {
+      if (
+        key === "content-encoding" ||
+        key === "transfer-encoding" ||
+        key === "connection" ||
+        key === "set-cookie"
+      ) {
+        return;
+      }
+      outHeaders[key] = value;
+    });
+    // Re-emit cookies for THIS origin: strip any backend Domain so the browser
+    // scopes the session cookie to the static host (same-origin, no cross-site).
+    const setCookies =
+      typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : [];
+    if (setCookies.length > 0) {
+      outHeaders["set-cookie"] = setCookies.map((cookie) => cookie.replace(/;\s*Domain=[^;]*/i, ""));
+    }
+    const payload = Buffer.from(await upstream.arrayBuffer());
+    response.writeHead(upstream.status, outHeaders);
+    response.end(payload);
+  } catch (error) {
+    console.error("backend proxy error:", error.message);
+    sendJson(response, 502, { error: "Backend unavailable." });
+  }
+}
+
+function readRawBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => resolve(Buffer.concat(chunks)));
+    request.on("error", reject);
+  });
+}
 
 async function resolveRequestPath(pathname) {
   const decoded = decodeURIComponent(pathname);
