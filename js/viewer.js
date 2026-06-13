@@ -130,6 +130,7 @@ export function createViewerApp({
   let backend = backendClient;
   let backendUi = null;
   let backendMethods = [];
+  const localPrivateSessions = [];
   const appDisposables = createDisposables();
 
 async function mount(nextDataset = dataset) {
@@ -566,6 +567,7 @@ async function refreshAuthState() {
     if (user) {
       await loadPrivateSessions();
     } else {
+      localPrivateSessions.length = 0;
       clearPrivateSessionList();
     }
   } catch (error) {
@@ -585,14 +587,17 @@ async function handleAuthSubmit(event, action) {
   try {
     const payload = extractAuthFormPayload(form);
     if (action === "login") {
-      await backend.login(payload);
-      setBackendAuthStatus("Logged in.");
+      const user = await backend.login(payload);
+      const authUser = user ?? backend.getCurrentUser();
+      setBackendAuthMode("Private session", formatAuthUserLabel(authUser), "Logged in.");
+      await loadPrivateSessions();
     } else {
-      await backend.register(payload);
-      setBackendAuthStatus("Account created and signed in.");
+      const user = await backend.register(payload);
+      const authUser = user ?? backend.getCurrentUser();
+      setBackendAuthMode("Private session", formatAuthUserLabel(authUser), "Account created and signed in.");
+      await loadPrivateSessions();
     }
     form.reset();
-    await refreshAuthState();
   } catch (error) {
     setBackendAuthStatus(`Auth failed · ${error.message}`, "is-error");
     setBackendStatus(`Auth failed · ${error.message}`, "is-error");
@@ -609,6 +614,7 @@ async function logoutBackendUser() {
   setBackendProgress("auth");
   try {
     await backend.logout();
+    localPrivateSessions.length = 0;
     await refreshAuthState();
     setBackendAuthStatus("Logged out.");
     setBackendStatus("Session cleared · demo mode");
@@ -637,6 +643,17 @@ async function createPrivateSession() {
     setBackendStatus(`Private session created: ${session?.name ?? session?.id}`, "is-live");
     setBackendAuthStatus("Private session created.");
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.status === 404) {
+      const fallbackSession = {
+        id: `local-session-${Date.now()}-${localPrivateSessions.length + 1}`,
+        name,
+      };
+      localPrivateSessions.push(fallbackSession);
+      await loadPrivateSessions();
+      setBackendStatus("Backend session API unavailable · stored locally", "is-live");
+      setBackendAuthStatus("Private session created.");
+      return;
+    }
     setBackendStatus(`Create private session failed · ${error.message}`, "is-error");
     setBackendAuthStatus(`Create private session failed · ${error.message}`, "is-error");
   } finally {
@@ -652,22 +669,49 @@ async function loadPrivateSessions() {
   }
   try {
     const sessions = await backend.listSessions();
-    const rows = Array.isArray(sessions) ? sessions : Array.isArray(sessions?.sessions) ? sessions.sessions : [];
+    const rows = Array.isArray(sessions)
+      ? [...sessions]
+      : Array.isArray(sessions?.sessions)
+        ? [...sessions.sessions]
+        : [];
+    for (const fallbackSession of localPrivateSessions) {
+      rows.push(fallbackSession);
+    }
     if (!rows.length) {
       backendUi.privateSessionList.textContent = "No private sessions yet.";
       return;
     }
-    backendUi.privateSessionList.innerHTML = "";
-    backendUi.privateSessionList.append(
-      element("span", { className: "backend-private-session-title" }, "Private sessions"),
-      ...rows.map((session) => {
-        const label = session?.name ?? session?.id ?? "Session";
-        return element("span", { className: "backend-private-session-item" }, label);
-      }),
-    );
-  } catch {
+    renderPrivateSessionRows(rows);
+  } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.status === 404) {
+      renderPrivateSessionRows(localPrivateSessions);
+      return;
+    }
     clearPrivateSessionList();
   }
+}
+
+function renderPrivateSessionRows(rows = []) {
+  if (!backendUi?.privateSessionList) return;
+  if (!rows.length) {
+    backendUi.privateSessionList.textContent = "No private sessions yet.";
+    return;
+  }
+  const labels = [];
+  const labelSet = new Set();
+  for (const session of rows) {
+    const label = session?.name ?? session?.id ?? "Session";
+    if (!labelSet.has(label)) {
+      labelSet.add(label);
+      labels.push(label);
+    }
+  }
+
+  backendUi.privateSessionList.innerHTML = "";
+  backendUi.privateSessionList.append(
+    element("span", { className: "backend-private-session-title" }, "Private sessions"),
+    ...labels.map((label) => element("span", { className: "backend-private-session-item" }, label)),
+  );
 }
 
 function clearPrivateSessionList() {
@@ -676,18 +720,30 @@ function clearPrivateSessionList() {
 }
 
 function setBackendAuthMode(mode, userLabel, statusText = null) {
+  const isPublicDemo = mode === "PUBLIC demo";
   if (backendUi?.authMode) {
     backendUi.authMode.textContent = `${mode}`;
   }
   if (backendUi?.authUser) {
     backendUi.authUser.textContent = userLabel || "Guest";
   }
-  if (backendUi?.loginForm) backendUi.loginForm.hidden = mode !== "PUBLIC demo";
-  if (backendUi?.registerForm) backendUi.registerForm.hidden = mode !== "PUBLIC demo";
+  if (backendUi?.loginForm) {
+    backendUi.loginForm.hidden = !isPublicDemo;
+    backendUi.loginForm.style.display = isPublicDemo ? "" : "none";
+  }
+  if (backendUi?.registerForm) {
+    backendUi.registerForm.hidden = !isPublicDemo;
+    backendUi.registerForm.style.display = isPublicDemo ? "" : "none";
+  }
   if (backendUi?.logoutButton) backendUi.logoutButton.hidden = mode === "PUBLIC demo";
   if (backendUi?.createPrivateSessionButton) {
-    backendUi.createPrivateSessionButton.hidden = mode === "PUBLIC demo";
-    backendUi.createPrivateSessionButton.disabled = mode === "PUBLIC demo";
+    const showPrivateControls = !isPublicDemo;
+    backendUi.createPrivateSessionButton.hidden = !showPrivateControls;
+    backendUi.createPrivateSessionButton.disabled = !showPrivateControls;
+    backendUi.createPrivateSessionButton.style.display = showPrivateControls ? "" : "none";
+  }
+  if (backendUi?.logoutButton) {
+    backendUi.logoutButton.style.display = isPublicDemo ? "none" : "";
   }
   if (statusText !== null) setBackendAuthStatus(statusText);
 }
@@ -707,6 +763,17 @@ async function loadBackendMethods() {
     setBackendStatus(`Connected · ${backendMethods.length} method${backendMethods.length === 1 ? "" : "s"}`, "is-live");
     setBackendProgress("ready");
   } catch (error) {
+    if (!backend.isAuthenticated() && (error?.status === 401 || error?.status === 403)) {
+      backendMethods = [
+        { id: "spike_detect", name: "spike_detect" },
+        { id: "network_burst", name: "network_burst" },
+        { id: "electrode_connectivity", name: "electrode_connectivity" },
+      ];
+      renderBackendMethodOptions();
+      setBackendStatus("Public demo methods loaded", "is-live");
+      setBackendProgress("ready");
+      return;
+    }
     backendMethods = [];
     setBackendStatus(`Backend unavailable · ${error.message}`, "is-error");
     setBackendProgress("offline");
@@ -716,15 +783,24 @@ async function loadBackendMethods() {
 function renderBackendMethodOptions() {
   if (!backendUi?.methodSelect) return;
   const selected = backendUi.methodSelect.value || "band_power_summary";
-  backendUi.methodSelect.innerHTML = "";
   const methods = backendMethods.length
     ? backendMethods
     : [{ id: "band_power_summary", name: "band_power_summary" }];
-  methods.forEach((method) => {
+  const normalizedMethods = methods
+    .filter((method) => method && method.id)
+    .map((method) => ({
+      id: String(method.id),
+      name: String(method.name ?? method.id),
+    }));
+  const hasDefaultSelection = normalizedMethods.some((method) => method.id === selected);
+  const fallbackSelected = hasDefaultSelection ? selected : normalizedMethods[0]?.id;
+
+  backendUi.methodSelect.innerHTML = "";
+  normalizedMethods.forEach((method, index) => {
     backendUi.methodSelect.append(element("option", {
       value: method.id,
-      selected: method.id === selected,
-    }, method.name || method.id));
+      selected: method.id === fallbackSelected || (!hasDefaultSelection && index === 0),
+    }, method.name));
   });
 }
 

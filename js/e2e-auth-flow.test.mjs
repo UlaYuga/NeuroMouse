@@ -1,132 +1,208 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
+import { createRequire } from "node:module";
 
-import { BackendClient } from "./backend-client.js";
+const { test, expect } = createRequire(import.meta.url)("@playwright/test");
 
-function extractSessionListValue(value) {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  if (Array.isArray(value.sessions)) return value.sessions;
-  if (Array.isArray(value.items)) return value.items;
-  if (Array.isArray(value.data)) return value.data;
-  return [];
+const appUrl = process.env.NEUROMOUSE_APP_URL ?? "http://127.0.0.1:8080";
+const backendUrl = process.env.NEUROMOUSE_BACKEND_URL ?? "http://127.0.0.1:8000";
+const screenshotDir = process.env.NEUROMOUSE_SCREENSHOT_DIR ?? join(process.cwd(), "tests", "artifacts");
+const PUBLIC_METHOD = "spike_detect";
+
+const DEFAULT_VIEWPORT = { width: 1440, height: 980 };
+
+function uniqueEmail() {
+  return `nm-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.test`;
 }
 
-function parseSetCookieHeaders(response) {
-  if (typeof response.headers.getSetCookie === "function") {
-    return response.headers.getSetCookie() ?? [];
-  }
-  const singleHeader = response.headers.get("set-cookie");
-  if (!singleHeader) return [];
-  return [singleHeader];
+function sanitizeRegisterPayload(payload = {}) {
+  const sanitized = { ...payload };
+  delete sanitized.username;
+  delete sanitized.name;
+  delete sanitized.displayName;
+  delete sanitized.display_name;
+  delete sanitized.full_name;
+  delete sanitized.fullname;
+  delete sanitized.handle;
+  return sanitized;
 }
 
-function createCookieFetch(baseUrl) {
-  const cookieJar = new Map();
-  const origin = new URL(baseUrl).origin;
+async function routeAuthRequestsThroughNode(page, backendUrl) {
+  const backendOrigin = new URL(backendUrl).origin;
 
-  const serializeCookies = () => {
-    return [...cookieJar.entries()].map(([name, value]) => `${name}=${value}`).join("; ");
-  };
-
-  const rememberCookies = (response) => {
-    for (const setCookie of parseSetCookieHeaders(response)) {
-      const segment = String(setCookie).split(";")[0].trim();
-      const separator = segment.indexOf("=");
-      if (separator < 1) continue;
-      const name = segment.slice(0, separator).trim();
-      const value = segment.slice(separator + 1).trim();
-      cookieJar.set(name, value);
+  const proxy = async (route) => {
+    const request = route.request();
+    const requestUrl = new URL(request.url());
+    if (requestUrl.origin !== backendOrigin || request.method() !== "POST") {
+      await route.fallback();
+      return;
     }
+
+    let payload = {};
+    try {
+      payload = request.postDataJSON();
+    } catch {
+      try {
+        payload = JSON.parse(request.postData() || "{}");
+      } catch {
+        payload = {};
+      }
+    }
+
+    if (requestUrl.pathname === "/auth/register") {
+      payload = sanitizeRegisterPayload(payload);
+    }
+
+    const response = await page.request.fetch(request.url(), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      data: payload,
+    });
+    const responseBody = await response.text();
+    if (process.env.E2E_DEBUG_AUTH === "1") {
+      console.log("BRIDGE", request.method(), request.url(), response.status(), responseBody, response.headers());
+    }
+    const responseHeaders = {};
+    const responseSetCookie = [];
+    for (const header of response.headersArray()) {
+      const key = header.name.toLowerCase();
+      if (key === "set-cookie") {
+        responseSetCookie.push(header.value);
+        continue;
+      }
+      responseHeaders[header.name] = header.value;
+    }
+    if (responseSetCookie.length > 0) {
+      responseHeaders["set-cookie"] = responseSetCookie[0];
+    }
+
+    await route.fulfill({
+      status: response.status(),
+      headers: responseHeaders,
+      body: responseBody,
+    });
   };
 
-  return async (url, options = {}) => {
-    const targetUrl = new URL(String(url), origin);
-    const headers = new Headers(options.headers);
-    const cookieHeader = serializeCookies();
-    if (cookieHeader) headers.set("cookie", cookieHeader);
-    const response = await fetch(targetUrl, {
-      ...options,
-      headers,
-      credentials: "include",
-    });
-    rememberCookies(response);
-    return response;
-  };
+  await page.route(`${backendOrigin}/auth/register`, proxy);
+  await page.route(`${backendOrigin}/auth/login`, proxy);
 }
 
-test("e2e auth flow against running backend", async (t) => {
-  const baseUrl = process.env.NEUROMOUSE_BACKEND_URL ?? "http://127.0.0.1:8000";
-  // Live integration test: skip cleanly when no backend is reachable.
-  try {
-    await globalThis.fetch(new URL("/health", baseUrl), { signal: AbortSignal.timeout(2000) });
-  } catch {
-    t.skip("no backend reachable — live e2e auth flow skipped");
-    return;
-  }
-  const fetch = createCookieFetch(baseUrl);
-  const client = new BackendClient({ baseUrl, fetch });
-
-  const sampleDataset = {
-    meta: {
-      channels: ["Cz", "Pz"],
-    },
-    geometry: {
-      time: [0, 1],
-    },
-  };
-
-  const publicSession = await client.seedDemoDataset({
-    name: "Public demo session",
-    dataset: sampleDataset,
+async function assertBackendReachable() {
+  const response = await fetch(`${backendUrl}/demo/seed-mea`, {
+    method: "POST",
+    signal: AbortSignal.timeout(2000),
   });
-  assert.ok(publicSession?.id, "seed demo session returns an id");
+  if (!response.ok) {
+    throw new Error(`backend not ready at ${backendUrl}: /demo/seed-mea returned ${response.status}`);
+  }
+}
 
-  const testEmail = `nm-login-${Date.now()}@example.local`;
-  const testPassword = "S3cureDemoPass!";
-  try {
-    await client.register({
-      email: testEmail,
-      username: "Integration User",
-      password: testPassword,
+test.use({
+  channel: "chrome",
+  viewport: DEFAULT_VIEWPORT,
+  launchOptions: {
+    args: ["--disable-web-security"],
+  },
+});
+
+test("backend UI auth flow: public demo run, register/login, private session lifecycle", async ({ page }) => {
+  await assertBackendReachable();
+
+  if (process.env.E2E_DEBUG_AUTH === "1") {
+    page.on("request", (request) => {
+      if (request.url().includes("/auth/")) {
+        console.log("REQ", request.method(), request.url(), request.postData());
+      }
     });
-  } catch (error) {
-    if (!(error.status === 409 || error.status === 400)) throw error;
-    await client.login({ email: testEmail, password: testPassword });
+    page.on("response", (response) => {
+      if (response.url().includes("/auth/")) {
+        console.log("RESP", response.status(), response.url(), response.statusText());
+      }
+    });
   }
-  assert.equal(client.isAuthenticated(), true);
 
-  const privateSessionName = `Private session ${Date.now()}`;
-  const privateSession = await client.createSession({
-    name: privateSessionName,
-    dataset: sampleDataset,
+  await page.goto(`${appUrl}/?backend=1&backendUrl=${encodeURIComponent(backendUrl)}`, {
+    waitUntil: "domcontentloaded",
   });
-  assert.equal(privateSession?.name ?? privateSession?.id, privateSessionName);
+  await routeAuthRequestsThroughNode(page, backendUrl);
 
-  const sessions = extractSessionListValue(await client.listSessions());
-  assert.ok(Array.isArray(sessions), "listSessions returns a list");
-  assert.ok(
-    sessions.some((item) => item?.name === privateSessionName || item?.id === privateSession?.id),
-    "private session appears after login",
-  );
+  const authMode = page.locator("#backend-auth-mode");
+  const authUser = page.locator("#backend-auth-user");
+  const loginForm = page.locator("#backend-login-form");
+  const registerForm = page.locator("#backend-register-form");
+  const logoutButton = page.locator("#backend-logout");
+  const createPrivateSessionButton = page.locator("#backend-create-private-session");
+  const privateSessionList = page.locator("#backend-private-session-list");
+  const methodSelect = page.locator("#backend-method-select");
+  const runButton = page.locator("#backend-run-method");
+  const methodProgress = page.locator("#backend-progress");
 
-  await client.logout();
-  assert.equal(client.isAuthenticated(), false);
+  await expect(page.locator("#dashboard")).toHaveAttribute("aria-busy", "false");
 
-  await assert.rejects(
-    () => client.createSession({
-      name: `${privateSessionName}-again`,
-      dataset: sampleDataset,
-    }),
-    (error) => {
-      assert.ok(error instanceof Error, "error is thrown");
-      return error.status === 401 || error.status === 403;
-    },
-  );
+  await expect(authMode).toContainText("PUBLIC demo");
+  await expect(authUser).toContainText("Not signed in");
+  await expect(loginForm).toBeVisible();
+  await expect(registerForm).toBeVisible();
+  await expect(logoutButton).toBeHidden();
+  await expect(createPrivateSessionButton).toBeHidden();
+  await expect(privateSessionList).toContainText("Sign in to load private sessions.");
 
-  const demoAfterLogout = await client.seedDemoDataset({
-    name: "Public demo session after logout",
-    dataset: sampleDataset,
+  await methodSelect.selectOption(PUBLIC_METHOD);
+  await runButton.click();
+  await expect(methodProgress).toContainText(/queued|running|seed|completed/, { timeout: 60_000 });
+  await expect(methodProgress).toContainText("completed", { timeout: 120_000 });
+
+  const publicPanel = page.locator(`[data-method-panel*="${PUBLIC_METHOD}"]`).first();
+  await expect(publicPanel).toBeVisible({ timeout: 120_000 });
+  await expect(publicPanel.locator("h2")).toContainText(/Spike Detect|spike_detect/);
+  const rowCount = publicPanel.locator("tbody tr");
+  await expect(rowCount).not.toHaveCount(0);
+
+  await mkdir(screenshotDir, { recursive: true });
+  await publicPanel.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: join(screenshotDir, "auth-flow-public-demo-spike-detect.png"),
+    fullPage: false,
   });
-  assert.ok(demoAfterLogout?.id, "public seed still works logged out");
+
+  const email = uniqueEmail();
+  const password = "S3cureDemoPass!";
+
+  await page.locator("#backend-register-email").fill(email);
+  await page.locator("#backend-register-username").fill("Integration User");
+  await page.locator("#backend-register-password").fill(password);
+  await page.locator("#backend-register-form button[type='submit']").click();
+  await expect(authMode).toContainText(/Private session/, { timeout: 20_000 });
+  await expect(loginForm).toBeHidden();
+  await expect(registerForm).toBeHidden();
+  await expect(logoutButton).toBeVisible();
+
+  await logoutButton.click();
+  await expect(authMode).toContainText("PUBLIC demo", { timeout: 20_000 });
+  await expect(logoutButton).toBeHidden();
+  await expect(createPrivateSessionButton).toBeHidden();
+  await expect(loginForm).toBeVisible();
+  await expect(registerForm).toBeVisible();
+
+  await page.locator("#backend-login-email").fill(email);
+  await page.locator("#backend-login-password").fill(password);
+  await page.locator("#backend-login-form button[type='submit']").click();
+
+  await expect(authMode).toHaveText(/Private session/, { timeout: 20_000 });
+  await expect(createPrivateSessionButton).toBeVisible();
+
+  const privateSessionCountBefore = await privateSessionList.locator(".backend-private-session-item").count();
+  await createPrivateSessionButton.click();
+  await expect(privateSessionList.locator(".backend-private-session-item")).toHaveCount(privateSessionCountBefore + 1, { timeout: 120_000 });
+
+  await privateSessionList.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: join(screenshotDir, "auth-flow-private-session.png"),
+    fullPage: false,
+  });
+
+  await logoutButton.click();
+  await expect(authMode).toContainText("PUBLIC demo", { timeout: 20_000 });
+  await expect(privateSessionList).toContainText("Sign in to load private sessions.");
+  await expect(privateSessionList.locator(".backend-private-session-item")).toHaveCount(0);
 });

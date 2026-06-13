@@ -115,9 +115,21 @@ export class BackendClient {
   }
 
   async register({ email, username, password, ...payload } = {}) {
+    const body = normalizeAuthPayload({
+      email,
+      password,
+      ...payload,
+    });
+    delete body.username;
+    delete body.name;
+    delete body.displayName;
+    delete body.display_name;
+    delete body.full_name;
+    delete body.fullname;
+    delete body.handle;
     const response = await this.requestJson(this.authState.endpoints.register, {
       method: "POST",
-      body: normalizeAuthPayload({ email, username, password, ...payload }),
+      body,
     });
     const user = extractAuthUser(response);
     this.authState.user = user;
@@ -168,10 +180,19 @@ export class BackendClient {
     return methods.map(normalizeMethod);
   }
 
-  async createJob(sessionId, { methodId, params = {} } = {}) {
+  #getJobPath(jobId, { demo = false } = {}) {
+    return demo ? `/demo/jobs/${encodeURIComponent(jobId)}` : `/jobs/${encodeURIComponent(jobId)}`;
+  }
+
+  #getSessionJobsPath(sessionId, { demo = false } = {}) {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    return demo ? `/demo/sessions/${encodedSessionId}/jobs` : `/sessions/${encodedSessionId}/jobs`;
+  }
+
+  async createJob(sessionId, { methodId, params = {}, demo = false } = {}) {
     if (!sessionId) throw new Error("createJob requires sessionId");
     if (!methodId) throw new Error("createJob requires methodId");
-    return this.requestJson(`/sessions/${encodeURIComponent(sessionId)}/jobs`, {
+    return this.requestJson(this.#getSessionJobsPath(sessionId, { demo }), {
       method: "POST",
       body: {
         method_id: methodId,
@@ -180,13 +201,13 @@ export class BackendClient {
     });
   }
 
-  async getJob(jobId) {
+  async getJob(jobId, { demo = false } = {}) {
     if (!jobId) throw new Error("getJob requires jobId");
-    return this.requestJson(`/jobs/${encodeURIComponent(jobId)}`);
+    return this.requestJson(this.#getJobPath(jobId, { demo }));
   }
 
-  async getResult(jobId) {
-    const job = typeof jobId === "string" ? await this.getJob(jobId) : jobId;
+  async getResult(jobId, { demo = false } = {}) {
+    const job = typeof jobId === "string" ? await this.getJob(jobId, { demo }) : jobId;
     if (job?.status === "failed") {
       throw new Error(job.error || "Backend job failed");
     }
@@ -199,24 +220,27 @@ export class BackendClient {
     return this.getResult(job.id);
   }
 
-  async streamJobProgress(jobId, { onEvent, timeoutMs = this.timeoutMs } = {}) {
+  async streamJobProgress(jobId, { onEvent, timeoutMs = this.timeoutMs, demo = false } = {}) {
     if (!jobId) throw new Error("streamJobProgress requires jobId");
+    if (demo) {
+      return this.pollJobProgress(jobId, { onEvent, timeoutMs, demo });
+    }
     if (typeof this.WebSocket !== "function") {
-      return this.pollJobProgress(jobId, { onEvent, timeoutMs });
+      return this.pollJobProgress(jobId, { onEvent, timeoutMs, demo });
     }
     try {
       return await this.openJobWebSocket(jobId, { onEvent, timeoutMs });
     } catch {
-      return this.pollJobProgress(jobId, { onEvent, timeoutMs });
+      return this.pollJobProgress(jobId, { onEvent, timeoutMs, demo });
     }
   }
 
-  async pollJobProgress(jobId, { onEvent, timeoutMs = this.timeoutMs } = {}) {
+  async pollJobProgress(jobId, { onEvent, timeoutMs = this.timeoutMs, demo = false } = {}) {
     const events = [];
     const deadline = Date.now() + timeoutMs;
     let lastStatus = null;
     while (Date.now() <= deadline) {
-      const job = await this.getJob(jobId);
+      const job = await this.getJob(jobId, { demo });
       if (job.status !== lastStatus) {
         lastStatus = job.status;
         events.push(job);

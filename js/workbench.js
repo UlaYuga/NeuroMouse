@@ -256,6 +256,7 @@ export async function runBackendMethodFlow({
     id: methodId,
     name: methodId,
   };
+  const isPublicDemoRun = seedEndpoint.startsWith("/demo/");
 
   try {
     const session = await backend.seedDemoDataset({
@@ -269,10 +270,12 @@ export async function runBackendMethodFlow({
     const job = await backend.createJob(session.id, {
       methodId,
       params,
+      demo: isPublicDemoRun,
     });
 
     updateStatus(`Running ${methodId}…`, "is-connecting");
     await backend.streamJobProgress(job.id, {
+      demo: isPublicDemoRun,
       onEvent: (event) => {
         emitProgress(event);
         updateProgress(event.status ?? "event");
@@ -282,7 +285,7 @@ export async function runBackendMethodFlow({
       },
     });
 
-    const result = await backend.getResult(job.id);
+    const result = await backend.getResult(job.id, { demo: isPublicDemoRun });
     const methodResult = pickMethodResultPayload(result, method);
     const methodPanelSpec = resolveMethodPanelSpec(result, method);
     renderMethodPanel(output, {
