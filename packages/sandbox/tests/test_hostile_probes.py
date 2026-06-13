@@ -13,6 +13,7 @@ of success (a written file, fetched bytes, a leaked secret) is absent.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -73,7 +74,12 @@ def test_filesystem_write_into_home_blocked(
     sentinel = Path.home() / ".nm_sandbox_pwned"
     sentinel.unlink(missing_ok=True)
     try:
-        with pytest.raises(SandboxPolicyViolation):
+        # HOME is scrubbed to the sandbox workdir, so a write to "~" lands inside
+        # the sandbox (harmless), not the real home. An outright block OR the
+        # scrub-redirect is acceptable — what matters is the real home is untouched
+        # (this differs cross-platform: macOS /var symlink made it raise, Linux
+        # redirects the write into the workdir).
+        with contextlib.suppress(SandboxPolicyViolation):
             run_in_sandbox(probe_ref("fs_write_home"), dataset=None, params={}, limits=fast_limits)
         assert not sentinel.exists()
     finally:
