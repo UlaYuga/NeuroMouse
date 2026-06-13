@@ -36,7 +36,7 @@
   - backend (FastAPI, per-user auth): **https://backend-production-c7a1.up.railway.app**
   - **Pentest-verified вживую:** `/sessions` без auth → 401; cross-user IDOR → 404 (изолировано, нет утечки в списке); невалидный токен → 401; `/demo/seed-mea` (public) → 201; `/auth/register` → 201.
   - **Login-flow проверен вживую через прод-домен:** register 201 → login 200 → cookie установлен first-party → `/sessions` с cookie 200, без cookie 401.
-  - persistent **volume** `/data` (SQLite + users/auth_sessions); собирается из `Dockerfile.backend` через `RAILWAY_DOCKERFILE_PATH` (`environment edit --service-config` в non-TTY shell **не сохраняется** — env-переменная); uvicorn слушает `$PORT`.
+  - **прод на managed Postgres** (отдельный Railway PG-сервис, приватная сеть `postgres.railway.internal`, reference `DATABASE_URL` на backend); backend **сам применяет миграции при старте** (`schema_migrations` 001/002/003 — проверено вживую). SQLite остаётся dev-default/fallback; собирается из `Dockerfile.backend` через `RAILWAY_DOCKERFILE_PATH` (`environment edit --service-config` в non-TTY shell **не сохраняется** — env-переменная); uvicorn слушает `$PORT`; старый volume `/data` сохранён, но больше не используется.
   - **Что сделано к этому (Волны 6-8):** API auth + rate-limit + CORS, async-очередь джобов + live WS, **sandbox для чужого кода (P1-4) + kernel-слой Linux (seccomp+Landlock)**, Postgres-backend (sqlite default, **CI-проверен на pg**), **per-user auth + ownership** (register/login, `owner_id` на ресурсах, изоляция), **public demo lane** (демо без логина), login frontend, **same-origin proxy** (cross-domain cookie закрыт). pentest-High (публичные сессии) закрыт.
   - `/api/explain` на static — пока safe 503; enabled-path покрыт тестами (Волна 8), включить: `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на `speedmouse`.
 
@@ -103,14 +103,15 @@
 
 ### Наружу (требует явного разрешения):
 - **Включить `/api/explain`** — сейчас safe 503; задать `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на сервисе `speedmouse`. Enabled-path уже покрыт тестами (Волна 8) — не хватает только живых секретов.
-- **Перевести прод на managed Postgres** — поднять Railway-PG, задать `DATABASE_URL` на backend. Код проверен на pg в CI (Волна 8); сейчас прод на SQLite + volume `/data`.
 
 ### Опциональное развитие:
 - **OAuth-идентичность** (GitHub/Google) как альтернатива email+password — auth-core спроектирован под подключение.
 - **Observability** на backend (структурные логи, трейсинг, метрики) — для реальной мульти-юзер нагрузки.
+- **Connection pooling для PG** — сейчас `PostgreSQLBackendStore._connect()` открывает новое соединение на каждый запрос и проверяет миграции; при росте нагрузки добавить пул (psycopg_pool).
 - **Лимит памяти / размерности** на тело запроса (memory-DoS) — последняя часть P1-3.
 
 ### Закрытые watch-items:
+- ✅ **Managed Postgres в проде** — Railway PG-сервис поднят, backend на нём (приватная сеть, reference `DATABASE_URL`), миграции применены автоматически; проверено вживую (свежий юзер + сессия легли в PG).
 - ✅ **Node 20 → 24:** CI-экшены опт-ин через `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` (дедлайн ~16 июня пройден заранее).
 - ✅ **Docker build верифицирован** — backend и static реально собираются и стартуют в проде.
 - ✅ **sandbox (P1-4) + kernel-слой / persistence (P1-2) / async (P1-1) / auth + CORS + rate-limit** — сделано в Волнах 6-8.
@@ -156,7 +157,7 @@
 
 Платформа уже в проде и зелёная. Возможные следующие шаги:
 1. Открыть свежий Claude Code в этой папке (`/Users/axel/Documents/SpeedMouse`). Память и `COORDINATOR.md` подтянутся.
-2. **Наружу (с явного «го»):** включить `/api/explain` (секреты `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на `speedmouse`) и/или перевести прод на managed Postgres (`DATABASE_URL` на backend) — см. §5.
+2. **Наружу (с явного «го»):** включить `/api/explain` (секреты `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` на `speedmouse`) — см. §5. Managed Postgres уже подключён.
 3. **Развитие:** OAuth-логин, observability, лимит памяти на тело запроса — см. §5.
 4. Любой код-чейндж: hands-on (build/git/test сам), **push только на зелёном CI**, **деплой наружу — только с явного «го»**.
 

@@ -137,9 +137,12 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
 
 ### ▶ DEPLOYED — scope 🅰 hosted MULTI-USER platform LIVE on Railway (project `SpeedMouse`, env `production`):
 - **static** (login UI + demo + viewer, **same-origin API proxy → first-party auth cookie**): **https://neuromouse.up.railway.app**
-- **backend** (FastAPI, per-user auth): **https://backend-production-c7a1.up.railway.app**
+- **backend** (FastAPI, per-user auth, **on managed Postgres**): **https://backend-production-c7a1.up.railway.app**
   — built from `Dockerfile.backend` via env **`RAILWAY_DOCKERFILE_PATH`** (NOT `environment edit --service-config`, which
-  doesn't persist in the non-TTY shell); listens on `$PORT`; persistent **volume** `/data` (SQLite + users/auth_sessions).
+  doesn't persist in the non-TTY shell); listens on `$PORT`. **Prod DB = a Railway Postgres service** (private net
+  `postgres.railway.internal`, `DATABASE_URL` reference `${{Postgres.DATABASE_URL}}`); backend **auto-applies migrations on
+  first connect** (`schema_migrations` 001/002/003 — verified live: fresh user + session landed in PG). Old SQLite volume
+  `/data` retained but unused; sqlite stays the dev/fallback default.
 - **Live pentest-verified:** `/sessions` unauth → 401; cross-user IDOR → 404 (isolated); no session leak in listing;
   invalid token → 401; `/demo/seed-mea` public → 201; `/auth/register` → 201.
 - Railway auth is **interactive-only**: user runs `railway login` once, then agent deploys via `railway up --service <svc> --detach`.
@@ -147,7 +150,9 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
 ### ▶ IMMEDIATE NEXT ACTION — none blocking. Optional / OUTWARD (need an explicit go):
 - **Enable `/api/explain`** — safe 503 until `EXPLAIN_TOKEN` + `ANTHROPIC_API_KEY` are set on the `speedmouse` service.
   The enabled-path is already tested (Wave-8); only the live secrets are missing.
-- **Switch prod to managed Postgres** — provision a Railway PG, set `DATABASE_URL` on the backend. Code is now CI-verified on pg.
 - OAuth identity (GitHub/Google) as an alternative to email+password — auth-core is designed to plug it in.
+- PG connection pooling (psycopg_pool) once load grows — `_connect()` currently opens a fresh connection per request.
+
+(Managed Postgres in prod — DONE this chat: PG service up, backend wired via `DATABASE_URL` reference, migrations auto-applied, verified live.)
 
 Target reached and exceeded: a serious, demo-able, **deployed, multi-user, ownership-isolated** platform.
