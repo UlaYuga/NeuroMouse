@@ -9,6 +9,9 @@ dependencies = [
     "pytest-asyncio>=0.24.0",
     "schemathesis>=3.39.0",
     "uvicorn>=0.34.0",
+    "neuromouse-contract",
+    "neuromouse-core",
+    "neuromouse-sdk",
 ]
 
 [build-system]

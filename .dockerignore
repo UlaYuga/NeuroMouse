@@ -20,4 +20,5 @@ node_modules
 source-data
 test-results
 tests
-tools
+tools/*
+!tools/native-startup
