@@ -1117,6 +1117,7 @@ async function requestExplanation() {
     const result = await fetch("/api/explain", {
       method: "POST",
       headers: { "content-type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({ context: { report: lastReportMarkdown }, question }),
     });
     const data = await result.json().catch(() => ({}));

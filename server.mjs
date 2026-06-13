@@ -176,23 +176,24 @@ async function handleExplain(request, response) {
 
   if (!setExplainCorsHeaders(response, request)) return;
 
-  const explainToken = process.env.EXPLAIN_TOKEN;
-  if (!explainToken) {
-    sendJson(response, 503, { error: "Explain is not configured on this server." }, request);
-    return;
-  }
-
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     sendJson(response, 503, { error: "Explain is not configured on this server." }, request);
     return;
   }
 
-  const requestToken = typeof request.headers["x-explain-token"] === "string"
-    ? request.headers["x-explain-token"]
-    : "";
-  if (!matchesToken(requestToken, explainToken)) {
-    sendJson(response, 401, { error: "Missing or invalid explain token." }, request);
+  // Authorize the caller as EITHER a logged-in user (session cookie validated
+  // against the backend through the same-origin proxy) OR a service token for
+  // non-browser callers. The browser button sends only the session cookie, so
+  // EXPLAIN_TOKEN is optional — explain lives behind login.
+  const authorized = matchesExplainToken(request) || (await hasValidSession(request));
+  if (!authorized) {
+    sendJson(
+      response,
+      401,
+      { error: "Sign in to use Explain (or provide a valid explain token)." },
+      request,
+    );
     return;
   }
 
@@ -305,9 +306,19 @@ function getExplainCorsOrigins() {
 
 function setExplainCorsHeaders(response, request, options = {}) {
   const origin = request.headers.origin;
-  const allowedOrigins = getExplainCorsOrigins();
 
   if (!origin) return true;
+
+  // Same-origin POSTs still carry an Origin header; allow them without an
+  // explicit allowlist, since the frontend and /api/explain share this origin.
+  const host = request.headers.host;
+  let originHost = null;
+  try {
+    originHost = new URL(origin).host;
+  } catch {}
+  if (host && originHost === host) return true;
+
+  const allowedOrigins = getExplainCorsOrigins();
   if (!allowedOrigins.length || !allowedOrigins.includes(origin)) {
     sendJson(response, 403, { error: "Origin not allowed." }, request);
     return false;
@@ -362,6 +373,37 @@ function matchesToken(expected, actual) {
   const actualBytes = Buffer.from(actual);
   if (expectedBytes.length !== actualBytes.length) return false;
   return timingSafeEqual(expectedBytes, actualBytes);
+}
+
+function matchesExplainToken(request) {
+  const explainToken = process.env.EXPLAIN_TOKEN;
+  if (!explainToken) return false;
+  const requestToken = typeof request.headers["x-explain-token"] === "string"
+    ? request.headers["x-explain-token"]
+    : "";
+  return matchesToken(requestToken, explainToken);
+}
+
+// Validate a browser session by asking the backend's /auth/me through the same
+// BACKEND_URL the API proxy uses. Any non-2xx (or a network failure) means "not
+// authenticated" — fail closed.
+async function hasValidSession(request) {
+  const cookie = request.headers.cookie;
+  if (!cookie) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const upstream = await fetch(`${BACKEND_URL}/auth/me`, {
+      method: "GET",
+      headers: { cookie },
+      signal: controller.signal,
+    });
+    return upstream.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function readJsonBody(request, limit) {
