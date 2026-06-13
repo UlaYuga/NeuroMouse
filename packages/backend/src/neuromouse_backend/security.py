@@ -180,6 +180,16 @@ def _is_public_path(path: str) -> bool:
     return normalized in PUBLIC_PATHS
 
 
+def _is_demo_path(path: str) -> bool:
+    """Public anonymous demo lane — reachable without auth (owner = anonymous)."""
+    normalized = path.rstrip("/")
+    if normalized in {"/demo/seed-mea", "/demo/methods"}:
+        return True
+    if normalized.startswith("/demo/sessions/") and normalized.endswith("/jobs"):
+        return True
+    return normalized.startswith("/demo/jobs/")
+
+
 def install_security_middlewares(
     app: FastAPI,
     *,
@@ -238,6 +248,7 @@ def install_security_middlewares(
             request.scope["type"] != "http"
             or request.method.upper() == "OPTIONS"
             or _is_public_path(request.url.path)
+            or _is_demo_path(request.url.path)
         ):
             return await call_next(request)
 

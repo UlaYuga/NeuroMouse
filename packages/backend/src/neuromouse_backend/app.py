@@ -48,6 +48,8 @@ from neuromouse_sdk.examples.band_power_summary import band_power_summary
 ROOT = Path(__file__).resolve().parents[4]
 DEMO_DATASET_PATH = ROOT / "datasets" / "golden" / "data.json"
 MEA_DEMO_DATASET_PATH = ROOT / "datasets" / "golden" / "mea_synthetic.json"
+DEMO_OWNER_ID = "anonymous"
+DEMO_METHODS = ("spike_detect", "network_burst", "electrode_connectivity")
 
 
 class SessionCreateRequest(BaseModel):
@@ -514,8 +516,7 @@ def create_app(
         response_model=DemoSeedResponse,
         status_code=status.HTTP_201_CREATED,
     )
-    async def seed_demo_mea(http_request: Request) -> DemoSeedResponse:
-        user = user_from_request(http_request)
+    async def seed_demo_mea() -> DemoSeedResponse:
         try:
             payload = json.loads(MEA_DEMO_DATASET_PATH.read_text(encoding="utf-8"))
             dataset = validate_dataset(payload).model_dump(mode="json")
@@ -528,7 +529,7 @@ def create_app(
         session = backend_store.create_session(
             name="MEA golden demo (1024-ch synthetic)",
             dataset=dataset,
-            owner_id=user.id,
+            owner_id=DEMO_OWNER_ID,
         )
         return DemoSeedResponse(
             session_id=session.id,
@@ -583,6 +584,55 @@ def create_app(
     async def get_job(http_request: Request, job_id: str) -> JobResponse:
         user = user_from_request(http_request)
         job = backend_store.get_job(job_id, owner_id=user.id)
+        if job is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+        return _job_response(job, methods=methods)
+
+    @app.post(
+        "/demo/sessions/{session_id}/jobs",
+        response_model=JobResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def create_demo_job(session_id: str, request: JobCreateRequest) -> JobResponse:
+        # Public anonymous demo lane: only whitelisted MEA methods, only on demo-owned sessions.
+        if request.method_id not in DEMO_METHODS:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Method not available in the public demo lane",
+            )
+        session = backend_store.get_session(session_id, owner_id=DEMO_OWNER_ID)
+        if session is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Demo session not found"
+            )
+        try:
+            methods.lookup(request.method_id)
+        except MethodLookupError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Method not found"
+            ) from exc
+        job = backend_store.create_job(
+            session_id=session.id,
+            dataset_version=session.dataset_version,
+            method_id=request.method_id,
+            params=request.params,
+            owner_id=DEMO_OWNER_ID,
+        )
+        await _start_workers()
+        await job_queue.put(
+            _QueuedJob(
+                job_id=job.id,
+                session_id=session.id,
+                owner_id=DEMO_OWNER_ID,
+                method_id=request.method_id,
+                params=request.params,
+            ),
+        )
+        return _job_response(job, methods=methods)
+
+    @app.get("/demo/jobs/{job_id}", response_model=JobResponse)
+    async def get_demo_job(job_id: str) -> JobResponse:
+        job = backend_store.get_job(job_id, owner_id=DEMO_OWNER_ID)
         if job is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
         return _job_response(job, methods=methods)

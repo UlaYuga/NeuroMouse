@@ -103,6 +103,32 @@ def test_two_users_are_isolated_via_issued_tokens(app) -> None:
         ).status_code == 404
 
 
+def test_public_demo_lane_works_without_auth(app) -> None:
+    with TestClient(app) as client:
+        # seed reachable without any token -> anonymous session
+        seed = client.post("/demo/seed-mea")
+        assert seed.status_code == 201
+        session_id = seed.json()["session_id"]
+
+        # non-whitelisted method is rejected on the demo lane
+        rejected = client.post(
+            f"/demo/sessions/{session_id}/jobs",
+            json={"method_id": "band_power_summary", "params": {}},
+        )
+        assert rejected.status_code == 403
+
+        # a whitelisted MEA method is accepted (queued), still no auth
+        job = client.post(
+            f"/demo/sessions/{session_id}/jobs",
+            json={"method_id": "spike_detect", "params": {}},
+        )
+        assert job.status_code == 201
+        assert job.json()["status"] == "queued"
+
+        # a real user's protected routes still demand a token
+        assert client.get("/sessions").status_code == 401
+
+
 def _minimal_dataset() -> dict:
     channels = ["C0", "C1"]
     return {
