@@ -16,7 +16,15 @@ DEFAULT_RATE_LIMIT_REQUESTS: Final = 120
 DEFAULT_RATE_LIMIT_WINDOW_SECONDS: Final = 60
 DEFAULT_SESSION_COOKIE_NAME: Final = "neuromouse_session"
 
-PUBLIC_PATHS: Final = ("/health", "/healthz", "/ready", "/readyz")
+PUBLIC_PATHS: Final = (
+    "/health",
+    "/healthz",
+    "/ready",
+    "/readyz",
+    "/auth/register",
+    "/auth/login",
+    "/auth/logout",
+)
 
 
 @dataclass(frozen=True)

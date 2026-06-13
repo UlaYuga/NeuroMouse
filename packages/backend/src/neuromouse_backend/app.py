@@ -11,13 +11,25 @@ from dataclasses import field as dataclass_field
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
+from neuromouse_backend.auth import AuthError, AuthService, make_session_resolver
 from neuromouse_backend.security import (
+    AuthenticatedUser,
+    EnvSessionTokenResolver,
     SessionTokenResolver,
+    _parse_session_token_from_request,
     install_security_middlewares,
     user_from_request,
     user_from_websocket,
@@ -116,6 +128,13 @@ class JobResponse(BaseModel):
     error: str | None = None
     created_at: str
     updated_at: str
+
+
+class AuthCredentials(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=1)
+    password: str = Field(min_length=1)
 
 
 UNPROCESSABLE_ENTITY = 422
@@ -263,7 +282,51 @@ def create_app(
         version="0.0.0",
         description="FastAPI backend for contract-validated NeuroMouse method jobs.",
     )
+    if session_token_resolver is None:
+        _env_resolver = EnvSessionTokenResolver.from_env()
+        _auth_resolver = make_session_resolver(backend_store)
+
+        def _combined_resolver(token: str) -> AuthenticatedUser | None:
+            return _auth_resolver(token) or _env_resolver.resolve(token)
+
+        session_token_resolver = _combined_resolver
     install_security_middlewares(app, session_token_resolver=session_token_resolver)
+
+    auth_service = AuthService(backend_store)
+
+    @app.post("/auth/register", status_code=status.HTTP_201_CREATED)
+    async def auth_register(payload: AuthCredentials) -> dict[str, str]:
+        try:
+            account = auth_service.register(payload.email, payload.password)
+        except AuthError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"id": account.id, "email": account.email}
+
+    @app.post("/auth/login")
+    async def auth_login(payload: AuthCredentials, response: Response) -> dict[str, str]:
+        try:
+            token = auth_service.login(payload.email, payload.password)
+        except AuthError as exc:
+            raise HTTPException(status_code=401, detail="invalid email or password") from exc
+        response.set_cookie(
+            "neuromouse_session", token, httponly=True, samesite="lax", secure=True
+        )
+        return {"token": token}
+
+    @app.post("/auth/logout")
+    async def auth_logout(request: Request, response: Response) -> dict[str, str]:
+        token = _parse_session_token_from_request(request, cookie_name="neuromouse_session")
+        auth_service.logout(token)
+        response.delete_cookie("neuromouse_session")
+        return {"status": "logged out"}
+
+    @app.get("/auth/me")
+    async def auth_me(request: Request) -> dict[str, str]:
+        user = user_from_request(request)
+        account = auth_service.current(user.id)
+        if account is None:
+            raise HTTPException(status_code=404, detail="user not found")
+        return {"id": account.id, "email": account.email}
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:
