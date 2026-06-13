@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates libseccomp2 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
@@ -23,6 +23,7 @@ RUN uv sync --frozen --no-dev --package neuromouse-backend
 
 ENV PORT=8000 \
     NEUROMOUSE_BACKEND_DB=/data/neuromouse_backend.sqlite3 \
+    NEUROMOUSE_SANDBOX_KERNEL=required \
     PYTHONPATH=/app/packages/backend/src:/app
 
 RUN mkdir -p /data
