@@ -28,6 +28,10 @@ jobs:
           --health-timeout=5s
           --health-retries=6
           --health-start-period=10s
+        ports:
+          # Job runs on the runner (not in a container), so reach the service
+          # via localhost:<mapped-port>, not the service-network hostname.
+          - 5432:5432
     strategy:
       fail-fast: false
       matrix:
@@ -80,7 +84,7 @@ jobs:
 
       - name: Run pytest
         env:
-          DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/neuromouse"
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/neuromouse"
         run: uv run pytest
 
       - name: Run Ruff
