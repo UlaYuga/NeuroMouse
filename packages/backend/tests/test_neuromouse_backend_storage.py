@@ -5,9 +5,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-import pytest
 
 from neuromouse_backend.storage import PostgreSQLBackendStore, SQLiteBackendStore
 
@@ -35,7 +35,7 @@ def dataset_for(channel_count: int, frequency_count: int, time_count: int) -> di
     }
 
 
-def make_backend(backend_name: str, tmp_path: Path) -> tuple[str | Path, SQLiteBackendStore | PostgreSQLBackendStore]:
+def make_backend(backend_name: str, tmp_path: Path) -> tuple[str | Path, SQLiteBackendStore | PostgreSQLBackendStore]:  # noqa: E501
     if backend_name == "sqlite":
         return tmp_path / "backend.sqlite3", SQLiteBackendStore(tmp_path / "backend.sqlite3")
 
@@ -54,10 +54,10 @@ def _close_backend(store: SQLiteBackendStore | PostgreSQLBackendStore) -> None:
         store.close()
 
 
-def _reopen_store(backend_name: str, source: str | Path) -> SQLiteBackendStore | PostgreSQLBackendStore:
+def _reopen_store(backend_name: str, source: str | Path) -> SQLiteBackendStore | PostgreSQLBackendStore:  # noqa: E501
     if backend_name == "sqlite":
         return SQLiteBackendStore(source)
-    return PostgreSQLBackendStore(database_url=source)
+    return PostgreSQLBackendStore(database_url=str(source))
 
 
 @pytest.mark.parametrize("backend_name", ["sqlite", "postgres"])
@@ -179,7 +179,7 @@ def test_store_migrations_apply_cleanly_before_first_use(backend_name: str, tmp_
                 rows = {
                     row["name"]
                     for row in cursor.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table' AND name IN (?, ?, ?, ?, ?, ?)",
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name IN (?, ?, ?, ?, ?, ?)",  # noqa: E501
                         (
                             "schema_migrations",
                             "sessions",
@@ -204,7 +204,10 @@ def test_store_migrations_apply_cleanly_before_first_use(backend_name: str, tmp_
                     SELECT table_name
                     FROM information_schema.tables
                     WHERE table_schema = 'public'
-                      AND table_name IN ('schema_migrations', 'sessions', 'datasets', 'jobs', 'job_results', 'job_events')
+                      AND table_name IN (
+                          'schema_migrations', 'sessions', 'datasets',
+                          'jobs', 'job_results', 'job_events'
+                      )
                     """
                 )
                 rows = {row["table_name"] for row in cursor.fetchall()}

@@ -3,17 +3,16 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
-from typing import TYPE_CHECKING
-from typing import Any, Callable, Iterable, Mapping, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
 if TYPE_CHECKING:
-    import psycopg  # pragma: no cover
-    from psycopg.rows import dict_row as _DictRow  # type: ignore[unused-import]
+    pass  # type: ignore[unused-import]
 
 
 def _require_psycopg():
@@ -440,7 +439,10 @@ class SQLiteBackendStore:
         with connection:
             _ensure_schema_migrations(connection.execute)
             existing = {
-                name for name in (row["name"] for row in connection.execute("SELECT name FROM schema_migrations").fetchall())
+                row["name"]
+                for row in connection.execute(
+                    "SELECT name FROM schema_migrations"
+                ).fetchall()
             }
             for migration in _migration_paths("sqlite"):
                 if migration.name in existing:
@@ -469,7 +471,9 @@ class SQLiteBackendStore:
 class PostgreSQLBackendStore:
     def __init__(self, database_url: str | None = None) -> None:
         if not self._is_postgres_url(database_url or os.environ.get("DATABASE_URL", "")):
-            raise ValueError("PostgreSQL backend requires a postgres:// or postgresql:// DATABASE_URL")
+            raise ValueError(
+                "PostgreSQL backend requires a postgres:// or postgresql:// DATABASE_URL"
+            )
 
         try:
             self._psycopg, self._dict_row = _require_psycopg()
@@ -702,7 +706,7 @@ class PostgreSQLBackendStore:
                     elif status == "failed":
                         cursor.execute("DELETE FROM job_results WHERE job_id = %s", (job_id,))
 
-                    event = {
+                    event: dict[str, Any] = {
                         "job_id": existing.id,
                         "session_id": existing.session_id,
                         "dataset_version": existing.dataset_version,
@@ -736,7 +740,10 @@ class PostgreSQLBackendStore:
         connection = self._psycopg.connect(self._database_url, row_factory=self._dict_row)
         _ensure_schema_migrations(connection.execute)
         existing = {
-            name for name in (row["name"] for row in connection.execute("SELECT name FROM schema_migrations").fetchall())
+            row["name"]
+            for row in connection.execute(
+                "SELECT name FROM schema_migrations"
+            ).fetchall()
         }
         for migration in _migration_paths("postgres"):
             if migration.name in existing:
@@ -762,12 +769,13 @@ class PostgreSQLBackendStore:
             for key in ("coalesce", "next_sequence"):
                 if key in value:
                     return int(value[key])
-            return int(next(iter(value.values())))
+            candidate: Any = next(iter(value.values()))
+            return int(candidate)
         return int(value[0])
 
 
 def _ensure_schema_migrations(
-    execute: Callable[[str, tuple[Any, ...] | None], Any],
+    execute: Callable[[str], Any],
 ) -> None:
     execute(
         """

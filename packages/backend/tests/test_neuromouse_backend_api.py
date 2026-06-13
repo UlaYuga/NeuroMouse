@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import time
 import json
+import time
 from pathlib import Path
 from typing import Any, Final
 
@@ -81,10 +81,14 @@ class SlowBandPowerMethod(Method[Any]):
         return band_power_summary.compute(dataset, params)
 
 
-def _slow_job_app(tmp_path: Path, delay_seconds: float = 0.4):
+def _slow_job_app(tmp_path: Path, monkeypatch, delay_seconds: float = 0.4):
+    monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
+    monkeypatch.setenv("NEUROMOUSE_RATE_LIMIT_PER_IP", "1000")
     return create_app(
         store=SQLiteBackendStore(tmp_path / "backend.sqlite3"),
-        method_catalog=MethodCatalog(methods={"band_power_summary": SlowBandPowerMethod(delay_seconds)}),
+        method_catalog=MethodCatalog(
+            methods={"band_power_summary": SlowBandPowerMethod(delay_seconds)}
+        ),
     )
 
 
@@ -141,7 +145,7 @@ def app(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_auth_required_for_protected_routes_and_health_is_public(tmp_path, monkeypatch) -> None:
+async def test_auth_required_for_protected_routes_and_health_is_public(tmp_path, monkeypatch) -> None:  # noqa: E501
     monkeypatch.setenv("NEUROMOUSE_API_TOKEN", API_TOKEN)
     app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
 
@@ -432,8 +436,8 @@ async def test_demo_seed_creates_runnable_session_from_golden_dataset(app) -> No
         assert get_job_response.json()["result"] == job["result"]
 
 
-def test_job_and_live_websockets_stream_progress_and_echo(tmp_path) -> None:
-    app = _slow_job_app(tmp_path, delay_seconds=0.4)
+def test_job_and_live_websockets_stream_progress_and_echo(tmp_path, monkeypatch) -> None:
+    app = _slow_job_app(tmp_path, monkeypatch, delay_seconds=0.4)
     with TestClient(app, headers=AUTH_HEADERS) as client:
         session_response = client.post(
             "/sessions",
@@ -463,11 +467,12 @@ def test_job_and_live_websockets_stream_progress_and_echo(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_jobs_are_non_blocking(tmp_path) -> None:
-    app = _slow_job_app(tmp_path, delay_seconds=1.0)
+async def test_async_jobs_are_non_blocking(tmp_path, monkeypatch) -> None:
+    app = _slow_job_app(tmp_path, monkeypatch, delay_seconds=1.0)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         session_response = await client.post(
             "/sessions",
@@ -492,15 +497,16 @@ async def test_async_jobs_are_non_blocking(tmp_path) -> None:
 
         final_job = await _wait_job_done(client, slow_job["id"], timeout=3.0)
         assert final_job["status"] == "completed"
-        assert final_job["result"]["output"]["band_power_summary"]["mean_power"] == pytest.approx(0.8)
+        assert final_job["result"]["output"]["band_power_summary"]["mean_power"] == pytest.approx(0.8)  # noqa: E501
 
 
 @pytest.mark.asyncio
-async def test_job_lifecycle_states_are_queued_running_and_completed(tmp_path) -> None:
-    app = _slow_job_app(tmp_path, delay_seconds=0.4)
+async def test_job_lifecycle_states_are_queued_running_and_completed(tmp_path, monkeypatch) -> None:  # noqa: E501
+    app = _slow_job_app(tmp_path, monkeypatch, delay_seconds=0.4)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
+        headers=AUTH_HEADERS,
     ) as client:
         session_response = await client.post(
             "/sessions",
@@ -514,15 +520,16 @@ async def test_job_lifecycle_states_are_queued_running_and_completed(tmp_path) -
             json={"method_id": "band_power_summary", "params": {"min_hz": 8.0, "max_hz": 12.0}},
         )
         assert job_response.status_code == 201
+        assert job_response.json()["status"] == "queued"
         job_id = job_response.json()["id"]
 
-        seen_statuses = []
+        seen_statuses = ["queued"]
         deadline = time.perf_counter() + 3.0
         while time.perf_counter() < deadline:
             response = await client.get(f"/jobs/{job_id}")
             assert response.status_code == 200
             status = response.json()["status"]
-            if not seen_statuses or seen_statuses[-1] != status:
+            if seen_statuses[-1] != status:
                 seen_statuses.append(status)
             if status == "completed":
                 break
