@@ -393,6 +393,14 @@ function setupBackendMode() {
   appDisposables.listen(backendUi.refreshButton, "click", () => {
     void loadBackendMethods();
   });
+  appDisposables.listen(backendUi.uploadForm, "submit", (event) => {
+    void uploadBackendMethod(event);
+  });
+  appDisposables.listen(backendUi.privateMethodList, "click", (event) => {
+    const button = event.target?.closest?.("[data-delete-method-id]");
+    if (!button) return;
+    void deleteBackendMethod(button.dataset.deleteMethodId, button);
+  });
   appDisposables.listen(backendUi.loginForm, "submit", (event) => {
     void handleAuthSubmit(event, "login");
   });
@@ -509,13 +517,31 @@ function createBackendUi() {
         element("div", { id: "backend-private-session-list", className: "backend-private-session-list" }),
       ),
       element("div", { className: "backend-method-controls" },
-    element("div", { className: "workbench-actions", "aria-label": "Backend method controls" },
-      element("select", { id: "backend-method-select", name: "backend-method", "aria-label": "Backend method" },
-        element("option", { value: "band_power_summary" }, "band_power_summary"),
-      ),
-      element("button", { id: "backend-refresh-methods", type: "button" }, "Refresh Methods"),
-      element("button", { id: "backend-run-method", className: "primary-action", type: "button" }, "Run Method"),
-    ),
+        element("div", { className: "workbench-actions", "aria-label": "Backend method controls" },
+          element("select", { id: "backend-method-select", name: "backend-method", "aria-label": "Backend method" },
+            element("option", { value: "band_power_summary" }, "band_power_summary"),
+          ),
+          element("button", { id: "backend-refresh-methods", type: "button" }, "Refresh Methods"),
+          element("button", { id: "backend-run-method", className: "primary-action", type: "button" }, "Run Method"),
+        ),
+        element("div", { className: "backend-private-methods-panel" },
+          element("h3", {}, "My methods"),
+          element("form", { id: "backend-method-upload-form", className: "backend-method-upload" },
+            element("label", { htmlFor: "backend-method-file" }, "Upload method"),
+            element("input", {
+              id: "backend-method-file",
+              name: "method",
+              type: "file",
+              accept: ".py,text/x-python,text/plain",
+            }),
+            element("button", { id: "backend-upload-method", type: "submit" }, "Upload method"),
+          ),
+          element("div", {
+            id: "backend-private-method-list",
+            className: "backend-private-method-list",
+            "aria-live": "polite",
+          }, "Sign in to load private methods."),
+        ),
       ),
     element("div", { className: "live-readouts", "aria-live": "polite" },
       element("span", { id: "backend-status", className: "live-status" }, "Backend mode ready"),
@@ -528,6 +554,10 @@ function createBackendUi() {
     methodSelect: section.querySelector("#backend-method-select"),
     refreshButton: section.querySelector("#backend-refresh-methods"),
     runButton: section.querySelector("#backend-run-method"),
+    uploadForm: section.querySelector("#backend-method-upload-form"),
+    methodFileInput: section.querySelector("#backend-method-file"),
+    uploadButton: section.querySelector("#backend-upload-method"),
+    privateMethodList: section.querySelector("#backend-private-method-list"),
     status: section.querySelector("#backend-status"),
     progress: section.querySelector("#backend-progress"),
     output: section.querySelector("#method-panel-output"),
@@ -566,9 +596,11 @@ async function refreshAuthState() {
     setBackendProgress("ready");
     if (user) {
       await loadPrivateSessions();
+      await loadBackendMethods();
     } else {
       localPrivateSessions.length = 0;
       clearPrivateSessionList();
+      renderPrivateMethods();
     }
   } catch (error) {
     setBackendAuthMode("PUBLIC demo", "Not signed in", `Auth check failed: ${error.message}`);
@@ -591,11 +623,13 @@ async function handleAuthSubmit(event, action) {
       const authUser = user ?? backend.getCurrentUser();
       setBackendAuthMode("Private session", formatAuthUserLabel(authUser), "Logged in.");
       await loadPrivateSessions();
+      await loadBackendMethods();
     } else {
       const user = await backend.register(payload);
       const authUser = user ?? backend.getCurrentUser();
       setBackendAuthMode("Private session", formatAuthUserLabel(authUser), "Account created and signed in.");
       await loadPrivateSessions();
+      await loadBackendMethods();
     }
     form.reset();
   } catch (error) {
@@ -616,6 +650,7 @@ async function logoutBackendUser() {
     await backend.logout();
     localPrivateSessions.length = 0;
     await refreshAuthState();
+    await loadBackendMethods();
     setBackendAuthStatus("Logged out.");
     setBackendStatus("Session cleared · demo mode");
   } catch (error) {
@@ -754,12 +789,13 @@ function setBackendAuthStatus(message, className = "") {
   backendUi.authStatus.className = `live-status ${className}`.trim();
 }
 
-async function loadBackendMethods() {
+async function loadBackendMethods({ selectedMethodId = null } = {}) {
   if (!backendUi || !backend) return;
   setBackendStatus("Connecting to backend…", "is-connecting");
   try {
     backendMethods = await backend.listMethods();
-    renderBackendMethodOptions();
+    renderBackendMethodOptions(selectedMethodId);
+    renderPrivateMethods();
     setBackendStatus(`Connected · ${backendMethods.length} method${backendMethods.length === 1 ? "" : "s"}`, "is-live");
     setBackendProgress("ready");
   } catch (error) {
@@ -769,20 +805,22 @@ async function loadBackendMethods() {
         { id: "network_burst", name: "network_burst" },
         { id: "electrode_connectivity", name: "electrode_connectivity" },
       ];
-      renderBackendMethodOptions();
+      renderBackendMethodOptions(selectedMethodId);
+      renderPrivateMethods();
       setBackendStatus("Public demo methods loaded", "is-live");
       setBackendProgress("ready");
       return;
     }
     backendMethods = [];
+    renderPrivateMethods();
     setBackendStatus(`Backend unavailable · ${error.message}`, "is-error");
     setBackendProgress("offline");
   }
 }
 
-function renderBackendMethodOptions() {
+function renderBackendMethodOptions(preferredMethodId = null) {
   if (!backendUi?.methodSelect) return;
-  const selected = backendUi.methodSelect.value || "band_power_summary";
+  const selected = preferredMethodId || backendUi.methodSelect.value || "band_power_summary";
   const methods = backendMethods.length
     ? backendMethods
     : [{ id: "band_power_summary", name: "band_power_summary" }];
@@ -791,6 +829,7 @@ function renderBackendMethodOptions() {
     .map((method) => ({
       id: String(method.id),
       name: String(method.name ?? method.id),
+      private: Boolean(method.private),
     }));
   const hasDefaultSelection = normalizedMethods.some((method) => method.id === selected);
   const fallbackSelected = hasDefaultSelection ? selected : normalizedMethods[0]?.id;
@@ -800,7 +839,87 @@ function renderBackendMethodOptions() {
     backendUi.methodSelect.append(element("option", {
       value: method.id,
       selected: method.id === fallbackSelected || (!hasDefaultSelection && index === 0),
-    }, method.name));
+    }, method.private ? `${method.name} (private)` : method.name));
+  });
+}
+
+async function uploadBackendMethod(event) {
+  event.preventDefault();
+  if (!backendUi || !backend) return;
+  if (!backend.isAuthenticated()) {
+    setBackendAuthStatus("Sign in to upload private methods.", "is-error");
+    return;
+  }
+  const file = backendUi.methodFileInput?.files?.[0];
+  if (!file) {
+    setBackendAuthStatus("Choose a .py method file first.", "is-error");
+    return;
+  }
+  if (backendUi.uploadButton) backendUi.uploadButton.disabled = true;
+  if (backendUi.methodFileInput) backendUi.methodFileInput.disabled = true;
+  setBackendStatus(`Uploading ${file.name}…`, "is-connecting");
+  setBackendProgress("upload");
+  try {
+    const uploaded = await backend.uploadMethod(file);
+    if (backendUi.methodFileInput) backendUi.methodFileInput.value = "";
+    await loadBackendMethods({ selectedMethodId: uploaded.id });
+    setBackendStatus(`Uploaded ${uploaded.name}`, "is-live");
+    setBackendAuthStatus("Method uploaded.");
+  } catch (error) {
+    setBackendStatus(`Upload failed · ${error.message}`, "is-error");
+    setBackendAuthStatus(`Upload failed · ${error.message}`, "is-error");
+  } finally {
+    if (backendUi?.uploadButton) backendUi.uploadButton.disabled = false;
+    if (backendUi?.methodFileInput) backendUi.methodFileInput.disabled = false;
+    setBackendProgress("idle");
+  }
+}
+
+async function deleteBackendMethod(methodId, button = null) {
+  if (!backendUi || !backend || !methodId) return;
+  if (button) button.disabled = true;
+  setBackendStatus(`Deleting ${methodId}…`, "is-connecting");
+  setBackendProgress("delete");
+  try {
+    await backend.deleteMethod(methodId);
+    await loadBackendMethods();
+    setBackendStatus(`Deleted ${methodId}`, "is-live");
+    setBackendAuthStatus("Method deleted.");
+  } catch (error) {
+    setBackendStatus(`Delete failed · ${error.message}`, "is-error");
+    setBackendAuthStatus(`Delete failed · ${error.message}`, "is-error");
+  } finally {
+    if (button) button.disabled = false;
+    setBackendProgress("idle");
+  }
+}
+
+function renderPrivateMethods() {
+  if (!backendUi?.privateMethodList) return;
+  if (!backend?.isAuthenticated()) {
+    backendUi.privateMethodList.textContent = "Sign in to load private methods.";
+    return;
+  }
+  const privateMethods = backendMethods.filter((method) => method?.private);
+  if (!privateMethods.length) {
+    backendUi.privateMethodList.textContent = "No private methods yet.";
+    return;
+  }
+  backendUi.privateMethodList.innerHTML = "";
+  privateMethods.forEach((method) => {
+    const methodId = String(method.id);
+    const methodName = String(method.name ?? method.id);
+    backendUi.privateMethodList.append(
+      element("div", { className: "backend-private-method-row" },
+        element("span", { className: "backend-private-method-name" }, methodName),
+        element("button", {
+          type: "button",
+          className: "is-danger",
+          "data-delete-method-id": methodId,
+          "aria-label": `Delete ${methodName}`,
+        }, "Delete"),
+      ),
+    );
   });
 }
 
@@ -816,7 +935,11 @@ async function runBackendMethod() {
       renderBackendMethodOptions();
     }
     const selectedMethod = findBackendMethod(methodId) ?? { id: methodId, name: methodId };
-    const usedSeedEndpoint = methodId === "spike_detect" ? "/demo/seed-mea" : "/demo/seed";
+    const usedSeedEndpoint = backend.isAuthenticated()
+      ? "/sessions"
+      : methodId === "spike_detect"
+        ? "/demo/seed-mea"
+        : "/demo/seed";
     const result = await runBackendMethodFlow({
       backend,
       backendMethods,

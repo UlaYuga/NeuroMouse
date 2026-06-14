@@ -8,6 +8,7 @@ import {
   createDemoDatasetPair,
   generateWorkbenchReport,
   generateWorkbenchReportPreview,
+  runBackendMethodFlow,
   summarizeDataset,
 } from "../js/workbench.js";
 
@@ -105,6 +106,61 @@ test("createDemoDatasetPair returns comparison-ready baseline and target data", 
   assert.equal(state.comparisons[0].score > 0, true);
 });
 
+test("runBackendMethodFlow labels private session runs without demo mode", async () => {
+  const calls = [];
+  const statuses = [];
+  const backend = {
+    async seedDemoDataset({ seedEndpoint }) {
+      calls.push(["seed", seedEndpoint]);
+      return { id: "session-private" };
+    },
+    async createJob(sessionId, { methodId, demo }) {
+      calls.push(["job", sessionId, methodId, demo]);
+      return { id: "job-private" };
+    },
+    async streamJobProgress(jobId, { demo, onEvent }) {
+      calls.push(["stream", jobId, demo]);
+      onEvent({ status: "completed" });
+    },
+    async getResult(jobId, { demo }) {
+      calls.push(["result", jobId, demo]);
+      return {
+        status: "completed",
+        result: {
+          output: {
+            my_method: { rows: [{ channel: "Cz", value: 1 }] },
+          },
+          panel: {
+            id: "my_method",
+            title: "My Method",
+            kind: "table",
+            field: "my_method.rows",
+          },
+        },
+      };
+    },
+  };
+
+  await runBackendMethodFlow({
+    backend,
+    backendMethods: [{ id: "my_method", name: "My Method" }],
+    dataset: data,
+    methodId: "my_method",
+    seedEndpoint: "/sessions",
+    output: createTestElement("div"),
+    document: createTestDocument(),
+    onStatus: (message) => statuses.push(message),
+  });
+
+  assert.equal(statuses[0], "Creating private session…");
+  assert.deepEqual(calls, [
+    ["seed", "/sessions"],
+    ["job", "session-private", "my_method", false],
+    ["stream", "job-private", false],
+    ["result", "job-private", false],
+  ]);
+});
+
 test("generateWorkbenchReport emits a reusable markdown report", () => {
   const report = generateWorkbenchReport({
     sessions: [
@@ -144,3 +200,28 @@ test("generateWorkbenchReportPreview exposes executive and quality sections", ()
   assert.equal(preview.qualityFlags.length >= 4, true);
   assert.match(preview.markdown, /## Executive Readout/);
 });
+
+function createTestDocument() {
+  return {
+    createElement: (tagName) => createTestElement(tagName),
+    createTextNode: (text) => ({ textContent: String(text) }),
+  };
+}
+
+function createTestElement(tagName) {
+  return {
+    tagName,
+    children: [],
+    attributes: {},
+    ownerDocument: null,
+    setAttribute(name, value) {
+      this.attributes[name] = String(value);
+    },
+    append(...children) {
+      this.children.push(...children);
+    },
+    replaceChildren(...children) {
+      this.children = [...children];
+    },
+  };
+}

@@ -149,6 +149,54 @@ test("BackendClient posts jobs, streams progress, and retrieves completed result
   assert.equal(WebSocket.urls[0], "ws://backend.local/ws/jobs/job-1");
 });
 
+test("BackendClient uploads and deletes private methods", async () => {
+  const requests = [];
+  const fetch = async (url, options = {}) => {
+    const pathname = new URL(String(url)).pathname;
+    requests.push({ pathname, options });
+    if (pathname === "/methods" && options.method === "POST") {
+      assert.equal(options.body instanceof FormData, true);
+      assert.equal(options.headers?.["content-type"], undefined);
+      assert.equal(options.body.get("file").name, "method.py");
+      return jsonResponse({
+        id: "my_method",
+        name: "My Method",
+        private: true,
+        output_spec: {
+          panel: {
+            id: "my_method",
+            title: "My Method",
+            kind: "table",
+            field: "my_method.rows",
+          },
+        },
+      }, 201);
+    }
+    if (pathname === "/methods/my_method" && options.method === "DELETE") {
+      return new Response(null, { status: 204 });
+    }
+    throw new Error(`Unexpected request ${url}`);
+  };
+  const client = new BackendClient({ baseUrl: "http://backend.local", fetch });
+
+  const file = new File(["method = object()\n"], "method.py", { type: "text/x-python" });
+  const uploaded = await client.uploadMethod(file);
+  await client.deleteMethod("my_method");
+
+  assert.equal(uploaded.id, "my_method");
+  assert.equal(uploaded.private, true);
+  assert.deepEqual(uploaded.panelSpec, {
+    id: "my_method",
+    title: "My Method",
+    kind: "table",
+    field: "my_method.rows",
+  });
+  assert.deepEqual(requests.map((request) => request.pathname), ["/methods", "/methods/my_method"]);
+  for (const request of requests) {
+    assert.equal(request.options.credentials, "include");
+  }
+});
+
 test("BackendClient raises useful HTTP errors", async () => {
   const fetch = async () => jsonResponse({ detail: "Method not found" }, 404);
   const client = new BackendClient({ baseUrl: "http://backend.local", fetch });

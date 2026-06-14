@@ -750,8 +750,82 @@ input[type="number"]:focus-visible {
 }
 
 .backend-method-controls {
+  display: grid;
+  gap: var(--s3);
   margin: var(--s3) 0;
   padding: 0 var(--s4) var(--s4);
+}
+
+.backend-private-methods-panel {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-card);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.backend-private-methods-panel h3 {
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.backend-method-upload {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  gap: var(--s2);
+  align-items: center;
+}
+
+.backend-method-upload label {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.backend-method-upload input {
+  width: 100%;
+}
+
+.backend-private-method-list {
+  display: grid;
+  gap: var(--s2);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.backend-private-method-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s2);
+  align-items: center;
+  min-height: 34px;
+  padding: var(--s2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-btn);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.backend-private-method-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backend-private-method-row .is-danger {
+  border-color: rgba(255, 69, 58, 0.42);
+  background: rgba(255, 69, 58, 0.12);
+  color: #ff8a82;
+}
+
+.backend-private-method-row .is-danger:hover {
+  background: rgba(255, 69, 58, 0.2);
 }
 
 .primary-action {
@@ -2403,6 +2477,14 @@ input[type="number"]:focus-visible {
   }
 
   .workbench-actions button {
+    width: 100%;
+  }
+
+  .backend-method-upload {
+    grid-template-columns: 1fr;
+  }
+
+  .backend-method-upload button {
     width: 100%;
   }
 

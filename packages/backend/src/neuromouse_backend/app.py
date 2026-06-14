@@ -11,7 +11,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import (
     FastAPI,
@@ -534,7 +534,7 @@ def create_app(
     )
     async def upload_method(
         http_request: Request,
-        file: UploadFile = File(...),
+        file: Annotated[UploadFile, File()],
     ) -> MethodResponse:
         user = user_from_request(http_request)
         raw = await file.read(MAX_METHOD_SOURCE_BYTES + 1)

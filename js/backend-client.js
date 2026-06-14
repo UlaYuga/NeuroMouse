@@ -183,6 +183,24 @@ export class BackendClient {
     return methods.map(normalizeMethod);
   }
 
+  async uploadMethod(file) {
+    if (!file) throw new Error("uploadMethod requires file");
+    const formData = new FormData();
+    const filename = typeof file.name === "string" && file.name ? file.name : "method.py";
+    formData.append("file", file, filename);
+    return normalizeMethod(await this.requestJson("/methods", {
+      method: "POST",
+      body: formData,
+    }));
+  }
+
+  async deleteMethod(methodId) {
+    if (!methodId) throw new Error("deleteMethod requires methodId");
+    return this.requestJson(`/methods/${encodeURIComponent(methodId)}`, {
+      method: "DELETE",
+    });
+  }
+
   #getJobPath(jobId, { demo = false } = {}) {
     return demo ? `/demo/jobs/${encodeURIComponent(jobId)}` : `/jobs/${encodeURIComponent(jobId)}`;
   }
@@ -317,16 +335,17 @@ export class BackendClient {
     const timer = controller
       ? setTimeout(() => controller.abort(), this.timeoutMs)
       : null;
+    const formDataBody = isFormDataBody(body);
     try {
       const response = await this.fetch(url, {
         method,
         credentials: "include",
         headers: {
           accept: "application/json",
-          ...(body == null ? {} : { "content-type": "application/json" }),
+          ...(body == null || formDataBody ? {} : { "content-type": "application/json" }),
           ...headers,
         },
-        body: body == null ? undefined : JSON.stringify(body),
+        body: body == null ? undefined : formDataBody ? body : JSON.stringify(body),
         signal: signal ?? controller?.signal,
       });
       const payload = await readResponseBody(response);
@@ -477,6 +496,10 @@ function normalizeAuthPayload(payload) {
     if (value !== undefined && value !== null && value !== "") normalized[key] = value;
   });
   return normalized;
+}
+
+function isFormDataBody(body) {
+  return typeof FormData !== "undefined" && body instanceof FormData;
 }
 
 function errorMessage(response, payload) {

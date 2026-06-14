@@ -20,6 +20,7 @@ import os
 import sys
 import traceback
 from collections.abc import Mapping
+from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
@@ -55,8 +56,16 @@ def main(argv: list[str]) -> int:
 
     # Pre-import trusted infrastructure so it is resolved before the policy and
     # the untrusted import run.
+    from pydantic import TypeAdapter  # noqa: PLC0415
+
     from neuromouse_contract import validate_dataset  # noqa: PLC0415
     from neuromouse_sdk import build_params  # noqa: PLC0415
+
+    @dataclass(frozen=True)
+    class _SchemaPreload:
+        value: float = 0.0
+
+    TypeAdapter(_SchemaPreload).json_schema()
 
     dataset_obj: Any
     if request.dataset is None:
@@ -234,11 +243,38 @@ def _describe(method: Any) -> dict[str, Any]:
 
 def _params_schema(params_type: Any) -> dict[str, Any]:
     try:
-        from pydantic import TypeAdapter  # noqa: PLC0415
-
-        return dict(TypeAdapter(params_type).json_schema())
+        return _pydantic_params_schema(params_type)
     except Exception:  # noqa: BLE001 - fall back to an empty schema for exotic params types
-        return {"title": getattr(params_type, "__name__", "Params"), "type": "object", "properties": {}}
+        return {
+            "title": getattr(params_type, "__name__", "Params"),
+            "type": "object",
+            "properties": {},
+        }
+
+
+def _pydantic_params_schema(params_type: Any) -> dict[str, Any]:
+    from pydantic import TypeAdapter  # noqa: PLC0415
+
+    module_name = getattr(params_type, "__module__", None)
+    module = sys.modules.get(module_name) if isinstance(module_name, str) else None
+    schema_frame = SimpleNamespace(
+        f_globals=getattr(module, "__dict__", {}),
+        f_locals={},
+        f_back=None,
+    )
+    original_getframe = sys._getframe
+
+    def _trusted_schema_frame(depth: int = 0) -> Any:  # noqa: ARG001
+        return schema_frame
+
+    # Pydantic 2.11 unconditionally calls sys._getframe while building a
+    # TypeAdapter. The sandbox denies real frame access after policy install, so
+    # provide pydantic a synthetic module frame instead of weakening the policy.
+    sys.__dict__["_getframe"] = _trusted_schema_frame
+    try:
+        return dict(TypeAdapter(params_type, module=module_name).json_schema())
+    finally:
+        sys.__dict__["_getframe"] = original_getframe
 
 
 def _require_paths(value: Any, paths: tuple[str, ...], label: str) -> None:

@@ -249,14 +249,14 @@ export async function runBackendMethodFlow({
   const emitProgress = typeof onProgressEvent === "function" ? onProgressEvent : () => {};
   const methodLookup = Array.isArray(backendMethods) ? backendMethods : [];
 
-  updateStatus("Seeding demo dataset…", "is-connecting");
+  const isPublicDemoRun = seedEndpoint.startsWith("/demo/");
+  updateStatus(isPublicDemoRun ? "Seeding demo dataset…" : "Creating private session…", "is-connecting");
   updateProgress("seed");
 
   const method = methodLookup.find((item) => item.id === methodId) ?? {
     id: methodId,
     name: methodId,
   };
-  const isPublicDemoRun = seedEndpoint.startsWith("/demo/");
 
   try {
     const session = await backend.seedDemoDataset({
