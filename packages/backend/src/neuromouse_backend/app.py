@@ -6,7 +6,8 @@ import json
 import os
 import sys
 import tempfile
-from collections import defaultdict
+import time
+from collections import defaultdict, deque
 from contextlib import suppress
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -162,6 +163,52 @@ class MethodExecutionError(ValueError):
     """Raised when a registered method cannot run against the supplied dataset."""
 
 
+def _abuse_limit(name: str, default: int) -> int:
+    """Read an env-tunable abuse cap at call time (so tests/envs take effect).
+    ``0`` disables the corresponding limit."""
+    try:
+        return max(0, int(os.environ[name]))
+    except (KeyError, ValueError):
+        return default
+
+
+class RateLimiter:
+    """Fixed-window in-memory limiter (single-replica). ``limit<=0`` disables it."""
+
+    def __init__(self, limit: int, window_seconds: float) -> None:
+        self._limit = limit
+        self._window = window_seconds
+        self._log: dict[str, deque[float]] = defaultdict(deque)
+
+    def allow(self, key: str) -> bool:
+        if self._limit <= 0:
+            return True
+        bucket = self._log[key]
+        now = time.monotonic()
+        cutoff = now - self._window
+        while bucket and bucket[0] <= cutoff:
+            bucket.popleft()
+        if len(bucket) >= self._limit:
+            return False
+        bucket.append(now)
+        return True
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client is not None else "unknown"
+
+
+def _too_many(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail=detail,
+        headers={"Retry-After": "60"},
+    )
+
+
 @dataclass(frozen=True)
 class _QueuedJob:
     job_id: str
@@ -309,7 +356,14 @@ def create_app(
     auth_service = AuthService(backend_store)
 
     @app.post("/auth/register", status_code=status.HTTP_201_CREATED)
-    async def auth_register(payload: AuthCredentials) -> dict[str, str]:
+    async def auth_register(
+        http_request: Request, payload: AuthCredentials
+    ) -> dict[str, str]:
+        if not auth_limiter.allow(f"auth:{_client_ip(http_request)}"):
+            raise _too_many("Too many attempts; try again in a minute")
+        # Spoof-proof backstop against mass account creation (IP can be forged).
+        if not registration_limiter.allow("global"):
+            raise _too_many("Registration is temporarily rate-limited; try again later")
         try:
             account = auth_service.register(payload.email, payload.password)
         except AuthError as exc:
@@ -317,7 +371,11 @@ def create_app(
         return {"id": account.id, "email": account.email}
 
     @app.post("/auth/login")
-    async def auth_login(payload: AuthCredentials, response: Response) -> dict[str, str]:
+    async def auth_login(
+        http_request: Request, payload: AuthCredentials, response: Response
+    ) -> dict[str, str]:
+        if not auth_limiter.allow(f"auth:{_client_ip(http_request)}"):
+            raise _too_many("Too many attempts; try again in a minute")
         try:
             token = auth_service.login(payload.email, payload.password)
         except AuthError as exc:
@@ -358,10 +416,50 @@ def create_app(
     async def readiness_alt() -> dict[str, str]:
         return {"status": "ok"}
 
-    job_queue: asyncio.Queue[_QueuedJob] = asyncio.Queue()
+    # Abuse caps — read from env at app-construction time (0 disables). Keyed by
+    # authenticated user where possible (unspoofable); global/IP caps back-stop
+    # the unauthenticated lanes.
+    max_job_queue = _abuse_limit("NEUROMOUSE_MAX_JOB_QUEUE", 256)
+    max_active_jobs = _abuse_limit("NEUROMOUSE_MAX_ACTIVE_JOBS_PER_USER", 3)
+    max_methods_per_user = _abuse_limit("NEUROMOUSE_MAX_METHODS_PER_USER", 25)
+    max_dataset_bytes = _abuse_limit("NEUROMOUSE_MAX_DATASET_BYTES", 32 * 1024 * 1024)
+
+    job_queue: asyncio.Queue[_QueuedJob] = asyncio.Queue(maxsize=max_job_queue)
     watchers: dict[str, set[asyncio.Queue[None]]] = defaultdict(set)
     workers: list[asyncio.Task[None]] = []
     worker_bootstrap = asyncio.Lock()
+
+    active_jobs: dict[str, int] = defaultdict(int)
+    job_limiter = RateLimiter(_abuse_limit("NEUROMOUSE_JOBS_PER_MIN", 30), 60.0)
+    upload_limiter = RateLimiter(_abuse_limit("NEUROMOUSE_UPLOADS_PER_MIN", 10), 60.0)
+    session_limiter = RateLimiter(_abuse_limit("NEUROMOUSE_SESSIONS_PER_MIN", 30), 60.0)
+    auth_limiter = RateLimiter(_abuse_limit("NEUROMOUSE_AUTH_PER_MIN_PER_IP", 10), 60.0)
+    registration_limiter = RateLimiter(
+        _abuse_limit("NEUROMOUSE_REGISTRATIONS_PER_HOUR", 50), 3600.0
+    )
+
+    def _enqueue_job(queued: _QueuedJob) -> None:
+        """Admit a job to the bounded queue, or reject (429/503). Caller must
+        have already passed the per-user rate + active-job checks."""
+        if max_job_queue and job_queue.qsize() >= max_job_queue:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Job queue is full; try again shortly",
+                headers={"Retry-After": "30"},
+            )
+        # No await between the qsize check and put_nowait → admission is atomic.
+        job_queue.put_nowait(queued)
+        active_jobs[queued.owner_id] += 1
+
+    def _enqueue_or_fail(job: JobRecord, queued: _QueuedJob) -> None:
+        try:
+            _enqueue_job(queued)
+        except HTTPException:
+            with suppress(Exception):
+                backend_store.append_job_event(
+                    job.id, status="failed", error="job queue full", owner_id=queued.owner_id
+                )
+            raise
 
     def _broadcast_job_update(event: dict[str, Any]) -> None:
         for queue in list(watchers.get(event["job_id"], set())):
@@ -441,6 +539,12 @@ def create_app(
                 owner_id=queued_job.owner_id,
             )
             _broadcast_job_update(failed.events[-1])
+        finally:
+            remaining = active_jobs.get(queued_job.owner_id, 0) - 1
+            if remaining > 0:
+                active_jobs[queued_job.owner_id] = remaining
+            else:
+                active_jobs.pop(queued_job.owner_id, None)
 
     async def _job_worker_loop() -> None:
         while True:
@@ -480,6 +584,13 @@ def create_app(
         request: SessionCreateRequest,
     ) -> SessionResponse:
         user = user_from_request(http_request)
+        if not session_limiter.allow(user.id):
+            raise _too_many("Too many sessions created; slow down")
+        if max_dataset_bytes and len(json.dumps(request.dataset)) > max_dataset_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"dataset exceeds {max_dataset_bytes} bytes",
+            )
         try:
             dataset = validate_dataset(request.dataset).model_dump(mode="json")
         except DatasetValidationError as exc:
@@ -537,6 +648,14 @@ def create_app(
         file: Annotated[UploadFile, File()],
     ) -> MethodResponse:
         user = user_from_request(http_request)
+        if not upload_limiter.allow(user.id):
+            raise _too_many("Too many method uploads; slow down")
+        if max_methods_per_user and len(list(backend_store.list_user_methods(user.id))) >= (
+            max_methods_per_user
+        ):
+            raise _too_many(
+                f"Method limit reached ({max_methods_per_user}); delete some before uploading more"
+            )
         raw = await file.read(MAX_METHOD_SOURCE_BYTES + 1)
         if len(raw) > MAX_METHOD_SOURCE_BYTES:
             raise HTTPException(
@@ -659,6 +778,11 @@ def create_app(
                 detail="Method not found",
             )
 
+        if not job_limiter.allow(user.id):
+            raise _too_many("Too many job submissions; slow down")
+        if max_active_jobs and active_jobs.get(user.id, 0) >= max_active_jobs:
+            raise _too_many("Too many concurrent jobs; wait for the running ones to finish")
+
         job = backend_store.create_job(
             session_id=session.id,
             dataset_version=session.dataset_version,
@@ -667,7 +791,8 @@ def create_app(
             owner_id=user.id,
         )
         await _start_workers()
-        await job_queue.put(
+        _enqueue_or_fail(
+            job,
             _QueuedJob(
                 job_id=job.id,
                 session_id=session.id,
@@ -699,13 +824,18 @@ def create_app(
         response_model=JobResponse,
         status_code=status.HTTP_201_CREATED,
     )
-    async def create_demo_job(session_id: str, request: JobCreateRequest) -> JobResponse:
+    async def create_demo_job(
+        http_request: Request, session_id: str, request: JobCreateRequest
+    ) -> JobResponse:
         # Public anonymous demo lane: only whitelisted MEA methods, only on demo-owned sessions.
         if request.method_id not in DEMO_METHODS:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Method not available in the public demo lane",
             )
+        # Anonymous lane → rate-limit by best-effort client IP.
+        if not job_limiter.allow(f"demo:{_client_ip(http_request)}"):
+            raise _too_many("Too many demo jobs; slow down")
         session = backend_store.get_session(session_id, owner_id=DEMO_OWNER_ID)
         if session is None:
             raise HTTPException(
@@ -725,7 +855,8 @@ def create_app(
             owner_id=DEMO_OWNER_ID,
         )
         await _start_workers()
-        await job_queue.put(
+        _enqueue_or_fail(
+            job,
             _QueuedJob(
                 job_id=job.id,
                 session_id=session.id,
