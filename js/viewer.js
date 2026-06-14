@@ -932,7 +932,7 @@ function loadDemoPair() {
 }
 
 function renderWorkbench() {
-  if (!workbenchMetrics || !activeData) return;
+  if (!activeData) return;
   const state = buildWorkbenchState({
     sessions: getSessions(),
     fallbackData: activeData,
@@ -951,14 +951,16 @@ function renderWorkbench() {
     workbenchStatus.className = `workbench-status ${state.reportReadiness.ready ? "is-ready" : "is-draft"}`;
   }
 
-  workbenchMetrics.innerHTML = "";
-  state.metrics.forEach((metric) => {
-    workbenchMetrics.append(element("div", { className: "metric-tile" },
-      element("span", {}, metric.label),
-      element("strong", {}, metric.value),
-      element("small", {}, metric.detail),
-    ));
-  });
+  if (workbenchMetrics) {
+    workbenchMetrics.replaceChildren();
+    state.metrics.forEach((metric) => {
+      workbenchMetrics.append(element("div", { className: "metric-tile" },
+        element("span", {}, metric.label),
+        element("strong", {}, metric.value),
+        element("small", {}, metric.detail),
+      ));
+    });
+  }
 
   if (workbenchComparisons) {
     workbenchComparisons.innerHTML = "";

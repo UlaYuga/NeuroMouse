@@ -87,10 +87,6 @@
               <div class="workbench-title-block">
                 <span class="workbench-kicker">Analysis command surface</span>
                 <h2 id="workbench-title">Neural signal workbench</h2>
-                <p>
-                  Ingest saved EEG exports, select a comparison goal, inspect cohort separation,
-                  and export a reproducible first-pass report from the browser.
-                </p>
               </div>
               <div class="workbench-actions" aria-label="Workbench actions">
                 <button id="workbench-import" class="primary-action" type="button">Import Data</button>
@@ -99,42 +95,7 @@
               </div>
             </div>
 
-            <div class="pipeline-strip" aria-label="Analysis pipeline">
-              <div class="pipeline-step is-ready" data-pipeline-step="ingest">
-                <span>01</span>
-                <strong>Ingest</strong>
-                <small>data.json or CSV ZIP</small>
-              </div>
-              <div class="pipeline-step is-ready" data-pipeline-step="normalize">
-                <span>02</span>
-                <strong>Normalize</strong>
-                <small>channels, windows, metrics</small>
-              </div>
-              <div class="pipeline-step" data-pipeline-step="compare">
-                <span>03</span>
-                <strong>Compare</strong>
-                <small>baseline, split, delta</small>
-              </div>
-              <div class="pipeline-step" data-pipeline-step="report">
-                <span>04</span>
-                <strong>Report</strong>
-                <small>markdown export</small>
-              </div>
-            </div>
-
             <div class="workbench-grid">
-              <button id="workbench-drop-zone" class="workbench-drop-zone" type="button" aria-label="Import saved neural signal datasets">
-                <span class="drop-rail">Supported Now</span>
-                <strong>Drop NeuroMouse data.json, combined CSV ZIP, or Welch + geometry ZIP pair</strong>
-                <small>Imports feed the same baseline, overlay, split, delta, and report engine as the plots below.</small>
-                <span class="drop-formats" aria-hidden="true">
-                  <span>JSON</span>
-                  <span>CSV ZIP</span>
-                  <span>Welch + geometry</span>
-                </span>
-                <span id="workbench-import-log" class="import-log" aria-live="polite"></span>
-              </button>
-
               <div class="cohort-console" aria-label="Cohort comparison setup">
                 <div class="console-head">
                   <span>Comparison Goal</span>
@@ -145,35 +106,37 @@
                     <option value="session-repeatability">Repeatability check</option>
                   </select>
                 </div>
-                <p id="workbench-scenario-detail" class="scenario-detail">Compare trained neural cultures against untrained controls using spectral geometry and synchrony markers.</p>
-                <div id="workbench-baseline-summary" class="baseline-summary" aria-label="Selected baseline"></div>
-                <label class="workbench-baseline-control" for="workbench-baseline-select">
-                  <span>Baseline</span>
-                  <select id="workbench-baseline-select" aria-label="Workbench baseline"></select>
-                </label>
                 <div id="workbench-status" class="workbench-status" aria-live="polite">Loading analysis workspace…</div>
                 <div id="workbench-comparisons" class="comparison-readout"></div>
-                <button id="workbench-open-comparison" class="console-link" type="button">Open Comparison Suite</button>
               </div>
 
-              <div class="toolbox-console" aria-label="Curated toolbox">
-                <div class="toolbox-head">
-                  <span>Curated Toolbox</span>
-                  <strong>Python depth, browser access</strong>
+              <aside class="session-sidebar" aria-label="Session comparison">
+                <div class="session-sidebar-head">
+                  <h2>Sessions</h2>
+                  <span id="session-count">0/6</span>
                 </div>
-                <div id="workbench-readiness" class="readiness-panel" aria-live="polite"></div>
-                <div class="toolbox-list">
-                  <span>Spectral PSD</span>
-                  <span>Channel geometry</span>
-                  <span>Alpha chronology</span>
-                  <span>Phase synchrony</span>
-                  <span>Topology scan</span>
-                  <span>Condition monitor</span>
+                <button id="session-drop-zone" class="drop-zone" type="button" aria-label="Add NeuroMouse datasets">
+                  <strong>Drop datasets here</strong>
+                  <span>data.json or ZIP exports</span>
+                </button>
+                <input id="session-file-input" name="session-files" type="file" accept=".json,.zip,application/json,application/zip" multiple aria-label="NeuroMouse dataset files" hidden>
+                <p id="session-message" class="session-message" aria-live="polite">Add sessions to compare</p>
+                <div id="session-list" class="session-list"></div>
+                <div class="session-controls">
+                  <div class="session-control-block">
+                    <span class="session-control-label">View mode</span>
+                    <div class="segmented session-mode" data-control="view-mode" role="group" aria-label="View mode">
+                      <button type="button" class="is-active" data-view-mode="overlay" aria-label="Use overlay comparison mode">Overlay</button>
+                      <button type="button" data-view-mode="split" aria-label="Use split comparison mode">Split</button>
+                      <button type="button" data-view-mode="delta" aria-label="Use delta comparison mode">Delta</button>
+                    </div>
+                  </div>
+                  <label class="session-control-block" for="baseline-select">
+                    <span class="session-control-label">Baseline</span>
+                    <select id="baseline-select"></select>
+                  </label>
                 </div>
-                <div id="workbench-quality" class="quality-list" aria-label="Data quality checks"></div>
-              </div>
-
-              <div id="workbench-metrics" class="workbench-metrics" aria-label="Workbench metrics"></div>
+              </aside>
             </div>
           </section>
 
@@ -334,33 +297,7 @@
 
             <section id="monitor-panel" class="panel panel-monitor monitor-panel static-mode" aria-labelledby="monitor-title"></section>
 
-            <aside class="session-sidebar" aria-label="Session comparison">
-              <div class="session-sidebar-head">
-                <h2>Sessions</h2>
-                <span id="session-count">0/6</span>
-              </div>
-              <button id="session-drop-zone" class="drop-zone" type="button" aria-label="Add NeuroMouse datasets">
-                <strong>Drop datasets here</strong>
-                <span>data.json or ZIP exports</span>
-              </button>
-              <input id="session-file-input" name="session-files" type="file" accept=".json,.zip,application/json,application/zip" multiple aria-label="NeuroMouse dataset files" hidden>
-              <p id="session-message" class="session-message" aria-live="polite">Add sessions to compare</p>
-              <div id="session-list" class="session-list"></div>
-              <div class="session-controls">
-                <div class="session-control-block">
-                  <span class="session-control-label">View mode</span>
-                  <div class="segmented session-mode" data-control="view-mode" role="group" aria-label="View mode">
-                    <button type="button" class="is-active" data-view-mode="overlay" aria-label="Use overlay comparison mode">Overlay</button>
-                    <button type="button" data-view-mode="split" aria-label="Use split comparison mode">Split</button>
-                    <button type="button" data-view-mode="delta" aria-label="Use delta comparison mode">Delta</button>
-                  </div>
-                </div>
-                <label class="session-control-block" for="baseline-select">
-                  <span class="session-control-label">Baseline</span>
-                  <select id="baseline-select"></select>
-                </label>
-              </div>
-            </aside>
+            <!-- Sessions + comparison controls moved up into the workbench command surface -->
 
           </div><!-- #advanced-views -->
 
