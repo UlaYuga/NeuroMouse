@@ -25,6 +25,7 @@ import time
 from typing import Any
 
 from neuromouse_sandbox.contract import (
+    MODE_DESCRIBE,
     STATUS_METHOD_ERROR,
     STATUS_OK,
     STATUS_POLICY_VIOLATION,
@@ -84,7 +85,6 @@ def run_in_sandbox(
     violation, or method-level failure.
     """
 
-    budget = limits or SandboxLimits()
     request = RequestEnvelope(
         method=method,
         dataset=dataset,
@@ -92,7 +92,34 @@ def run_in_sandbox(
         required_inputs=tuple(required_inputs),
         output_fields=tuple(output_fields),
     )
+    return _execute(request, limits or SandboxLimits())
 
+
+def describe_in_sandbox(
+    method: MethodRef,
+    *,
+    limits: SandboxLimits | None = None,
+) -> dict[str, Any]:
+    """Import an (untrusted) method in the sandbox and return its declared
+    metadata (name, version, required inputs, params schema, output + panel).
+
+    Importing a method module runs its top-level code, so registration must
+    cross the same boundary as execution. ``compute`` is never called and no
+    dataset is shipped. Raises a :class:`SandboxError` on any breach/failure.
+    """
+
+    request = RequestEnvelope(
+        method=method,
+        dataset=None,
+        params={},
+        required_inputs=(),
+        output_fields=(),
+        mode=MODE_DESCRIBE,
+    )
+    return _execute(request, limits or SandboxLimits())
+
+
+def _execute(request: RequestEnvelope, budget: SandboxLimits) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="nm-sandbox-") as base:
         # The request/response/stderr files live in `base`; the child's cwd and
         # *only* writable area is the `work` subdir. Because the response file

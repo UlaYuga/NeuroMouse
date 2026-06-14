@@ -24,6 +24,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from neuromouse_sandbox.contract import (
+    MODE_DESCRIBE,
     STATUS_BAD_REQUEST,
     STATUS_METHOD_ERROR,
     STATUS_OK,
@@ -99,6 +100,13 @@ def main(argv: list[str]) -> int:
                     ),
                 )
             )
+
+        if request.mode == MODE_DESCRIBE:
+            # Registration path: import ran the untrusted module under the full
+            # sandbox; now just read its *declared* metadata. No compute, no
+            # dataset — so an uploaded method is introspected without ever
+            # executing its analysis or touching the backend process.
+            return _emit(ResponseEnvelope(status=STATUS_OK, result=_describe(method)))
 
         params = build_params(getattr(method, "params_type", dict), request.params)
         _require_paths(dataset_obj, request.required_inputs, "required input")
@@ -178,6 +186,59 @@ def _load_module(ref: MethodRef) -> Any:
     sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _describe(method: Any) -> dict[str, Any]:
+    """Extract a method's *declared* metadata for private registration.
+
+    Returns plain JSON the backend stores and renders (catalog entry + panel)
+    without ever importing the untrusted module in-process.
+    """
+
+    name = getattr(method, "name", None)
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("method.name must be a non-empty string")
+
+    required_inputs = [str(p) for p in getattr(method, "required_inputs", ()) or ()]
+
+    output = getattr(method, "output", None)
+    fields: list[dict[str, Any]] = []
+    panel: dict[str, Any] | None = None
+    for field_obj in getattr(output, "fields", ()) or ():
+        fields.append(
+            {
+                "path": str(getattr(field_obj, "path", "")),
+                "description": str(getattr(field_obj, "description", "") or ""),
+                "unit": getattr(field_obj, "unit", None),
+            }
+        )
+    if not fields:
+        raise ValueError("method.output must declare at least one field")
+    panel_obj = getattr(output, "panel", None)
+    if panel_obj is not None:
+        panel = {
+            "id": str(getattr(panel_obj, "id", "")),
+            "title": str(getattr(panel_obj, "title", "")),
+            "kind": str(getattr(panel_obj, "kind", "")),
+            "field": str(getattr(panel_obj, "field", "")),
+        }
+
+    return {
+        "name": name.strip(),
+        "version": str(getattr(method, "version", "0.0.0") or "0.0.0"),
+        "required_inputs": required_inputs,
+        "params_schema": _params_schema(getattr(method, "params_type", dict)),
+        "output": {"fields": fields, "panel": panel},
+    }
+
+
+def _params_schema(params_type: Any) -> dict[str, Any]:
+    try:
+        from pydantic import TypeAdapter  # noqa: PLC0415
+
+        return dict(TypeAdapter(params_type).json_schema())
+    except Exception:  # noqa: BLE001 - fall back to an empty schema for exotic params types
+        return {"title": getattr(params_type, "__name__", "Params"), "type": "object", "properties": {}}
 
 
 def _require_paths(value: Any, paths: tuple[str, ...], label: str) -> None:

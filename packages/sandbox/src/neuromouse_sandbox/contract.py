@@ -91,6 +91,13 @@ class SandboxLimits:
         return cls(**{k: v for k, v in payload.items() if k in cls.__dataclass_fields__})
 
 
+# Request modes: run the method, or merely introspect its declared metadata.
+MODE_COMPUTE = "compute"
+MODE_DESCRIBE = "describe"
+
+RequestMode = Literal["compute", "describe"]
+
+
 @dataclass(frozen=True)
 class RequestEnvelope:
     method: MethodRef
@@ -98,11 +105,13 @@ class RequestEnvelope:
     params: dict[str, Any]
     required_inputs: tuple[str, ...]
     output_fields: tuple[str, ...]
+    mode: RequestMode = MODE_COMPUTE
     version: str = CONTRACT_VERSION
 
     def to_json(self) -> str:
         payload = {
             "version": self.version,
+            "mode": self.mode,
             "method": self.method.to_jsonable(),
             "dataset": self.dataset,
             "params": self.params,
@@ -116,12 +125,16 @@ class RequestEnvelope:
         payload = json.loads(text)
         if payload.get("version") != CONTRACT_VERSION:
             raise ValueError(f"unsupported sandbox contract version: {payload.get('version')!r}")
+        mode = payload.get("mode", MODE_COMPUTE)
+        if mode not in (MODE_COMPUTE, MODE_DESCRIBE):
+            raise ValueError(f"unsupported sandbox request mode: {mode!r}")
         return cls(
             method=MethodRef.from_jsonable(payload["method"]),
             dataset=payload.get("dataset"),
             params=payload.get("params") or {},
             required_inputs=tuple(payload.get("required_inputs") or ()),
             output_fields=tuple(payload.get("output_fields") or ()),
+            mode=mode,
         )
 
 

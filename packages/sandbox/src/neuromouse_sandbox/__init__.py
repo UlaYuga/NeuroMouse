@@ -24,6 +24,7 @@ from neuromouse_sandbox.runner import (
     SandboxPolicyViolation,
     SandboxResourceLimit,
     SandboxTimeout,
+    describe_in_sandbox,
     run_in_sandbox,
 )
 
@@ -36,4 +37,5 @@ __all__ = [
     "SandboxResourceLimit",
     "SandboxTimeout",
     "run_in_sandbox",
+    "describe_in_sandbox",
 ]
