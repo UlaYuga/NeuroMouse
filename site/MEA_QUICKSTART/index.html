@@ -1,0 +1,1258 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Collaborator documentation for the NeuroMouse platform — data contract, method SDK, and wetware MEA direction.">
+      
+      
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../ARCHITECTURE/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Quickstart - NeuroMouse Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Schibsted+Grotesk:300,300i,400,400i,700,700i%7CGeist+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Schibsted Grotesk";--md-code-font:"Geist Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="lime">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#mea-quickstart" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="NeuroMouse Docs" class="md-header__button md-logo" aria-label="NeuroMouse Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            NeuroMouse Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Quickstart
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="NeuroMouse Docs" class="md-nav__button md-logo" aria-label="NeuroMouse Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    NeuroMouse Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#mental-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mental Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-load-mea-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Load MEA Data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-run-mea-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Run MEA Methods
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-plug-in-your-own-sorter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Plug In Your Own Sorter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-what-to-capture-for-collaborators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. What To Capture For Collaborators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-where-to-go-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Where To Go Next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Platform
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../POSITIONING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positioning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ARCH-REVIEW/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Authoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../METHOD_AUTHORING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision Records
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decision Records
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0001-monorepo-uv-workspace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0001 — Monorepo & uv workspace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0002-executable-data-contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0002 — Executable data contract
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0003-method-sdk-plugin-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0003 — Method SDK plugin surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0004-montage-agnostic-channel-ceiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0004 — Montage-agnostic channel ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0005-fuzz-gated-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0005 — Fuzz-gated hardening
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0006-uv-link-mode-clone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0006 — uv link-mode clone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0007-wetware-mea-direction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0007 — Wetware & MEA direction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#mental-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mental Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-load-mea-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Load MEA Data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-run-mea-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Run MEA Methods
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-plug-in-your-own-sorter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Plug In Your Own Sorter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-what-to-capture-for-collaborators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. What To Capture For Collaborators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-where-to-go-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Where To Go Next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="mea-quickstart">MEA Quickstart<a class="headerlink" href="#mea-quickstart" title="Permanent link">&para;</a></h1>
+<p>This guide is for wetware scientists working with MEA, organoid, cultured-neuron, or
+neural-cell recording data. The goal is to get a lab export into the NeuroMouse contract, run
+MEA-relevant methods, and keep your own spike sorter or analysis pipeline in the loop.</p>
+<p>NeuroMouse is not trying to replace your acquisition software, SpikeInterface pipeline,
+vendor sorter, or lab notebook. It gives those tools a stable contract and browser artifact
+so collaborators can inspect the same dataset and method outputs.</p>
+<h2 id="mental-model">Mental Model<a class="headerlink" href="#mental-model" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>MEA recording -&gt; canonical dataset -&gt; declared methods -&gt; browser artifact
+</code></pre></div>
+<ul>
+<li>Acquisition stays in your lab stack.</li>
+<li>NeuroMouse adapters normalize into a canonical <code>data.json</code> shape.</li>
+<li>Methods declare the fields they consume and the outputs they produce.</li>
+<li>The browser renders the canonical dataset and method outputs without asking reviewers to
+  run Python.</li>
+</ul>
+<p>The contract is montage-agnostic and channel-major. <code>meta.channels</code> is the source of channel
+order, and every per-channel array uses that same order. The default ceiling is 4096 channels,
+which is a safety limit rather than a scientific claim about MEA size. See the
+<a href="../DATA_CONTRACT.md">data contract</a> and
+<a href="../adr/0004-montage-agnostic-channel-ceiling/">montage ADR</a>.</p>
+<h2 id="1-load-mea-data">1. Load MEA Data<a class="headerlink" href="#1-load-mea-data" title="Permanent link">&para;</a></h2>
+<p>The fastest path is a channel-per-column CSV:</p>
+<div class="highlight"><pre><span></span><code>time_sec,MEA-0000,MEA-0001,MEA-0002
+0.000000,0.012,-0.004,0.008
+0.004000,0.015,-0.003,0.007
+</code></pre></div>
+<p>Then normalize and validate it:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">neuromouse_adapters</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_file</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">neuromouse_contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_dataset</span>
+
+<span class="n">source</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;exports/well-a1.csv&quot;</span><span class="p">)</span>
+<span class="n">dataset</span> <span class="o">=</span> <span class="n">validate_dataset</span><span class="p">(</span><span class="n">read_file</span><span class="p">(</span><span class="n">source</span><span class="p">))</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">n_channels</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">channels</span><span class="p">[:</span><span class="mi">5</span><span class="p">])</span>
+</code></pre></div>
+<p><code>read_file()</code> currently supports CSV, EDF, and BDF replay files. For a wetware export that
+already contains PSD or feature tables, emit canonical <code>data.json</code> directly using the shape
+in <a href="../DATA_CONTRACT.md">DATA_CONTRACT.md</a>. That is usually less fragile than translating a
+large MEA export through multiple CSV conventions.</p>
+<p>Required canonical fields:</p>
+<ul>
+<li><code>meta.channels</code>: electrode, well, or unit names in display order.</li>
+<li><code>welch_psd.frequencies</code> and <code>welch_psd.psd</code>: channel-major power spectra.</li>
+<li><code>centroid.time_relative</code> and <code>centroid.values</code>: channel-major centroid time series.</li>
+<li><code>geometry.time</code>: time axis for derived spectral metrics.</li>
+</ul>
+<p>Optional fields can carry lab-specific context, sorter provenance, well IDs, stimulation
+epochs, culture age, batch labels, or assay notes. Unknown fields are allowed by the Python
+contract so long as the hard validation rules pass.</p>
+<h2 id="2-run-mea-methods">2. Run MEA Methods<a class="headerlink" href="#2-run-mea-methods" title="Permanent link">&para;</a></h2>
+<p>MEA methods should be ordinary NeuroMouse methods: declaration-first, deterministic, and
+registered through the method registry. For wetware work, the first method names should be:</p>
+<ul>
+<li><code>spike_detect</code>: convert sorter output or thresholded events into comparable spike rows.</li>
+<li><code>network_burst</code>: summarize synchronized population bursts and burst windows.</li>
+<li><code>connectivity</code>: produce pairwise or grouped connectivity tables from spikes or features.</li>
+</ul>
+<p>The registry contract is described in <a href="../METHOD_AUTHORING/">Method Authoring</a>. The concrete
+API lives in
+<a href="../packages/core/src/neuromouse_core/method_registry.py"><code>MethodRegistry</code></a>, with the SDK
+surface in <a href="../packages/sdk"><code>packages/sdk</code></a>.</p>
+<p>The run shape should look like this:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">neuromouse_adapters</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_file</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">neuromouse_contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_dataset</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">neuromouse_core.method_registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">MethodRegistry</span>
+
+<span class="c1"># Import Method objects from the MEA method package when those methods are present.</span>
+<span class="c1"># The exact implementation can call SpikeInterface, SciPy, NumPy, or lab code internally.</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">methods.connectivity</span><span class="w"> </span><span class="kn">import</span> <span class="n">method</span> <span class="k">as</span> <span class="n">connectivity</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">methods.network_burst</span><span class="w"> </span><span class="kn">import</span> <span class="n">method</span> <span class="k">as</span> <span class="n">network_burst</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">methods.spike_detect</span><span class="w"> </span><span class="kn">import</span> <span class="n">method</span> <span class="k">as</span> <span class="n">spike_detect</span>
+
+<span class="n">dataset</span> <span class="o">=</span> <span class="n">validate_dataset</span><span class="p">(</span><span class="n">read_file</span><span class="p">(</span><span class="s2">&quot;exports/well-a1.csv&quot;</span><span class="p">))</span>
+
+<span class="n">registry</span> <span class="o">=</span> <span class="n">MethodRegistry</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">method</span> <span class="ow">in</span> <span class="p">(</span><span class="n">spike_detect</span><span class="p">,</span> <span class="n">network_burst</span><span class="p">,</span> <span class="n">connectivity</span><span class="p">):</span>
+    <span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">method</span><span class="p">)</span>
+
+<span class="n">spikes</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;spike_detect&quot;</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;threshold_uV&quot;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">})</span>
+<span class="n">bursts</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;network_burst&quot;</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;min_channels&quot;</span><span class="p">:</span> <span class="mi">8</span><span class="p">})</span>
+<span class="n">network</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;connectivity&quot;</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;window_ms&quot;</span><span class="p">:</span> <span class="mi">50</span><span class="p">})</span>
+</code></pre></div>
+<p>Each method should declare:</p>
+<ul>
+<li>the canonical inputs it needs, such as <code>meta.channels</code>, <code>welch_psd.psd</code>, or a sorter output
+  namespace;</li>
+<li>typed params with lab-relevant units;</li>
+<li>output fields under a stable root key, for example <code>spike_detect.events</code>;</li>
+<li>a panel hint when the output has a useful table or chart surface.</li>
+</ul>
+<h2 id="3-plug-in-your-own-sorter">3. Plug In Your Own Sorter<a class="headerlink" href="#3-plug-in-your-own-sorter" title="Permanent link">&para;</a></h2>
+<p>The expected model is "templates plus bring your own sorter." Use NeuroMouse templates and
+registry validation for the platform boundary, but keep the sorter you trust.</p>
+<p>Recommended boundary:</p>
+<div class="highlight"><pre><span></span><code>packages/sorting/
+|-- README.md
+|-- src/
+|   `-- neuromouse_sorting/
+|       |-- spikeinterface_adapter.py
+|       |-- vendor_export_adapter.py
+|       `-- schema.py
+`-- tests/
+</code></pre></div>
+<p><code>packages/sorting</code> is the intended home for sorter wrappers once that package is present in
+the workspace. Until it lands, keep sorter code in your lab package and expose a small
+adapter that returns JSON-serializable outputs to a NeuroMouse method.</p>
+<p>A sorter adapter should return stable rows, not opaque objects:</p>
+<div class="highlight"><pre><span></span><code><span class="p">[</span>
+    <span class="p">{</span><span class="s2">&quot;channel&quot;</span><span class="p">:</span> <span class="s2">&quot;MEA-0007&quot;</span><span class="p">,</span> <span class="s2">&quot;time_sec&quot;</span><span class="p">:</span> <span class="mf">12.304</span><span class="p">,</span> <span class="s2">&quot;amplitude_uV&quot;</span><span class="p">:</span> <span class="mf">41.2</span><span class="p">,</span> <span class="s2">&quot;unit_id&quot;</span><span class="p">:</span> <span class="s2">&quot;u03&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">&quot;channel&quot;</span><span class="p">:</span> <span class="s2">&quot;MEA-0042&quot;</span><span class="p">,</span> <span class="s2">&quot;time_sec&quot;</span><span class="p">:</span> <span class="mf">12.307</span><span class="p">,</span> <span class="s2">&quot;amplitude_uV&quot;</span><span class="p">:</span> <span class="mf">38.5</span><span class="p">,</span> <span class="s2">&quot;unit_id&quot;</span><span class="p">:</span> <span class="s2">&quot;u11&quot;</span><span class="p">},</span>
+<span class="p">]</span>
+</code></pre></div>
+<p>That output can then become <code>spike_detect.events</code>, which <code>network_burst</code> and <code>connectivity</code>
+can consume through declared method inputs.</p>
+<h2 id="4-what-to-capture-for-collaborators">4. What To Capture For Collaborators<a class="headerlink" href="#4-what-to-capture-for-collaborators" title="Permanent link">&para;</a></h2>
+<p>For FinalSpark, Cortical Labs, or similar wetware review, keep provenance explicit:</p>
+<ul>
+<li>acquisition system, plate or MEA identifier, well, culture age, and sampling rate;</li>
+<li>preprocessing choices such as filtering, referencing, and dead-channel handling;</li>
+<li>sorter name, version, parameters, and manual curation status;</li>
+<li>stimulation epochs or assay windows if they affect interpretation;</li>
+<li>method params and random seeds for any stochastic step.</li>
+</ul>
+<p>The browser artifact should answer three questions quickly:</p>
+<ol>
+<li>What was recorded?</li>
+<li>Which method produced each result?</li>
+<li>Can another scientist rerun or replace the sorter without changing the artifact contract?</li>
+</ol>
+<h2 id="5-where-to-go-next">5. Where To Go Next<a class="headerlink" href="#5-where-to-go-next" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Use <a href="../DATA_CONTRACT.md">DATA_CONTRACT.md</a> when emitting canonical <code>data.json</code>.</li>
+<li>Use <a href="../METHOD_AUTHORING/">Method Authoring</a> when writing <code>spike_detect</code>,
+  <code>network_burst</code>, or <code>connectivity</code>.</li>
+<li>Use <a href="../adr/0007-wetware-mea-direction/">ADR 0007</a> for the platform direction and why MEA
+  is the foreground path.</li>
+<li>Use <a href="../packages/adapters"><code>packages/adapters</code></a> for replay normalization examples.</li>
+<li>Use <code>packages/sorting</code> as the sorter-wrapper target once that package exists in this
+  workspace.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

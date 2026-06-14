@@ -1,0 +1,84 @@
+/* ============================================================================
+   NeuroMouse — design tokens
+   "Cinematic liquid-chrome synthetic biology — the coordinated cell — in a
+    Matthew Barney bioplastic clinic, instrumented with Swiss precision."
+   ~90% chrome / milk / petrol-ink · <10% colour · #C6F000 = the only "alive".
+   ========================================================================== */
+
+:root {
+  /* ── surfaces ──────────────────────────────────────────────────────────── */
+  --bg-deep:    #232b30;   /* petrol blue-grey — the IMG-1 backdrop            */
+  --bg-deep-2:  #2e383e;   /* gradient partner                                 */
+  --bg-deep-3:  #161c20;   /* deepest vignette                                 */
+  --milk:       #f4f3ef;   /* Barney bioplastic white — the lab plate          */
+  --milk-2:     #eceae3;   /* plate shadow / inset                             */
+  --milk-3:     #e3e1d8;   /* hairline fill                                    */
+  --ink:        #0c0e0f;   /* near-black                                       */
+
+  /* ── chrome (mirror metal, used as gradients) ─────────────────────────── */
+  --chrome-hi:  #f2f4f5;
+  --chrome-mid: #9aa1a5;
+  --chrome-lo:  #1a1e20;
+  --chrome-grad: linear-gradient(150deg,
+      var(--chrome-hi) 0%, #cdd2d4 26%, var(--chrome-mid) 52%,
+      #4a5256 78%, var(--chrome-lo) 100%);
+  --chrome-grad-soft: linear-gradient(160deg,
+      #fbfcfc 0%, #c2c8ca 40%, #7e868a 70%, #2b3134 100%);
+
+  /* ── text ─────────────────────────────────────────────────────────────── */
+  --on-deep:    #e8ecee;   /* primary text on petrol                          */
+  --on-deep-2:  rgba(232,236,238,0.62);
+  --on-deep-3:  rgba(232,236,238,0.40);
+  --on-milk:    #14181a;   /* primary text on milk                            */
+  --on-milk-2:  rgba(20,24,26,0.60);
+  --on-milk-3:  rgba(20,24,26,0.38);
+
+  /* ── the only living colours ──────────────────────────────────────────── */
+  --live:       #c6f000;   /* acid chartreuse — firing / active / CTA          */
+  --live-deep:  #9fc000;   /* live, pressed/edge                               */
+  --live-glow:  rgba(198,240,0,0.55);
+  --cadmium:    #f2e600;   /* Barney warm — rare painterly biomaterial accent  */
+
+  /* ── instrument hairlines ─────────────────────────────────────────────── */
+  --rule-deep:  rgba(232,236,238,0.14);
+  --rule-deep-2:rgba(232,236,238,0.07);
+  --rule-milk:  rgba(20,24,26,0.16);
+  --rule-milk-2:rgba(20,24,26,0.08);
+
+  /* ── type ─────────────────────────────────────────────────────────────── */
+  --font-ui:   "Schibsted Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "Geist Mono", "Spline Sans Mono", "IBM Plex Mono", ui-monospace,
+               "SF Mono", Menlo, monospace;
+
+  --t-hero:  clamp(3.2rem, 11vw, 11rem);   /* the wordmark                    */
+  --t-d1:    clamp(2.4rem, 5.5vw, 4.6rem);
+  --t-d2:    clamp(1.7rem, 3.2vw, 2.7rem);
+  --t-lead:  clamp(1.05rem, 1.5vw, 1.45rem);
+  --t-body:  1.0625rem;
+  --t-micro: 0.72rem;     /* instrument labels                                */
+  --t-tick:  0.64rem;     /* coordinate ticks                                 */
+
+  --track-micro: 0.18em;  /* wide-tracked small caps                          */
+  --track-tick:  0.06em;
+
+  /* ── space (4pt) ──────────────────────────────────────────────────────── */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px; --s5: 20px;
+  --s6: 24px; --s8: 32px; --s10: 40px; --s12: 48px; --s16: 64px;
+  --s20: 80px; --s24: 96px; --s32: 128px;
+
+  /* ── radii — minimal, instrument-flat ─────────────────────────────────── */
+  --r-card: 3px;
+  --r-chip: 999px;
+  --r-vitrine: 4px;
+
+  /* ── frosted-acrylic vitrine panels (UI cards) ────────────────────────── */
+  --vitrine-deep: rgba(20,26,30,0.42);
+  --vitrine-milk: rgba(255,255,255,0.55);
+
+  /* ── motion ───────────────────────────────────────────────────────────── */
+  --ease-cell:  cubic-bezier(0.22, 0.61, 0.30, 1);   /* liquid settle         */
+  --ease-fire:  cubic-bezier(0.16, 1, 0.30, 1);      /* spike attack/decay    */
+  --t-fast: 140ms;
+  --t-med:  320ms;
+  --t-slow: 720ms;
+}

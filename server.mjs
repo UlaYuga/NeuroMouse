@@ -26,6 +26,38 @@ function isBackendApiPath(pathname) {
   return /^\/(auth|sessions|jobs|demo|methods)(?:\/|$)/.test(pathname);
 }
 
+// Docs: the mkdocs build in site/ is mounted at /docs/. Map /docs/<rest> → site/<rest>,
+// resolving directories to their index.html (mkdocs uses directory URLs). Path-traversal
+// outside site/ is refused.
+const DOCS_ROOT = resolve(root, "site");
+async function resolveDocsPath(pathname) {
+  const decoded = decodeURIComponent(pathname.slice("/docs".length));
+  const safe = normalize(decoded).replace(/^(\.\.(?:[/\\]|$))+/, "");
+  const rel = safe.replace(/^[/\\]+/, "");
+  let abs = resolve(DOCS_ROOT, rel);
+  if (abs !== DOCS_ROOT && !abs.startsWith(DOCS_ROOT + sep)) return null;
+  let st = await fileStat(abs);
+  if (st?.isDirectory()) {
+    abs = join(abs, "index.html");
+    st = await fileStat(abs);
+  }
+  return st?.isFile() ? abs : null;
+}
+
+// The public static surface is the landing (/), app.html (/app), /assets, /js, /landing,
+// and the /docs mount. Everything else in the repo root (source, configs, dotfiles) is
+// refused so deploying from the repo root never leaks source or config.
+function isDeniedStaticPath(pathname) {
+  if (/(^|\/)\.[^/]/.test(pathname)) return true; // dotfiles/dirs: .git, .env, .claude, .github…
+  if (/^\/(server\.mjs|package(-lock)?\.json|pyproject\.toml|uv\.lock|mkdocs\.ya?ml|Dockerfile[^/]*|docker-compose\.ya?ml)$/i.test(pathname)) {
+    return true;
+  }
+  if (/^\/(packages|contracts|tests|bench|audit|infra|tools|methods|source-data|test-results|datasets|examples|node_modules)(\/|$)/i.test(pathname)) {
+    return true;
+  }
+  return false;
+}
+
 const mimeTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".csv", "text/csv; charset=utf-8"],
@@ -61,7 +93,30 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    const target = await resolveRequestPath(url.pathname);
+    // Landing lives at "/"; the workbench app is gated behind "/app".
+    // ("/demo" is reserved by the backend's public demo API lane — /demo/seed-mea etc.)
+    if (url.pathname === "/app/") {
+      response.writeHead(301, { Location: "/app" });
+      response.end();
+      return;
+    }
+    // Docs (mkdocs build in site/) are mounted at /docs/.
+    if (url.pathname === "/docs") {
+      response.writeHead(301, { Location: "/docs/" });
+      response.end();
+      return;
+    }
+
+    let target;
+    if (url.pathname === "/docs/" || url.pathname.startsWith("/docs/")) {
+      target = await resolveDocsPath(url.pathname);
+    } else if (isDeniedStaticPath(url.pathname)) {
+      sendText(response, 404, "Not found\n");
+      return;
+    } else {
+      const staticPathname = url.pathname === "/app" ? "/app.html" : url.pathname;
+      target = await resolveRequestPath(staticPathname);
+    }
     if (!target) {
       sendText(response, 404, "Not found\n");
       return;

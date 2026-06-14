@@ -1,0 +1,39 @@
+/* NeuroMouse brand skin for the docs — milk lab-plate, ink ink, one acid accent.
+   Matches the landing: surface #f4f3ef, text #14181a, single accent #c6f000 (used dark
+   as #7e9a00 for readable links/hover). Fonts come from theme.font (Schibsted Grotesk /
+   Geist Mono). */
+:root {
+  --nm-milk: #f4f3ef;
+  --nm-ink: #14181a;
+  --nm-acid: #c6f000;
+  --nm-acid-deep: #7e9a00;
+}
+
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: var(--nm-milk);
+  --md-primary-fg-color: var(--nm-ink);
+  --md-primary-fg-color--light: #2e383e;
+  --md-primary-fg-color--dark: #0c0e0f;
+  --md-accent-fg-color: var(--nm-acid-deep);
+  --md-typeset-a-color: var(--nm-acid-deep);
+}
+
+/* hairline under the header, like the lab-plate rules */
+.md-header {
+  border-bottom: 1px solid rgba(20, 24, 26, 0.16);
+}
+
+/* acid-deep links; full-acid bar on the active TOC item */
+[data-md-color-scheme="default"] .md-typeset a:hover {
+  color: var(--nm-acid-deep);
+}
+[data-md-color-scheme="default"] .md-nav__link--active {
+  color: var(--nm-ink);
+  font-weight: 600;
+}
+
+/* tighten display type to match the landing's grotesque feel */
+.md-typeset h1,
+.md-typeset h2 {
+  letter-spacing: -0.02em;
+}

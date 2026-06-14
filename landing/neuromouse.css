@@ -1,0 +1,172 @@
+/* ============================================================================
+   NeuroMouse — page / layout
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  line-height: 1.5;
+  color: var(--on-milk);
+  background: var(--milk);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+::selection { background: var(--live); color: var(--ink); }
+
+.mono { font-family: var(--font-mono); }
+.micro {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: var(--track-micro);
+  text-transform: uppercase;
+}
+.tick {
+  font-family: var(--font-mono);
+  font-size: var(--t-tick);
+  letter-spacing: var(--track-tick);
+}
+.live { color: var(--live); }
+
+/* ── shared rails ─────────────────────────────────────────────────────────── */
+.wrap { width: min(1320px, 100% - clamp(32px, 6vw, 120px)); margin-inline: auto; }
+
+/* ============================================================================
+   HERO — light Swiss lab-plate · the mouse as a live specimen
+   ========================================================================== */
+.hero-light {
+  position: relative;
+  min-height: 100svh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--milk);
+  color: var(--on-milk);
+}
+.hero-light::before { /* fine hairline instrument grid — same as the sections below */
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.6;
+  background-image:
+    linear-gradient(var(--rule-milk-2) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rule-milk-2) 1px, transparent 1px);
+  background-size: 56px 56px, 56px 56px;
+}
+
+/* top bar — logo left, nav + square right */
+.hero-top {
+  position: relative; z-index: 3;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s4);
+  padding: clamp(18px, 2.4vw, 30px) 0;
+}
+.logo { display: inline-flex; align-items: center; gap: 11px; text-decoration: none; }
+.logo-burst { width: 32px; height: 32px; display: inline-block; }
+.logo-burst img { width: 100%; height: 100%; display: block; object-fit: contain; animation: burst-spin 26s linear infinite; transform-origin: 50% 50%; }
+@keyframes burst-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .logo-burst img { animation: none; } }
+.logo-word { font-size: 1.46rem; font-weight: 700; letter-spacing: -0.022em; color: var(--on-milk); text-transform: lowercase; }
+.logo-word .thin { font-weight: 400; color: var(--on-milk-2); }
+
+.hero-nav-wrap { display: flex; align-items: center; gap: clamp(20px, 3vw, 44px); }
+.hero-nav { display: flex; gap: clamp(18px, 2.4vw, 40px); color: var(--on-milk-2); }
+.hero-nav span { transition: color var(--t-fast); cursor: default; }
+.hero-nav span:hover { color: var(--on-milk); }
+.nav-sq {
+  width: 36px; height: 36px; border: 0; border-radius: var(--r-card); cursor: pointer;
+  background: var(--live); display: grid; place-items: center;
+  box-shadow: 0 0 0 1px rgba(159,192,0,0.4);
+  transition: transform var(--t-fast), box-shadow var(--t-med);
+}
+.nav-sq span { width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
+.nav-sq:hover { transform: translateY(-1px); box-shadow: 0 0 18px -4px var(--live-glow); }
+
+/* the lab: copy left, floating specimen right */
+.hero-lab {
+  position: relative;
+  align-self: center;
+  display: grid;
+  grid-template-columns: 1fr 1.18fr;
+  align-items: center;
+  gap: clamp(8px, 1.4vw, 22px);
+  padding-block: clamp(20px, 3vh, 48px);
+}
+.hero-copy { display: grid; justify-items: start; max-width: 46ch; }
+.hero-head {
+  font-size: clamp(2.7rem, 6.2vw, 5.4rem);
+  font-weight: 600; letter-spacing: -0.038em; line-height: 0.98;
+  color: var(--on-milk);
+}
+.hero-head .ln { display: block; white-space: nowrap; }
+.hero-head .thin { font-weight: 300; color: var(--on-milk-2); }
+.hero-sub {
+  margin-top: clamp(20px, 2.4vw, 30px);
+  font-size: 0.98rem; letter-spacing: 0.04em; color: var(--on-milk-2);
+}
+.hero-rule { display: block; width: 56px; height: 3px; background: var(--live); margin-top: clamp(22px, 2.6vw, 32px); border-radius: 2px; }
+.hero-meta { margin-top: clamp(20px, 2.6vw, 30px); color: var(--on-milk-3); letter-spacing: 0.02em; }
+
+.hero-cta { margin-top: clamp(24px, 3vw, 36px); display: flex; gap: 12px; flex-wrap: wrap; }
+.btn {
+  font: inherit; font-size: 0.95rem; cursor: pointer; border: 0; white-space: nowrap;
+  text-decoration: none;
+  padding: 13px 22px; border-radius: var(--r-card);
+  display: inline-flex; align-items: center; gap: 10px;
+  transition: transform var(--t-fast) var(--ease-fire), background var(--t-fast), box-shadow var(--t-med), color var(--t-fast);
+}
+.btn-live { background: var(--live); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px rgba(159,192,0,0.4), 0 10px 30px -12px var(--live-glow); }
+.btn-live:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px var(--live-deep), 0 0 26px -6px var(--live-glow); }
+.btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
+.btn-outline {
+  background: transparent; color: var(--on-milk);
+  font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.82rem;
+  padding: 19px 30px; box-shadow: inset 0 0 0 1.5px var(--live-deep);
+}
+.btn-outline:hover { background: var(--live); box-shadow: inset 0 0 0 1.5px var(--live); transform: translateY(-1px); }
+
+/* floating specimen with green glow + technical deco */
+.hero-figure {
+  position: relative;
+  display: grid; place-items: center;
+  min-height: clamp(460px, 76vh, 800px);
+  overflow: visible;
+}
+.fig-glow {
+  position: absolute; z-index: 0; right: 6%; bottom: 8%;
+  width: 66%; aspect-ratio: 1 / 1;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(198,240,0,0.62) 0%, rgba(198,240,0,0.18) 42%, transparent 70%);
+  filter: blur(30px);
+}
+/* orbit + mouse share one float, so they move together */
+.fig-float {
+  position: relative; z-index: 2;
+  display: grid; place-items: center;
+  width: min(110%, 680px); margin-left: -6%;
+  animation: mouse-float 7s var(--ease-cell) infinite;
+  will-change: transform;
+}
+.fig-deco {
+  position: absolute; z-index: 0;
+  left: 50%; top: 49%; width: 116%; height: 116%;
+  transform: translate(-50%, -50%);
+  pointer-events: none; overflow: visible;
+}
+.specimen-img {
+  position: relative; z-index: 2;
+  width: 100%; height: auto;
+  filter: drop-shadow(0 28px 32px rgba(20,24,26,0.22));
+}
+@keyframes mouse-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@media (prefers-reduced-motion: reduce) { .fig-float { animation: none; } }
+
+@media (max-width: 880px) {
+  .hero-lab { grid-template-columns: 1fr; gap: 12px; }
+  .hero-copy { max-width: none; order: 2; }
+  .hero-figure { order: 1; min-height: 46vh; }
+  .fig-float { width: min(78%, 380px); margin-left: 0; }
+}
+@media (max-width: 720px) {
+  .hero-nav { display: none; }
+}

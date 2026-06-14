@@ -9,8 +9,8 @@ bench/perf-report.md
 __pycache__/
 *.pyc
 
-# MkDocs build output
-/site/
+# MkDocs build output — committed on purpose: the static server serves it at /docs/
+# (rebuild with `uv run mkdocs build` after editing docs/).
 
 # backend runtime DB
 *.sqlite3

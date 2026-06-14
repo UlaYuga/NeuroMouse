@@ -1,0 +1,1505 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Collaborator documentation for the NeuroMouse platform — data contract, method SDK, and wetware MEA direction.">
+      
+      
+      
+      
+        <link rel="prev" href="../MEA_QUICKSTART/">
+      
+      
+        <link rel="next" href="../POSITIONING/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Architecture - NeuroMouse Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Schibsted+Grotesk:300,300i,400,400i,700,700i%7CGeist+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Schibsted Grotesk";--md-code-font:"Geist Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="lime">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#neuromouse-architecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="NeuroMouse Docs" class="md-header__button md-logo" aria-label="NeuroMouse Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            NeuroMouse Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Architecture
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="NeuroMouse Docs" class="md-nav__button md-logo" aria-label="NeuroMouse Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    NeuroMouse Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../MEA_QUICKSTART/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Platform
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#package-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Package Map
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Package Map">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        contracts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packagesadapters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        packages/adapters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packagescore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        packages/core
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packagessdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        packages/sdk
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packagesbackend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        packages/backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packagessdk-ts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        packages/sdk-ts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#root-viewer-and-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Viewer And Runtime
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-acquire" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Acquire
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Contract
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-serve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Serve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Render
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-and-fuzz-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test And Fuzz Strategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../POSITIONING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positioning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ARCH-REVIEW/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Authoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../METHOD_AUTHORING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision Records
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decision Records
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0001-monorepo-uv-workspace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0001 — Monorepo & uv workspace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0002-executable-data-contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0002 — Executable data contract
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0003-method-sdk-plugin-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0003 — Method SDK plugin surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0004-montage-agnostic-channel-ceiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0004 — Montage-agnostic channel ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0005-fuzz-gated-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0005 — Fuzz-gated hardening
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0006-uv-link-mode-clone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0006 — uv link-mode clone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0007-wetware-mea-direction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0007 — Wetware & MEA direction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#package-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Package Map
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Package Map">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        contracts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packagesadapters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        packages/adapters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packagescore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        packages/core
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packagessdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        packages/sdk
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packagesbackend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        packages/backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packagessdk-ts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        packages/sdk-ts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#root-viewer-and-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Viewer And Runtime
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-acquire" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Acquire
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Contract
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-serve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Serve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Render
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-and-fuzz-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test And Fuzz Strategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="neuromouse-architecture">NeuroMouse Architecture<a class="headerlink" href="#neuromouse-architecture" title="Permanent link">&para;</a></h1>
+<p>NeuroMouse is moving from a zero-build browser workbench into a small platform for neural
+signal replay, method execution, and collaborator-facing analysis. The current repository
+already contains both halves of that transition:</p>
+<ul>
+<li>the production static viewer and Node runtime at the repository root</li>
+<li>a <code>uv</code> Python workspace for contracts, adapters, core methods, SDK, and backend</li>
+</ul>
+<p>The architectural rule is simple: acquisition and analysis code can change, but every path
+must converge on the executable dataset contract before anything is served or rendered.</p>
+<h2 id="package-map">Package Map<a class="headerlink" href="#package-map" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>.
+|-- DATA_CONTRACT.md                         # human contract of record
+|-- contracts/                               # Pydantic contract and JSON Schema
+|   |-- schema/dataset.schema.json
+|   `-- src/neuromouse_contract/dataset.py
+|-- packages/
+|   |-- adapters/                            # acquisition and replay normalization
+|   |-- backend/                             # FastAPI sessions, jobs, and WebSockets
+|   |-- core/                                # DSP primitives and method registry
+|   |-- sdk/                                 # Python method-author surface
+|   |-- sdk-ts/                              # generated TypeScript/AJV consumer package
+|   `-- web/                                 # placeholder for a future frontend workspace
+|-- methods/                                 # future method-plugin home
+|-- js/                                      # current zero-build browser app
+|-- server.mjs                               # production static runtime
+|-- tests/property/                          # JS property tests for loader/contract behavior
+`-- tests/fuzz/                              # long-run live payload and DSP fuzz harness
+</code></pre></div>
+<h3 id="contracts"><code>contracts</code><a class="headerlink" href="#contracts" title="Permanent link">&para;</a></h3>
+<p><code>contracts</code> turns <a href="../DATA_CONTRACT.md">DATA_CONTRACT.md</a> into executable validation.
+The public Python entrypoint is
+<a href="../contracts/src/neuromouse_contract/dataset.py"><code>validate_dataset</code></a>, backed by Pydantic
+models and hard validation rules. It also emits
+<a href="../contracts/schema/dataset.schema.json"><code>contracts/schema/dataset.schema.json</code></a>, which is
+consumed by the TypeScript SDK workspace.</p>
+<h3 id="packagesadapters"><code>packages/adapters</code><a class="headerlink" href="#packagesadapters" title="Permanent link">&para;</a></h3>
+<p>Adapters normalize external sources into the canonical dataset shape. The current adapters
+cover:</p>
+<ul>
+<li>BrainFlow-style synthetic board data via
+  <a href="../packages/adapters/src/neuromouse_adapters/brainflow_synthetic.py"><code>brainflow_synthetic.py</code></a></li>
+<li>file replay for CSV, EDF, and BDF via
+  <a href="../packages/adapters/src/neuromouse_adapters/file_replay.py"><code>file_replay.py</code></a></li>
+<li>DANDI catalog ingestion as explicit metadata-only data via
+  <a href="../packages/adapters/src/neuromouse_adapters/dandi.py"><code>dandi.py</code></a></li>
+<li>adapter conformance checks via
+  <a href="../packages/adapters/src/neuromouse_adapters/conformance.py"><code>conformance.py</code></a></li>
+</ul>
+<h3 id="packagescore"><code>packages/core</code><a class="headerlink" href="#packagescore" title="Permanent link">&para;</a></h3>
+<p><code>packages/core</code> owns reusable analysis and method execution. It includes DSP parity logic in
+<a href="../packages/core/src/neuromouse_core/dsp.py"><code>dsp.py</code></a> and the method registry in
+<a href="../packages/core/src/neuromouse_core/method_registry.py"><code>method_registry.py</code></a>. The registry
+validates declared inputs, coerces typed params, runs a method, and checks declared output
+fields before returning a result.</p>
+<h3 id="packagessdk"><code>packages/sdk</code><a class="headerlink" href="#packagessdk" title="Permanent link">&para;</a></h3>
+<p><code>packages/sdk</code> is the method-author API. It defines the tiny plugin protocol:
+<code>name</code>, <code>params_type</code>, <code>required_inputs</code>, <code>output</code>, and <code>compute()</code>. The concrete
+<a href="../packages/sdk/src/neuromouse_sdk/examples/band_power_summary.py"><code>band_power_summary</code></a>
+example and <a href="../packages/sdk/templates/method_template.py"><code>method_template.py</code></a> are the
+authoring references.</p>
+<h3 id="packagesbackend"><code>packages/backend</code><a class="headerlink" href="#packagesbackend" title="Permanent link">&para;</a></h3>
+<p><code>packages/backend</code> is the service boundary. The current FastAPI app validates datasets on
+<code>POST /sessions</code>, stores in-memory session/job records, exposes a simple <code>/methods</code> list,
+runs a summary job, and has WebSocket endpoints for job progress and live ingestion echo.
+The implementation is in <a href="../packages/backend/src/neuromouse_backend/app.py"><code>app.py</code></a>.</p>
+<h3 id="packagessdk-ts"><code>packages/sdk-ts</code><a class="headerlink" href="#packagessdk-ts" title="Permanent link">&para;</a></h3>
+<p><code>packages/sdk-ts</code> is the browser/Node consumer package. It generates TypeScript types from
+the JSON Schema and validates datasets with AJV. This keeps browser and service consumers
+aligned with the same executable contract instead of hand-maintained duplicate types.</p>
+<h3 id="root-viewer-and-runtime">Root Viewer And Runtime<a class="headerlink" href="#root-viewer-and-runtime" title="Permanent link">&para;</a></h3>
+<p>The root app is still the live collaborator surface. <a href="../index.html"><code>index.html</code></a>,
+<a href="../style.css"><code>style.css</code></a>, and <a href="../js"><code>js/</code></a> render saved datasets, ZIP imports, live
+WebSocket samples, method-like analysis views, and report export without a frontend build
+step. <a href="../server.mjs"><code>server.mjs</code></a> serves the same static app in production.</p>
+<h2 id="data-flow">Data Flow<a class="headerlink" href="#data-flow" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>acquire -&gt; contract -&gt; run -&gt; serve -&gt; render
+</code></pre></div>
+<h3 id="1-acquire">1. Acquire<a class="headerlink" href="#1-acquire" title="Permanent link">&para;</a></h3>
+<p>Inputs enter through four practical paths:</p>
+<ul>
+<li>curated <code>data/data.json</code> for the static demo</li>
+<li>raw or zipped <code>data.json</code> and CSV ZIP exports through <a href="../js/loader.js"><code>js/loader.js</code></a></li>
+<li>optional live raw frames through <a href="../js/sources/live-source.js"><code>js/sources/live-source.js</code></a></li>
+<li>Python adapters that normalize acquisition or replay sources into canonical datasets</li>
+</ul>
+<p>Acquisition is deliberately broad. The platform should ingest EEG, high-density MEA, and
+wetware-adjacent exports as long as they can be represented as channel-major arrays with
+clear provenance.</p>
+<h3 id="2-contract">2. Contract<a class="headerlink" href="#2-contract" title="Permanent link">&para;</a></h3>
+<p>Every acquired dataset must pass the documented shape:</p>
+<ul>
+<li><code>meta.channels</code> is the source of channel count and order</li>
+<li><code>welch_psd</code>, <code>centroid</code>, and <code>geometry</code> use channel-major arrays</li>
+<li>finite numeric values are required for hard-rendered fields</li>
+<li><code>meta.channels.length</code> defaults to a 4096-channel denial-of-service ceiling</li>
+</ul>
+<p>Python validation lives in <code>neuromouse_contract</code>. Browser validation lives in
+<code>js/sources/static-source.js</code>. Contract tests check that those decisions stay aligned.</p>
+<h3 id="3-run">3. Run<a class="headerlink" href="#3-run" title="Permanent link">&para;</a></h3>
+<p>There are two execution modes:</p>
+<ul>
+<li>browser-local live DSP in <a href="../js/workers/dsp-worker.js"><code>js/workers/dsp-worker.js</code></a></li>
+<li>Python method execution through <code>neuromouse_core.method_registry</code></li>
+</ul>
+<p>The method registry is intentionally declaration-first. A method declares what fields it
+needs and what fields it returns. The registry refuses to run missing inputs and refuses
+undeclared output shapes.</p>
+<h3 id="4-serve">4. Serve<a class="headerlink" href="#4-serve" title="Permanent link">&para;</a></h3>
+<p>The current production path is static serving through <code>server.mjs</code>. The backend workspace is
+the next service layer: validated sessions, jobs, WebSocket job progress, and live ingestion
+boundaries.</p>
+<h3 id="5-render">5. Render<a class="headerlink" href="#5-render" title="Permanent link">&para;</a></h3>
+<p>The renderer consumes canonical data only. Saved replay, ZIP import, backend session data,
+and live-derived frames all converge on the same viewer structures, so views do not need to
+know where a dataset came from.</p>
+<h2 id="test-and-fuzz-strategy">Test And Fuzz Strategy<a class="headerlink" href="#test-and-fuzz-strategy" title="Permanent link">&para;</a></h2>
+<p>The test strategy is contract-first and adversarial:</p>
+<ul>
+<li>Python package tests run through <code>uv run pytest</code>.</li>
+<li>Ruff and ty are configured in <a href="../pyproject.toml"><code>pyproject.toml</code></a>.</li>
+<li><code>contracts/tests/test_dataset_contract.py</code> checks the golden dataset, mutation cases,
+  Hypothesis-generated valid datasets, and Python/JS validator parity.</li>
+<li><code>packages/core/tests/test_method_registry.py</code> property-tests method declarations,
+  missing input rejection, output-field validation, and input immutability.</li>
+<li><code>tests/property/validate-data.property.test.mjs</code> and
+  <code>tests/property/import-csv-zip.property.test.mjs</code> use fast-check to stress browser
+  validation and ZIP conversion.</li>
+<li><code>tests/fuzz/live-payload.fuzz.mjs</code> runs high-volume live payload and DSP fuzzing, with
+  known regressions kept as repro cases.</li>
+<li><code>packages/sdk-ts/test/validate-dataset.test.ts</code> verifies generated TypeScript/AJV
+  consumers against the shared schema.</li>
+</ul>
+<p>The practical gate is: schema, Python validation, browser validation, method registry, and
+live parsing must fail closed with clear errors. New ingestion or method surfaces should add
+small deterministic tests first, then property or fuzz coverage when the input shape can be
+malformed by users, hardware, or upstream tools.</p>
+<h2 id="current-constraints">Current Constraints<a class="headerlink" href="#current-constraints" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>packages/web</code> is a placeholder; the root zero-build app is still the real UI.</li>
+<li><code>packages/backend</code> is a skeleton service, not the only production runtime.</li>
+<li><code>methods/</code> is reserved for method plugins, while the working example currently lives in
+  <code>packages/sdk/src/neuromouse_sdk/examples/</code>.</li>
+<li>The channel ceiling is a safety default, not a scientific limit.</li>
+<li>Golden data under <code>datasets/golden</code> should be treated as frozen compatibility evidence.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

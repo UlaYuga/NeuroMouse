@@ -1,0 +1,1679 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Collaborator documentation for the NeuroMouse platform — data contract, method SDK, and wetware MEA direction.">
+      
+      
+      
+      
+        <link rel="prev" href="../POSITIONING/">
+      
+      
+        <link rel="next" href="../METHOD_AUTHORING/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Architecture Review - NeuroMouse Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Schibsted+Grotesk:300,300i,400,400i,700,700i%7CGeist+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Schibsted Grotesk";--md-code-font:"Geist Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="lime">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#neuromouse-architecture-production-readiness-critique" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="NeuroMouse Docs" class="md-header__button md-logo" aria-label="NeuroMouse Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            NeuroMouse Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Architecture Review
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="NeuroMouse Docs" class="md-nav__button md-logo" aria-label="NeuroMouse Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    NeuroMouse Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../MEA_QUICKSTART/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Platform
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../POSITIONING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Positioning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Review
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-read-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to read this
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#p0-ship-blockers-live-liabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P0 — Ship-blockers / live liabilities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="P0 — Ship-blockers / live liabilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#p0-1-the-backend-platform-is-not-deployable-only-the-static-viewer-ships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P0-1 · The backend platform is not deployable — only the static viewer ships
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p0-2-apiexplain-is-an-open-unauthenticated-key-burning-data-egress-endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P0-2 · /api/explain is an open, unauthenticated key-burning + data-egress endpoint
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#p1-will-not-survive-real-load-real-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1 — Will not survive real load / real data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="P1 — Will not survive real load / real data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#p1-1-method-execution-blocks-the-event-loop-queuedrunning-is-theater" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1-1 · Method execution blocks the event loop; "queued/running" is theater
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p1-2-sqlite-model-is-not-deploy-shaped-data-loss-on-the-target-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1-2 · SQLite model is not deploy-shaped; data loss on the target host
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p1-3-unbounded-array-sizes-memory-dos-across-every-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1-3 · Unbounded array sizes = memory DoS across every layer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p1-4-plugin-sorter-code-runs-in-process-unsandboxed-the-core-unsolved-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1-4 · Plugin &amp; sorter code runs in-process, unsandboxed — the core unsolved problem
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#p2-hardening-drift-operability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P2 — Hardening, drift, operability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-genuinely-good-keep-defend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is genuinely good (keep / defend)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#production-readiness-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Production-readiness checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strategic-note-resolve-the-goal-ambiguity-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strategic note — resolve the goal ambiguity first
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#completeness-critic-rounds-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Completeness-critic rounds (log)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Authoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../METHOD_AUTHORING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decision Records
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decision Records
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0001-monorepo-uv-workspace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0001 — Monorepo & uv workspace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0002-executable-data-contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0002 — Executable data contract
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0003-method-sdk-plugin-surface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0003 — Method SDK plugin surface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0004-montage-agnostic-channel-ceiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0004 — Montage-agnostic channel ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0005-fuzz-gated-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0005 — Fuzz-gated hardening
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0006-uv-link-mode-clone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0006 — uv link-mode clone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0007-wetware-mea-direction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0007 — Wetware & MEA direction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-read-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to read this
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#p0-ship-blockers-live-liabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P0 — Ship-blockers / live liabilities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="P0 — Ship-blockers / live liabilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#p0-1-the-backend-platform-is-not-deployable-only-the-static-viewer-ships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P0-1 · The backend platform is not deployable — only the static viewer ships
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p0-2-apiexplain-is-an-open-unauthenticated-key-burning-data-egress-endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P0-2 · /api/explain is an open, unauthenticated key-burning + data-egress endpoint
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#p1-will-not-survive-real-load-real-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1 — Will not survive real load / real data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="P1 — Will not survive real load / real data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#p1-1-method-execution-blocks-the-event-loop-queuedrunning-is-theater" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1-1 · Method execution blocks the event loop; "queued/running" is theater
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p1-2-sqlite-model-is-not-deploy-shaped-data-loss-on-the-target-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1-2 · SQLite model is not deploy-shaped; data loss on the target host
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p1-3-unbounded-array-sizes-memory-dos-across-every-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1-3 · Unbounded array sizes = memory DoS across every layer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#p1-4-plugin-sorter-code-runs-in-process-unsandboxed-the-core-unsolved-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P1-4 · Plugin &amp; sorter code runs in-process, unsandboxed — the core unsolved problem
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#p2-hardening-drift-operability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P2 — Hardening, drift, operability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-genuinely-good-keep-defend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is genuinely good (keep / defend)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#production-readiness-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Production-readiness checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strategic-note-resolve-the-goal-ambiguity-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strategic note — resolve the goal ambiguity first
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#completeness-critic-rounds-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Completeness-critic rounds (log)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="neuromouse-architecture-production-readiness-critique">NeuroMouse — Architecture &amp; Production-Readiness Critique<a class="headerlink" href="#neuromouse-architecture-production-readiness-critique" title="Permanent link">&para;</a></h1>
+<p><strong>Scope.</strong> Hard, adversarial review of the repository as of <code>main @ 009fc63</code>: package
+layout, the data contract, the run-engine, the FastAPI backend (jobs / storage / WS),
+deploy-readiness (<code>Dockerfile</code>, <code>infra/</code>, <code>.github/workflows/ci.yml</code>), and the plugin/method
++ sorter seams. Read-only to code; <code>dsp.py</code> untouched. Produced by a completeness-critic
+loop (rounds logged at the end).</p>
+<p><strong>One-line verdict.</strong> The <em>engineering core</em> (executable contract, declaration-first method
+registry, reproducibility manifest, fuzz-gated CI) is genuinely strong and above the bar for
+a research tool. The <em>production platform</em> the docs and positioning describe <strong>does not yet
+ship</strong>: the entire Python backend is undeployed, the one outward HTTP surface that <em>is</em>
+deployed (<code>/api/explain</code>) is an unauthenticated cost-and-data-egress liability, and the
+backend's execution/storage model is not production-shaped. The gap is between "what is
+built and tested" and "what is wired to run in front of users."</p>
+<hr />
+<h2 id="how-to-read-this">How to read this<a class="headerlink" href="#how-to-read-this" title="Permanent link">&para;</a></h2>
+<p>Findings are prioritized by blast radius against the <strong>stated</strong> goal — a hosted,
+demo-able, plugin-first platform (<code>COORDINATOR.md §8</code>, <code>REPOSITORY_METADATA.md</code>,
+<code>README</code> "Production: …up.railway.app").</p>
+<ul>
+<li><strong>P0</strong> — blocks the stated production goal or is an active liability on the live host.</li>
+<li><strong>P1</strong> — will fail under real (even light) multi-user / real-data load.</li>
+<li><strong>P2</strong> — hardening, drift, and operability debt to schedule before scale.</li>
+</ul>
+<p>If the <em>actual</em> near-term goal is only "static viewer + a demo screenshot," then P0-1 and
+several P1s are not blockers — they are the cost of the next step. That ambiguity is itself
+the most important thing to resolve (see <strong>Strategic note</strong> at the end).</p>
+<hr />
+<h2 id="p0-ship-blockers-live-liabilities">P0 — Ship-blockers / live liabilities<a class="headerlink" href="#p0-ship-blockers-live-liabilities" title="Permanent link">&para;</a></h2>
+<h3 id="p0-1-the-backend-platform-is-not-deployable-only-the-static-viewer-ships">P0-1 · The backend platform is not deployable — only the static viewer ships<a class="headerlink" href="#p0-1-the-backend-platform-is-not-deployable-only-the-static-viewer-ships" title="Permanent link">&para;</a></h3>
+<p><code>Dockerfile</code> copies <strong>only</strong> the Node static runtime:</p>
+<div class="highlight"><pre><span></span><code><span class="k">COPY</span><span class="w"> </span>package.json<span class="w"> </span>server.mjs<span class="w"> </span>./
+<span class="k">COPY</span><span class="w"> </span>index.html<span class="w"> </span>style.css<span class="w"> </span>./
+<span class="k">COPY</span><span class="w"> </span>data<span class="w"> </span>./data
+<span class="k">COPY</span><span class="w"> </span>js<span class="w"> </span>./js
+<span class="k">COPY</span><span class="w"> </span>assets<span class="w"> </span>./assets
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;node&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;server.mjs&quot;</span><span class="p">]</span>
+</code></pre></div>
+<p>The whole <code>packages/backend</code> FastAPI service — sessions, jobs, SQLite storage, method
+catalog, sorter seam, WebSockets — has <strong>no</strong> container target, <strong>no</strong> process manager, <strong>no</strong>
+Railway service definition, and <strong>no</strong> compose file. <code>infra/</code> is a one-line placeholder
+README. The only place the backend is started anywhere in the repo is the <code>make dev</code> helper
+(<code>uvicorn … --reload</code>, dev-only). <code>SECURITY.md</code> even ratifies this: <em>"The production
+deployment (Railway) serves only the pre-built static assets … No database and no
+user-authentication surface exist."</em></p>
+<p>Consequence: every Wave-2/Wave-3 deliverable (jobs, run manifests, MEA sorter, demo seed
+endpoints) is <strong>dead on the production host</strong>. The architecture is two runtimes
+(Node + Python) but only one is wired to ship, and the docs (<code>docs/ARCHITECTURE.md</code> "service
+boundary", "the next service layer") describe an aspiration, not the deployed system.</p>
+<p><strong>Fix:</strong> decide the deployment topology explicitly. Either (a) a second Railway service with
+its own <code>Dockerfile</code> (<code>uvicorn</code>/<code>gunicorn</code>-<code>uvicorn-worker</code>, pinned, <code>HEALTHCHECK</code>, mounted
+volume) fronted so the viewer can reach it, or (b) consciously declare the backend
+out-of-scope for this deploy and stop describing it as the production service layer. Record
+the choice as an ADR.</p>
+<h3 id="p0-2-apiexplain-is-an-open-unauthenticated-key-burning-data-egress-endpoint">P0-2 · <code>/api/explain</code> is an open, unauthenticated key-burning + data-egress endpoint<a class="headerlink" href="#p0-2-apiexplain-is-an-open-unauthenticated-key-burning-data-egress-endpoint" title="Permanent link">&para;</a></h3>
+<p><code>server.mjs:93-181</code>. The single dynamic surface that <em>is</em> live:</p>
+<ul>
+<li><strong>No auth, no rate limit, no per-IP budget.</strong> Anyone who can reach the production URL can
+  POST to <code>/api/explain</code> and cause the server to spend the operator's LLM credits. This is a
+  direct financial-DoS on a public endpoint.</li>
+<li><strong>Third-party egress by default.</strong> Default upstream is
+  <code>process.env.EXPLAIN_API_URL ?? "https://api.kie.ai/claude/v1/messages"</code> — a <em>third-party
+  gateway</em>, not the Anthropic API — and the server forwards <code>ANTHROPIC_API_KEY</code> to it as a
+  <code>Bearer</code> token. A non-Anthropic host receives a key named <code>ANTHROPIC_API_KEY</code>.</li>
+<li><strong>Contradicts the stated threat model.</strong> The request body is the user's analysis context
+  (derived neural-signal numbers), forwarded off-box. <code>SECURITY.md</code> claims <em>"No neural data
+  is transmitted to any cloud service … data never leaves the browser session."</em> The explain
+  path violates that the moment it is configured.</li>
+</ul>
+<p><strong>Fix:</strong> gate behind auth or a server-side per-session/global budget + rate limiter; default
+<code>EXPLAIN_API_URL</code> to the official Anthropic endpoint (or fail closed if unset); rename/scope
+the credential to the actual upstream; and reconcile <code>SECURITY.md</code> with the fact that explain
+<em>does</em> egress derived data. At minimum document that enabling explain breaks the local-only
+guarantee.</p>
+<hr />
+<h2 id="p1-will-not-survive-real-load-real-data">P1 — Will not survive real load / real data<a class="headerlink" href="#p1-will-not-survive-real-load-real-data" title="Permanent link">&para;</a></h2>
+<h3 id="p1-1-method-execution-blocks-the-event-loop-queuedrunning-is-theater">P1-1 · Method execution blocks the event loop; "queued/running" is theater<a class="headerlink" href="#p1-1-method-execution-blocks-the-event-loop-queuedrunning-is-theater" title="Permanent link">&para;</a></h3>
+<p><code>app.py:231-261</code>. <code>create_job</code> runs the method <strong>synchronously, inline, in an <code>async def</code>
+handler</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">backend_store</span><span class="o">.</span><span class="n">append_job_event</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="s2">&quot;running&quot;</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">jsonable_encoder</span><span class="p">(</span><span class="n">methods</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">method_id</span><span class="p">,</span> <span class="n">session</span><span class="o">.</span><span class="n">dataset</span><span class="p">,</span> <span class="n">params</span><span class="o">=...</span><span class="p">))</span>
+</code></pre></div>
+<p><code>methods.run</code> is CPU-bound NumPy/SciPy. There is no <code>run_in_threadpool</code>, <code>asyncio.to_thread</code>,
+or worker queue anywhere in <code>packages/backend/src</code> (grep-confirmed). A single heavy job (and
+HD-MEA is the headline use-case) <strong>stalls the entire Uvicorn event loop</strong> — every other
+request and WebSocket blocks until it returns.</p>
+<p>The job lifecycle is also cosmetic: <code>queued → running → completed</code> events are all written in
+one synchronous breath; there is no real queue and nothing is ever actually "queued." The
+progress WebSocket (<code>app.py:282-292</code>) just <strong>replays already-stored events and closes</strong> — it
+is not a live progress channel. A client connecting after completion gets a historical dump;
+a client connecting before gets nothing streamed. This is "fail-fast and synchronous"
+dressed as async job orchestration.</p>
+<p><strong>Fix:</strong> offload compute (threadpool for CPU-bound, or a real task queue/worker for anything
+long), make the WS subscribe to a live event stream (pub/sub or polling the store), and
+enforce a per-job timeout. If synchronous is acceptable for the demo, drop the queue/WS
+fiction and document it as synchronous-only.</p>
+<h3 id="p1-2-sqlite-model-is-not-deploy-shaped-data-loss-on-the-target-host">P1-2 · SQLite model is not deploy-shaped; data loss on the target host<a class="headerlink" href="#p1-2-sqlite-model-is-not-deploy-shaped-data-loss-on-the-target-host" title="Permanent link">&para;</a></h3>
+<p><code>storage.py:160-200, 393-401</code>.</p>
+<ul>
+<li><strong>Single shared connection + <code>RLock</code></strong> (<code>check_same_thread=False</code>) serializes <em>all</em>
+  reads and writes through one lock → effective write concurrency of 1, and reads contend
+  with writes. No <code>WAL</code> pragma, no pooling, no busy-timeout.</li>
+<li><strong>Default DB path is relative to CWD</strong> (<code>"neuromouse_backend.sqlite3"</code>). On Railway's
+  ephemeral container filesystem with <strong>no mounted volume</strong>, the database is wiped on every
+  redeploy/restart. (Moot today only because the backend isn't deployed — P0-1 — but it is a
+  latent data-loss bug the moment it is.)</li>
+<li><strong>Schema migration is <code>CREATE TABLE IF NOT EXISTS</code> only.</strong> There is no version table and no
+  migration path; any future column change has no upgrade story.</li>
+<li><strong>Whole dataset stored as a single JSON <code>TEXT</code> blob</strong> and fully re-materialized on every
+  <code>get_session</code>/<code>list_sessions</code> (<code>_load_json</code>). Combined with P1-3 this is a memory and I/O
+  cliff for large datasets.</li>
+</ul>
+<p><strong>Fix:</strong> per-request connections or a pool, <code>WAL</code> + <code>busy_timeout</code>, an absolute
+volume-backed path with a documented <code>NEUROMOUSE_BACKEND_DB</code>, a real migration mechanism, and
+a size guard before persisting a dataset.</p>
+<h3 id="p1-3-unbounded-array-sizes-memory-dos-across-every-layer">P1-3 · Unbounded array sizes = memory DoS across every layer<a class="headerlink" href="#p1-3-unbounded-array-sizes-memory-dos-across-every-layer" title="Permanent link">&para;</a></h3>
+<p><code>contracts/src/neuromouse_contract/dataset.py</code>. The contract caps <strong>channel count</strong> (4096,
+<code>DEFAULT_MAX_CHANNELS</code>) but places <strong>no ceiling on array lengths</strong>: <code>welch_psd.frequencies</code>,
+<code>centroid.time_relative</code>, <code>geometry.time</code>, and especially <code>mea.traces</code> row length are all
+unbounded. A <code>4096 × N</code> matrix with a large <code>N</code> passes validation and is then fully
+materialized in: the browser (<code>static-source.js</code>), Pydantic, the SQLite <code>TEXT</code> column, and
+<code>content_hash</code> (<code>model_dump(mode="json")</code> over the whole thing). <code>ContractModel</code> also sets
+<code>extra="allow"</code> (<code>dataset.py:27-28</code>), so arbitrary unmodelled keys are accepted, stored, and
+echoed back — payload size and shape are attacker-controlled. FastAPI has <strong>no request body
+size limit</strong> configured.</p>
+<p>The DoS ceiling the contract advertises is therefore only half-built: it bounds one
+dimension of the matrix and leaves the other (and total bytes) open.</p>
+<p><strong>Fix:</strong> add a total-elements / total-bytes budget to <code>validate_dataset</code>, bound trace and
+axis lengths, and put a body-size limit in front of the FastAPI app. Reconsider
+<code>extra="allow"</code> for the top-level dataset (or cap/strip unknown keys).</p>
+<h3 id="p1-4-plugin-sorter-code-runs-in-process-unsandboxed-the-core-unsolved-problem">P1-4 · Plugin &amp; sorter code runs in-process, unsandboxed — the core unsolved problem<a class="headerlink" href="#p1-4-plugin-sorter-code-runs-in-process-unsandboxed-the-core-unsolved-problem" title="Permanent link">&para;</a></h3>
+<p><code>method_registry._execute</code> (<code>method_registry.py:297-323</code>) and
+<code>sorting/registry.run</code> call user-supplied <code>compute()</code> / <code>sort()</code> <strong>directly in the backend
+process</strong>. The platform's entire pitch — <em>"plugging a method/sorter in is trivial (~50 lines
+→ a live panel)," BYO-sorter</em> (<code>COORDINATOR.md §8</code>) — means <strong>third-party Python executing
+inside the service</strong> with:</p>
+<ul>
+<li>no sandbox / process isolation,</li>
+<li>no CPU/memory/wall-clock limit (a method can hang or OOM the whole server — see P1-1),</li>
+<li>no capability restriction (a method can read the filesystem, open sockets, exfiltrate other
+  sessions' data).</li>
+</ul>
+<p>The registry validates <em>declared input/output field paths</em> well, but a declaration says
+nothing about what the body does. For a single-tenant research tool this is acceptable and
+worth stating plainly; for the "Hugging Face layer for neural data" positioning (multi-author,
+shared host) it is the central security problem and it is currently unaddressed.</p>
+<p><strong>Fix (scaled to ambition):</strong> for now, document the trust boundary ("methods are trusted
+code; do not run untrusted plugins on a shared host") and add a per-run timeout. For the
+platform vision, this needs real isolation (subprocess with rlimits, container/gVisor, or
+WASM) before any third-party method is accepted.</p>
+<hr />
+<h2 id="p2-hardening-drift-operability">P2 — Hardening, drift, operability<a class="headerlink" href="#p2-hardening-drift-operability" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Finding</th>
+<th>Where</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P2-1</td>
+<td><strong>No auth / CORS / rate-limit / security headers</strong> on FastAPI</td>
+<td><code>app.py</code> (no middleware, grep-confirmed)</td>
+<td>Even internal services should set CORS allowlist + body limits before exposure.</td>
+</tr>
+<tr>
+<td>P2-2</td>
+<td><strong>No backend observability</strong></td>
+<td><code>app.py</code>, <code>Dockerfile</code></td>
+<td>No structured logging, request IDs, metrics, or backend <code>/healthz</code>; <code>Dockerfile</code> has no <code>HEALTHCHECK</code>. Only the Node server has <code>/healthz</code>.</td>
+</tr>
+<tr>
+<td>P2-3</td>
+<td><strong>Contract sync has no CI guard for the TS layer</strong></td>
+<td><code>.github/workflows/ci.yml</code></td>
+<td>Good: <code>test_dataset_contract.py:589</code> asserts on-disk schema == <code>model_json_schema()</code>, and Python↔JS parity is tested; <code>mea</code> is present in <strong>all four</strong> validators (pydantic, JSON schema, TS <code>schema.ts</code>, JS <code>static-source.js</code>) — sync is <em>actually maintained</em>. Gap: CI never regenerates <code>sdk-ts</code> types from the schema and diffs, so TS can silently drift from a hand-edit. Add a "regenerate + <code>git diff --exit-code</code>" step.</td>
+</tr>
+<tr>
+<td>P2-4</td>
+<td><strong>Supply chain</strong></td>
+<td><code>SECURITY.md</code>, CI</td>
+<td>JSZip is CDN trust-on-first-use with no SRI; no dependency scanning / SBOM / <code>pip-audit</code> / Dependabot in CI. <code>SECURITY.md</code> recommends SRI but the app does not implement it.</td>
+</tr>
+<tr>
+<td>P2-5</td>
+<td><strong>Two-runtime integration is unspecified</strong></td>
+<td><code>server.mjs</code>, <code>app.py</code>, <code>DATA_CONTRACT.md §3</code></td>
+<td>The viewer's live WS contract is <code>ws://127.0.0.1:8766</code>; the FastAPI live endpoint is <code>/ws/live</code> (a bare echo). Nothing documents how the browser viewer is meant to reach the FastAPI backend (sessions/jobs) in production — the two halves don't connect.</td>
+</tr>
+<tr>
+<td>P2-6</td>
+<td><strong>No graceful shutdown / lifespan</strong></td>
+<td><code>storage.py:167</code></td>
+<td><code>SQLiteBackendStore.close()</code> exists but is never wired to a FastAPI lifespan/shutdown hook; the connection leaks on restart.</td>
+</tr>
+<tr>
+<td>P2-7</td>
+<td><strong>Operational scaffolding missing</strong></td>
+<td>repo root</td>
+<td>No <code>.env.example</code> documenting <code>ANTHROPIC_API_KEY</code> / <code>EXPLAIN_API_URL</code> / <code>EXPLAIN_MODEL</code> / <code>NEUROMOUSE_BACKEND_DB</code> / <code>PORT</code>; no backup story; no documented single-replica constraint (SQLite forbids horizontal scale-out).</td>
+</tr>
+<tr>
+<td>P2-8</td>
+<td><strong><code>/ws/live</code> echo is an unbounded open socket</strong></td>
+<td><code>app.py:306-314</code></td>
+<td>Accepts any client, echoes JSON forever, no auth/size/rate limit. Harmless while undeployed; a footgun if the backend ships.</td>
+</tr>
+<tr>
+<td>P2-9</td>
+<td><strong><code>bench/</code> perf gate is informational only</strong></td>
+<td><code>ci.yml:99-102</code></td>
+<td><code>continue-on-error: true</code> and only <code>--help</code>. There is no perf regression guard despite an MEA-perf workstream; p95 budgets aren't enforced anywhere.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="what-is-genuinely-good-keep-defend">What is genuinely good (keep / defend)<a class="headerlink" href="#what-is-genuinely-good-keep-defend" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Executable contract as the spine.</strong> One Pydantic source of truth, emitted to JSON Schema,
+  codegen'd into TS, parity-tested against the JS validator, and fuzzed from two sides
+  (<code>validate-data</code>, <code>import-csv-zip</code>). The <code>mea</code> block being consistently present across all
+  four validators shows the "4 places" discipline is actually being held.</li>
+<li><strong>Declaration-first registries.</strong> <code>method_registry</code> and <code>sorting/registry</code> refuse missing
+  inputs and undeclared outputs, validate panel/field references, and treat the dataset as
+  immutable input. This is a clean, testable plugin seam.</li>
+<li><strong>Reproducibility manifest.</strong> <code>RunManifest</code> (content hash + seed + library/platform
+  versions + output hash + self-checking <code>run_id</code>) with <code>verify_reproduction</code> is a strong,
+  research-credible feature most tools lack. Canonical JSON with <code>allow_nan=False</code> is the
+  right call.</li>
+<li><strong>Fuzz-gated, matrixed CI.</strong> Linux gate across py3.11/3.12, ruff + ty as hard gates,
+  bounded property + deep fuzz suites, TS <code>tsc --noEmit</code>. The structural fix for the macOS
+  dlopen quirk (CI-on-Linux) is the right one.</li>
+<li><strong>Montage-agnostic design.</strong> Channels-as-data (not constants), graceful optional-field
+  degradation, and the 10-20-or-generic fallback are well thought through.</li>
+</ul>
+<hr />
+<h2 id="production-readiness-checklist">Production-readiness checklist<a class="headerlink" href="#production-readiness-checklist" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Status</th>
+<th>Gap → action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Static viewer deploys</td>
+<td>✅</td>
+<td><code>Dockerfile</code> + <code>server.mjs</code> + <code>/healthz</code> are fine.</td>
+</tr>
+<tr>
+<td>Backend deploys</td>
+<td>🔴</td>
+<td><strong>P0-1</strong> — no container/service/volume. Decide topology or descope.</td>
+</tr>
+<tr>
+<td>Secrets &amp; egress safety</td>
+<td>🔴</td>
+<td><strong>P0-2</strong> — open <code>/api/explain</code>, third-party key forward, threat-model contradiction.</td>
+</tr>
+<tr>
+<td>Concurrency / job model</td>
+<td>🔴</td>
+<td><strong>P1-1</strong> — event-loop-blocking sync compute; fake queue/WS.</td>
+</tr>
+<tr>
+<td>Durable storage</td>
+<td>🔴</td>
+<td><strong>P1-2</strong> — single-conn SQLite, ephemeral path, no migrations.</td>
+</tr>
+<tr>
+<td>Input-size safety</td>
+<td>🟡</td>
+<td><strong>P1-3</strong> — channel cap only; array/byte sizes + <code>extra="allow"</code> unbounded.</td>
+</tr>
+<tr>
+<td>Plugin trust boundary</td>
+<td>🔴</td>
+<td><strong>P1-4</strong> — unsandboxed in-process user code; no timeout.</td>
+</tr>
+<tr>
+<td>AuthN/Z, CORS, rate-limit</td>
+<td>🔴</td>
+<td><strong>P2-1</strong> — none on FastAPI.</td>
+</tr>
+<tr>
+<td>Observability / healthcheck (backend)</td>
+<td>🔴</td>
+<td><strong>P2-2</strong> — no logs/metrics/health; no <code>HEALTHCHECK</code>.</td>
+</tr>
+<tr>
+<td>Contract integrity</td>
+<td>✅</td>
+<td>Schema/parity tests solid; add TS-regen diff in CI (<strong>P2-3</strong>).</td>
+</tr>
+<tr>
+<td>Supply-chain hygiene</td>
+<td>🟡</td>
+<td><strong>P2-4</strong> — SRI/SBOM/dep-scan absent.</td>
+</tr>
+<tr>
+<td>Reproducibility</td>
+<td>✅</td>
+<td><code>RunManifest</code> + <code>verify_reproduction</code>.</td>
+</tr>
+<tr>
+<td>Perf regression guard</td>
+<td>🟡</td>
+<td><strong>P2-9</strong> — bench is informational only.</td>
+</tr>
+<tr>
+<td>Backups / scale-out</td>
+<td>🔴</td>
+<td>SQLite single-writer; no backup; single-replica only (<strong>P2-7</strong>).</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="strategic-note-resolve-the-goal-ambiguity-first">Strategic note — resolve the goal ambiguity first<a class="headerlink" href="#strategic-note-resolve-the-goal-ambiguity-first" title="Permanent link">&para;</a></h2>
+<p>Most P0/P1 severity hinges on <strong>one undecided question</strong>: is the near-term deliverable a
+<em>hosted multi-user platform</em> or a <em>single-tenant research workbench + demo</em>? The repo is
+ambitious in its docs (platform, BYO-sorter, "Hugging Face layer") but conservative in what it
+actually ships (static viewer). Pick one and align:</p>
+<ul>
+<li><strong>If platform:</strong> P0-1, P0-2, P1-1, P1-2, P1-4 are all real blockers and the backend needs a
+  genuine service architecture (queue/worker, Postgres or volume-backed SQLite, sandboxed
+  execution, auth) before any outside user or third-party method touches it.</li>
+<li><strong>If workbench + demo:</strong> keep the backend explicitly local/dev, fix P0-2 (it's live
+  regardless), bound payloads (P1-3), and <strong>stop documenting the backend as the production
+  service layer</strong> so the gap stops reading as a bug. A one-paragraph "deployment scope" ADR
+  closes most of the perceived risk for free.</li>
+</ul>
+<p>The engineering substrate is good enough that either path is achievable; the risk today is
+narrative drift between them, which is exactly the kind of compose-gap <code>COORDINATOR.md §7</code>
+warns about — here between <em>built</em> and <em>deployed</em> rather than between two parallel tasks.</p>
+<hr />
+<h2 id="completeness-critic-rounds-log">Completeness-critic rounds (log)<a class="headerlink" href="#completeness-critic-rounds-log" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Round 1 — layer sweep.</strong> Walked packages, contract, run-engine, backend, deploy, seams.
+  <em>Gap surfaced:</em> the backend has no deploy target; the only live dynamic surface is
+  <code>/api/explain</code>. → P0-1, P0-2.</li>
+<li><strong>Round 2 — production risks.</strong> Asked "what breaks under load?" <em>Gaps:</em> event-loop-blocking
+  synchronous compute; single-connection SQLite; no auth/CORS/limits; unsandboxed plugin
+  execution. → P1-1, P1-2, P1-4, P2-1.</li>
+<li><strong>Round 3 — failure modes.</strong> Asked "what fails silently / loses data / exhausts memory?"
+  <em>Gaps:</em> WS progress is a replay not a stream; ephemeral DB path → data loss; unbounded array
+  sizes + <code>extra="allow"</code>; no backend healthcheck/observability. → P1-1 (refined), P1-2
+  (refined), P1-3, P2-2.</li>
+<li><strong>Round 4 — drift &amp; supply chain.</strong> Asked "what silently diverges or is unverified?"
+  <em>Checked</em> the 4-validator sync directly — found it is <strong>actually maintained</strong> (<code>mea</code> present
+  in all four; schema parity tested), downgrading the suspected P1 drift to a P2 CI-guard gap.
+  <em>Gaps:</em> no TS-regen diff in CI; no SRI/SBOM/dep-scan; bench gate informational. → P2-3,
+  P2-4, P2-9.</li>
+<li><strong>Round 5 — integration &amp; operability.</strong> Asked "what's unspecified between the parts?"
+  <em>Gaps:</em> viewer↔backend wiring undocumented; no lifespan/shutdown; no <code>.env.example</code>/backup;
+  open <code>/ws/live</code> echo. → P2-5..P2-8.</li>
+<li><strong>Round 6 — convergence check.</strong> Re-asked "any layer not covered, prod risk not named,
+  failure mode unhandled?" No <strong>new</strong> material gap surfaced; remaining items were refinements
+  of P0-2/P1-1/P1-3 already recorded. <strong>Loop converged at K=2 quiet rounds (5→6).</strong>
+</content></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

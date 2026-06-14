@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="NeuroMouse neural signal analysis workbench for offline and live EEG comparison.">
+    <meta name="theme-color" content="#111113">
+    <title>NeuroMouse Neural Workbench</title>
+    <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css?v=reskin-signal-20260611">
+  </head>
+  <body>
+    <a class="skip-link" href="#dashboard">Skip to dashboard</a>
+    <!-- marketing hero removed — the public landing at "/" is the hero; /app opens straight into the tools -->
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand-block">
+          <span class="brand-kicker">Neural Signal Product Lab</span>
+          <h1>NeuroMouse Workbench</h1>
+        </div>
+        <div class="header-status" aria-label="Dashboard dataset summary">
+          <span><strong id="header-channels">--</strong> channels</span>
+          <span><strong id="header-frames">--</strong> frames</span>
+          <span><strong>offline</strong> toolbox</span>
+        </div>
+      </header>
+
+      <section class="control-panel" aria-label="Dashboard controls">
+        <div class="control-panel-body">
+          <div class="control-group control-group-filter">
+            <span class="control-label">Filter</span>
+            <div class="segmented" data-control="filter" role="group" aria-label="Channel filter">
+              <button type="button" class="is-active" data-filter="all" aria-label="Show all channels">All</button>
+              <button type="button" data-filter="frontal" aria-label="Show frontal channels">Frontal</button>
+              <button type="button" data-filter="central_temporal" aria-label="Show central channels">Central</button>
+              <button type="button" data-filter="parietal" aria-label="Show parietal channels">Parietal</button>
+              <button type="button" data-filter="occipital" aria-label="Show occipital channels">Occipital</button>
+              <button type="button" data-filter="L" aria-label="Show left hemisphere channels">L</button>
+              <button type="button" data-filter="R" aria-label="Show right hemisphere channels">R</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label class="control-label" for="channel-sort">Heatmap sort</label>
+            <select id="channel-sort">
+              <option value="layout">10-20 order</option>
+              <option value="alpha">Alpha power</option>
+              <option value="centroid">Centroid</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <span class="control-label">PSD overlay</span>
+            <div class="segmented" data-control="psd-scale" role="group" aria-label="PSD overlay scale">
+              <button type="button" class="is-active" data-scale="log" aria-label="Use logarithmic PSD scale">Log</button>
+              <button type="button" data-scale="linear" aria-label="Use linear PSD scale">Linear</button>
+            </div>
+          </div>
+
+          <div class="control-group live-controls">
+            <label class="control-label" for="live-url">Live source</label>
+            <div class="live-row">
+              <input id="live-url" name="live-url" type="url" value="ws://127.0.0.1:8766" autocomplete="off" spellcheck="false">
+              <button type="button" id="live-connect">Connect</button>
+              <button type="button" id="live-disconnect" disabled>Disconnect</button>
+            </div>
+            <div class="live-readouts" aria-live="polite">
+              <span id="live-status" class="live-status">static replay</span>
+              <span>frames <strong id="live-frames">0</strong></span>
+              <span>time <strong id="live-time">—</strong></span>
+              <span>compute <strong id="live-compute">—</strong></span>
+              <span>alpha <strong id="live-alpha">—</strong></span>
+              <span class="visually-hidden">dashboard <strong id="load-status">Ready</strong></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="app-body">
+        <main id="dashboard" class="dashboard" aria-busy="true" tabindex="-1">
+
+          <section class="workbench" aria-labelledby="workbench-title">
+            <div class="workbench-head">
+              <div class="workbench-title-block">
+                <span class="workbench-kicker">Analysis command surface</span>
+                <h2 id="workbench-title">Neural signal workbench</h2>
+                <p>
+                  Ingest saved EEG exports, select a comparison goal, inspect cohort separation,
+                  and export a reproducible first-pass report from the browser.
+                </p>
+              </div>
+              <div class="workbench-actions" aria-label="Workbench actions">
+                <button id="workbench-import" class="primary-action" type="button">Import Data</button>
+                <button id="workbench-demo" type="button">Load Demo Pair</button>
+                <button id="workbench-report" type="button">Preview Report</button>
+              </div>
+            </div>
+
+            <div class="pipeline-strip" aria-label="Analysis pipeline">
+              <div class="pipeline-step is-ready" data-pipeline-step="ingest">
+                <span>01</span>
+                <strong>Ingest</strong>
+                <small>data.json or CSV ZIP</small>
+              </div>
+              <div class="pipeline-step is-ready" data-pipeline-step="normalize">
+                <span>02</span>
+                <strong>Normalize</strong>
+                <small>channels, windows, metrics</small>
+              </div>
+              <div class="pipeline-step" data-pipeline-step="compare">
+                <span>03</span>
+                <strong>Compare</strong>
+                <small>baseline, split, delta</small>
+              </div>
+              <div class="pipeline-step" data-pipeline-step="report">
+                <span>04</span>
+                <strong>Report</strong>
+                <small>markdown export</small>
+              </div>
+            </div>
+
+            <div class="workbench-grid">
+              <button id="workbench-drop-zone" class="workbench-drop-zone" type="button" aria-label="Import saved neural signal datasets">
+                <span class="drop-rail">Supported Now</span>
+                <strong>Drop NeuroMouse data.json, combined CSV ZIP, or Welch + geometry ZIP pair</strong>
+                <small>Imports feed the same baseline, overlay, split, delta, and report engine as the plots below.</small>
+                <span class="drop-formats" aria-hidden="true">
+                  <span>JSON</span>
+                  <span>CSV ZIP</span>
+                  <span>Welch + geometry</span>
+                </span>
+                <span id="workbench-import-log" class="import-log" aria-live="polite"></span>
+              </button>
+
+              <div class="cohort-console" aria-label="Cohort comparison setup">
+                <div class="console-head">
+                  <span>Comparison Goal</span>
+                  <select id="workbench-scenario" aria-label="Comparison goal">
+                    <option value="trained-vs-naive">Trained vs untrained neurons</option>
+                    <option value="healthy-vs-diagnosed">Healthy vs diagnosed patients</option>
+                    <option value="baseline-vs-treatment">Baseline vs treatment</option>
+                    <option value="session-repeatability">Repeatability check</option>
+                  </select>
+                </div>
+                <p id="workbench-scenario-detail" class="scenario-detail">Compare trained neural cultures against untrained controls using spectral geometry and synchrony markers.</p>
+                <div id="workbench-baseline-summary" class="baseline-summary" aria-label="Selected baseline"></div>
+                <label class="workbench-baseline-control" for="workbench-baseline-select">
+                  <span>Baseline</span>
+                  <select id="workbench-baseline-select" aria-label="Workbench baseline"></select>
+                </label>
+                <div id="workbench-status" class="workbench-status" aria-live="polite">Loading analysis workspace…</div>
+                <div id="workbench-comparisons" class="comparison-readout"></div>
+                <button id="workbench-open-comparison" class="console-link" type="button">Open Comparison Suite</button>
+              </div>
+
+              <div class="toolbox-console" aria-label="Curated toolbox">
+                <div class="toolbox-head">
+                  <span>Curated Toolbox</span>
+                  <strong>Python depth, browser access</strong>
+                </div>
+                <div id="workbench-readiness" class="readiness-panel" aria-live="polite"></div>
+                <div class="toolbox-list">
+                  <span>Spectral PSD</span>
+                  <span>Channel geometry</span>
+                  <span>Alpha chronology</span>
+                  <span>Phase synchrony</span>
+                  <span>Topology scan</span>
+                  <span>Condition monitor</span>
+                </div>
+                <div id="workbench-quality" class="quality-list" aria-label="Data quality checks"></div>
+              </div>
+
+              <div id="workbench-metrics" class="workbench-metrics" aria-label="Workbench metrics"></div>
+            </div>
+          </section>
+
+          <!-- PSD Heatmap — full width, top -->
+          <section class="panel panel-psd panel-collapsible is-expanded" aria-labelledby="psd-title">
+            <div class="panel-head">
+              <div>
+                <h2 id="psd-title">PSD Heatmap</h2>
+                <p>Welch PSD — 4 s window, 50% overlap | units: a.u.</p>
+              </div>
+              <span class="panel-toggle-icon" aria-hidden="true">−</span>
+            </div>
+            <div class="panel-body">
+              <div id="psd-legend" class="session-legend" hidden></div>
+              <div class="psd-layout">
+                <canvas id="psd-heatmap" class="chart chart-heatmap" width="760" height="420" role="img" aria-label="Welch PSD heatmap by frequency and channel"></canvas>
+                <canvas id="psd-overlay" class="chart chart-overlay" width="320" height="420" role="img" aria-label="PSD line for the selected channel"></canvas>
+              </div>
+            </div>
+          </section>
+
+          <!-- Playback — sticky player; direct child of #dashboard so it follows the whole page -->
+          <section class="panel panel-playback" aria-labelledby="playback-title">
+            <div class="panel-head">
+              <div>
+                <h2 id="playback-title">Playback</h2>
+                <p class="playback-label">Animate all views</p>
+              </div>
+            </div>
+            <div id="playback-bar" class="playback-bar"></div>
+          </section>
+
+          <!-- ── Home grid ──────────────────────────────────────────── -->
+          <div id="home-views">
+
+            <!-- Centroid — collapsed by default -->
+            <section class="panel panel-centroid panel-collapsible" aria-labelledby="centroid-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="centroid-title">Centroid Over Time</h2>
+                  <p>Spectral centroid over time | 2 s window, 0.25 s step</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="centroid-legend" class="session-legend" hidden></div>
+                <canvas id="centroid-chart" class="chart chart-wide" width="1120" height="300" role="img" aria-label="Spectral centroid lines over time"></canvas>
+              </div>
+            </section>
+
+            <!-- Geometry Stack + Channel Grid — side by side, expanded -->
+            <section class="panel panel-geometry panel-collapsible is-expanded" aria-labelledby="geometry-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="geometry-title">Geometry Stack</h2>
+                  <p id="geometry-caption">Channel: Cz</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">−</span>
+              </div>
+              <div class="panel-body">
+                <div id="geometry-legend" class="session-legend" hidden></div>
+                <canvas id="geometry-chart" class="chart chart-stack" width="820" height="520" role="img" aria-label="Sliding spectral geometry for the selected channel"></canvas>
+              </div>
+            </section>
+
+            <section class="panel panel-grid panel-collapsible is-expanded" aria-labelledby="grid-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="grid-title">Channel Grid</h2>
+                  <p id="grid-caption">10-20 layout | color: alpha rel. power</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">−</span>
+              </div>
+              <div class="panel-body">
+                <p id="selected-channel" class="grid-selection" aria-live="polite">Selected channel: Cz</p>
+                <div id="channel-grid" class="channel-grid" aria-label="EEG 10-20 channel grid"></div>
+              </div>
+            </section>
+
+          </div><!-- #home-views -->
+
+          <!-- ── Advanced Analysis Toggle ───────────────────────────── -->
+          <button id="advanced-toggle" class="advanced-toggle-btn" type="button" aria-expanded="false" aria-controls="advanced-views">
+            <span>
+              <strong>Advanced Analysis</strong>
+              <small>phase space, network, topology, monitor</small>
+            </span>
+            <span class="toggle-chevron">▾</span>
+          </button>
+
+          <!-- ── Advanced Views ─────────────────────────────────────── -->
+          <div id="advanced-views" style="display:none">
+
+            <section class="panel panel-phase panel-collapsible" aria-labelledby="phase-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="phase-title">Phase Space</h2>
+                  <p>Delay embedding and 2-metric trajectory for the selected channel</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="phase-space" class="phase-space"></div>
+              </div>
+            </section>
+
+            <section class="panel panel-polar panel-collapsible" aria-labelledby="polar-title" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2 id="polar-title">Polar Alpha Chronomap</h2>
+                  <p>One circle = full segment | bar = posterior alpha | color = posterior - frontal</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="polar-chronomap" class="polar-chronomap"></div>
+              </div>
+            </section>
+
+            <section class="panel panel-kuramoto panel-collapsible" aria-labelledby="kuramoto-title" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2 id="kuramoto-title">Kuramoto Animation</h2>
+                  <p>Alpha-band phase synchrony | vector = order parameter r</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="kuramoto-view" class="kuramoto-view"></div>
+              </div>
+            </section>
+
+            <section class="panel panel-network panel-collapsible" aria-labelledby="network-title" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2 id="network-title">Channel Network</h2>
+                  <p>10-20 graph | edge = correlation or PLV strength | node = strong degree</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="channel-network" class="channel-network"></div>
+              </div>
+            </section>
+
+            <section class="panel panel-tda panel-collapsible" aria-labelledby="tda-title" hidden>
+              <div class="panel-head">
+                <div>
+                  <h2 id="tda-title">TDA View</h2>
+                  <p>Persistence scatter and barcode from channel-level geometry point cloud</p>
+                </div>
+                <span class="panel-toggle-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="panel-body">
+                <div id="tda-view" class="tda-view"></div>
+              </div>
+            </section>
+
+            <section id="monitor-panel" class="panel panel-monitor monitor-panel static-mode" aria-labelledby="monitor-title"></section>
+
+            <aside class="session-sidebar" aria-label="Session comparison">
+              <div class="session-sidebar-head">
+                <h2>Sessions</h2>
+                <span id="session-count">0/6</span>
+              </div>
+              <button id="session-drop-zone" class="drop-zone" type="button" aria-label="Add NeuroMouse datasets">
+                <strong>Drop datasets here</strong>
+                <span>data.json or ZIP exports</span>
+              </button>
+              <input id="session-file-input" name="session-files" type="file" accept=".json,.zip,application/json,application/zip" multiple aria-label="NeuroMouse dataset files" hidden>
+              <p id="session-message" class="session-message" aria-live="polite">Add sessions to compare</p>
+              <div id="session-list" class="session-list"></div>
+              <div class="session-controls">
+                <div class="session-control-block">
+                  <span class="session-control-label">View mode</span>
+                  <div class="segmented session-mode" data-control="view-mode" role="group" aria-label="View mode">
+                    <button type="button" class="is-active" data-view-mode="overlay" aria-label="Use overlay comparison mode">Overlay</button>
+                    <button type="button" data-view-mode="split" aria-label="Use split comparison mode">Split</button>
+                    <button type="button" data-view-mode="delta" aria-label="Use delta comparison mode">Delta</button>
+                  </div>
+                </div>
+                <label class="session-control-block" for="baseline-select">
+                  <span class="session-control-label">Baseline</span>
+                  <select id="baseline-select"></select>
+                </label>
+              </div>
+            </aside>
+
+          </div><!-- #advanced-views -->
+
+        </main>
+      </div>
+
+      <footer class="app-footer">
+        EEG data:
+        <a href="https://zenodo.org/records/15572614">GX dataset by Gebodh/CCNY</a>.
+        Spectral analysis:
+        <a href="https://github.com/soulsyrup1/Complete-Neural-Signal-Analysis">soulsyrup1/Complete-Neural-Signal-Analysis</a>.
+        Visualization:
+        <a href="https://github.com/UlaYuga/NeuroMouse">UlaYuga/NeuroMouse</a>.
+      </footer>
+    </div>
+
+    <dialog id="workbench-report-dialog" class="report-dialog" aria-labelledby="report-dialog-title">
+      <div class="report-dialog-shell">
+        <div class="report-dialog-head">
+          <div>
+            <span>Report Preview</span>
+            <h2 id="report-dialog-title">NeuroMouse Analysis Report</h2>
+          </div>
+          <button id="workbench-report-close" class="report-close" type="button" aria-label="Close report preview">×</button>
+        </div>
+        <div id="workbench-report-preview" class="report-preview"></div>
+        <div id="workbench-explain" class="explain-output" hidden aria-live="polite"></div>
+        <input id="workbench-explain-q" class="explain-ask" type="text" maxlength="500" placeholder="Optional: ask a question about this comparison…" aria-label="Ask a question about this data">
+        <div class="report-dialog-actions">
+          <button id="workbench-explain-btn" type="button">Explain in plain language</button>
+          <button id="workbench-report-download" class="primary-action" type="button">Download Markdown</button>
+          <button id="workbench-report-dismiss" type="button">Close</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="tooltip" class="tooltip" hidden></div>
+    <script type="module" src="./js/layout.js"></script>
+    <script type="module" src="./js/ui-panels.js"></script>
+  </body>
+</html>
