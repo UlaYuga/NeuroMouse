@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
+import os
 import sys
+import tempfile
 from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass
@@ -13,9 +15,11 @@ from typing import Any, Literal, cast
 
 from fastapi import (
     FastAPI,
+    File,
     HTTPException,
     Request,
     Response,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
     status,
@@ -38,10 +42,17 @@ from neuromouse_backend.storage import (
     BackendStore,
     JobRecord,
     SessionRecord,
+    UserMethodRecord,
     create_backend_store,
 )
 from neuromouse_contract import DatasetValidationError, validate_dataset
-from neuromouse_sandbox import MethodRef, SandboxError, SandboxLimits, run_in_sandbox
+from neuromouse_sandbox import (
+    MethodRef,
+    SandboxError,
+    SandboxLimits,
+    describe_in_sandbox,
+    run_in_sandbox,
+)
 from neuromouse_sdk import Method, build_params
 from neuromouse_sdk.examples.band_power_summary import band_power_summary
 
@@ -78,6 +89,7 @@ class MethodResponse(BaseModel):
     required_inputs: list[str]
     params_schema: dict[str, Any]
     output_spec: OutputSpecResponse
+    private: bool = False
 
 
 class OutputFieldResponse(BaseModel):
@@ -355,6 +367,27 @@ def create_app(
         for queue in list(watchers.get(event["job_id"], set())):
             queue.put_nowait(None)
 
+    def _resolve_and_run(
+        method_id: str,
+        owner_id: str,
+        dataset: dict[str, Any],
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
+        normalized = _normalize_method_id(method_id)
+        if normalized in methods.methods:
+            return methods.run(normalized, dataset, params=params)
+        record = backend_store.get_user_method(owner_id, normalized)
+        if record is None:
+            raise MethodExecutionError(f"unknown method: {method_id}")
+        return run_user_method(record, dataset, params)
+
+    def _user_method_meta_for(method_id: str, owner_id: str) -> dict[str, Any] | None:
+        normalized = _normalize_method_id(method_id)
+        if normalized in methods.methods:
+            return None
+        record = backend_store.get_user_method(owner_id, normalized)
+        return record.metadata if record is not None else None
+
     async def _execute_job(queued_job: _QueuedJob) -> None:
         try:
             session = backend_store.get_session(
@@ -379,10 +412,11 @@ def create_app(
             _broadcast_job_update(running.events[-1])
 
             result = await asyncio.to_thread(
-                methods.run,
+                _resolve_and_run,
                 queued_job.method_id,
+                queued_job.owner_id,
                 session.dataset,
-                params=queued_job.params,
+                queued_job.params,
             )
             completed = backend_store.append_job_event(
                 queued_job.job_id,
@@ -484,8 +518,71 @@ def create_app(
         return _session_response(session)
 
     @app.get("/methods", response_model=list[MethodResponse])
-    async def list_methods() -> list[MethodResponse]:
-        return [_method_response(method) for method in methods.methods.values()]
+    async def list_methods(http_request: Request) -> list[MethodResponse]:
+        user = user_from_request(http_request)
+        builtin = [_method_response(method) for method in methods.methods.values()]
+        private = [
+            _user_method_response(record)
+            for record in backend_store.list_user_methods(user.id)
+        ]
+        return builtin + private
+
+    @app.post(
+        "/methods",
+        response_model=MethodResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def upload_method(
+        http_request: Request,
+        file: UploadFile = File(...),
+    ) -> MethodResponse:
+        user = user_from_request(http_request)
+        raw = await file.read(MAX_METHOD_SOURCE_BYTES + 1)
+        if len(raw) > MAX_METHOD_SOURCE_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"method source exceeds {MAX_METHOD_SOURCE_BYTES} bytes",
+            )
+        try:
+            source = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="method source must be UTF-8 text",
+            ) from exc
+
+        # Introspect the (untrusted) module inside the sandbox to read its
+        # declared metadata — never imported in this process.
+        try:
+            metadata = describe_uploaded_method(source)
+        except MethodUploadError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+
+        method_id = _normalize_method_id(metadata["name"])
+        if method_id in methods.methods:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"method id {method_id!r} collides with a built-in method",
+            )
+        record = backend_store.upsert_user_method(
+            owner_id=user.id,
+            method_id=method_id,
+            name=metadata["name"],
+            version=str(metadata.get("version", "0.0.0")),
+            source=source,
+            metadata=metadata,
+        )
+        return _user_method_response(record)
+
+    @app.delete("/methods/{method_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def delete_method(http_request: Request, method_id: str) -> Response:
+        user = user_from_request(http_request)
+        if not backend_store.delete_user_method(user.id, _normalize_method_id(method_id)):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Method not found")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.post("/demo/seed", response_model=DemoSeedResponse, status_code=status.HTTP_201_CREATED)
     async def seed_demo(http_request: Request) -> DemoSeedResponse:
@@ -553,13 +650,14 @@ def create_app(
         if session is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
-        try:
-            methods.lookup(request.method_id)
-        except MethodLookupError as exc:
+        normalized = _normalize_method_id(request.method_id)
+        if normalized not in methods.methods and (
+            backend_store.get_user_method(user.id, normalized) is None
+        ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Method not found",
-            ) from exc
+            )
 
         job = backend_store.create_job(
             session_id=session.id,
@@ -578,7 +676,11 @@ def create_app(
                 params=request.params,
             ),
         )
-        return _job_response(job, methods=methods)
+        return _job_response(
+            job,
+            methods=methods,
+            user_method_meta=_user_method_meta_for(request.method_id, user.id),
+        )
 
     @app.get("/jobs/{job_id}", response_model=JobResponse)
     async def get_job(http_request: Request, job_id: str) -> JobResponse:
@@ -586,7 +688,11 @@ def create_app(
         job = backend_store.get_job(job_id, owner_id=user.id)
         if job is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-        return _job_response(job, methods=methods)
+        return _job_response(
+            job,
+            methods=methods,
+            user_method_meta=_user_method_meta_for(job.method_id, user.id),
+        )
 
     @app.post(
         "/demo/sessions/{session_id}/jobs",
@@ -733,7 +839,12 @@ def _session_response(session: SessionRecord) -> SessionResponse:
     )
 
 
-def _job_response(job: JobRecord, *, methods: MethodCatalog) -> JobResponse:
+def _job_response(
+    job: JobRecord,
+    *,
+    methods: MethodCatalog,
+    user_method_meta: dict[str, Any] | None = None,
+) -> JobResponse:
     return JobResponse(
         id=job.id,
         session_id=job.session_id,
@@ -741,10 +852,136 @@ def _job_response(job: JobRecord, *, methods: MethodCatalog) -> JobResponse:
         method_id=job.method_id,
         params=job.params,
         status=cast(Literal["queued", "running", "completed", "failed"], job.status),
-        result=_job_result_response(job, methods=methods),
+        result=_job_result_response(job, methods=methods, user_method_meta=user_method_meta),
         error=job.error,
         created_at=job.created_at,
         updated_at=job.updated_at,
+    )
+
+
+# --- user-uploaded private methods ------------------------------------------
+
+# Tight budget for untrusted user methods: enough for real DSP on the golden
+# fixtures, well short of anything that could threaten the backend host.
+USER_METHOD_LIMITS = SandboxLimits(
+    wall_clock_sec=20.0,
+    cpu_sec=12,
+    memory_bytes=1024 * 1024 * 1024,
+    max_output_bytes=64 * 1024 * 1024,
+    max_processes=64,
+    max_open_files=128,
+)
+MAX_METHOD_SOURCE_BYTES = 256 * 1024
+
+
+class MethodUploadError(ValueError):
+    """Raised when an uploaded method cannot be registered (bad source / sandbox)."""
+
+
+def _write_temp_method(source: str) -> str:
+    handle = tempfile.NamedTemporaryFile(  # noqa: SIM115 - path handed to subprocess
+        mode="w", suffix=".py", prefix="nm_user_method_", delete=False, encoding="utf-8"
+    )
+    try:
+        handle.write(source)
+    finally:
+        handle.close()
+    return handle.name
+
+
+def _safe_unlink(path: str) -> None:
+    with suppress(OSError):
+        os.unlink(path)
+
+
+def describe_uploaded_method(source: str) -> dict[str, Any]:
+    """Introspect an uploaded method's metadata in the sandbox (no compute)."""
+
+    path = _write_temp_method(source)
+    try:
+        return describe_in_sandbox(
+            MethodRef(kind="file", path=path, attr="method"), limits=USER_METHOD_LIMITS
+        )
+    except SandboxError as exc:
+        raise MethodUploadError(f"method could not be registered: {exc}") from exc
+    finally:
+        _safe_unlink(path)
+
+
+def run_user_method(
+    record: UserMethodRecord,
+    dataset: dict[str, Any],
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    """Run a stored user method through the sandbox (same boundary as built-ins)."""
+
+    try:
+        dataset_payload = validate_dataset(dataset).model_dump(mode="json")
+    except DatasetValidationError as exc:
+        raise MethodExecutionError(f"method {record.method_id!r} failed: {exc}") from exc
+
+    output_meta = record.metadata.get("output", {})
+    required_inputs = tuple(record.metadata.get("required_inputs") or ())
+    output_fields = tuple(field["path"] for field in output_meta.get("fields", []))
+    path = _write_temp_method(record.source)
+    try:
+        return run_in_sandbox(
+            MethodRef(kind="file", path=path, attr="method"),
+            dataset_payload,
+            dict(params),
+            limits=USER_METHOD_LIMITS,
+            required_inputs=required_inputs,
+            output_fields=output_fields,
+        )
+    except SandboxError as exc:
+        raise MethodExecutionError(f"method {record.method_id!r} failed: {exc}") from exc
+    finally:
+        _safe_unlink(path)
+
+
+def _output_spec_response_from_meta(output_meta: dict[str, Any]) -> OutputSpecResponse:
+    panel_meta = output_meta.get("panel")
+    return OutputSpecResponse(
+        fields=[
+            OutputFieldResponse(
+                path=field["path"],
+                label=_label_from_path(field["path"]),
+                description=field.get("description", ""),
+                unit=field.get("unit"),
+            )
+            for field in output_meta.get("fields", [])
+        ],
+        panel=PanelSpecResponse(
+            id=panel_meta["id"],
+            title=panel_meta["title"],
+            kind=panel_meta["kind"],
+            field=panel_meta["field"],
+        )
+        if panel_meta
+        else None,
+    )
+
+
+def _user_method_response(record: UserMethodRecord) -> MethodResponse:
+    meta = record.metadata
+    output_meta = meta.get("output", {})
+    panel_meta = output_meta.get("panel")
+    name = panel_meta["title"] if panel_meta else record.name
+    descriptions = []
+    for field in output_meta.get("fields", []):
+        if field.get("description"):
+            descriptions.append(f"{field['path']}: {field['description']}")
+        else:
+            descriptions.append(field["path"])
+    return MethodResponse(
+        id=record.method_id,
+        name=name,
+        description="; ".join(descriptions),
+        required_inputs=list(meta.get("required_inputs") or []),
+        params_schema=meta.get("params_schema")
+        or {"title": "Params", "type": "object", "properties": {}},
+        output_spec=_output_spec_response_from_meta(output_meta),
+        private=True,
     )
 
 
@@ -767,12 +1004,20 @@ def _method_response(method: Method[Any]) -> MethodResponse:
     )
 
 
-def _job_result_response(job: JobRecord, *, methods: MethodCatalog) -> JobResultResponse | None:
+def _job_result_response(
+    job: JobRecord,
+    *,
+    methods: MethodCatalog,
+    user_method_meta: dict[str, Any] | None = None,
+) -> JobResultResponse | None:
     if job.result is None:
         return None
     try:
         method = methods.lookup(job.method_id)
     except MethodLookupError:
+        if user_method_meta is not None:
+            spec = _output_spec_response_from_meta(user_method_meta.get("output", {}))
+            return JobResultResponse(output=job.result, output_spec=spec, panel=spec.panel)
         return JobResultResponse(output=job.result)
 
     output_spec = _output_spec_response(method)

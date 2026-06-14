@@ -59,6 +59,26 @@ class JobRecord:
     owner_id: str = _ANONYMOUS_OWNER_ID
 
 
+@dataclass(frozen=True)
+class UserMethodRecord:
+    """A user-uploaded analysis method, private to its owner.
+
+    ``source`` is the raw ``.py`` text (the SDK-template module); ``metadata`` is
+    the JSON the sandbox describe-pass extracted (required_inputs, params_schema,
+    output fields + panel) so the catalog can render it without importing code.
+    """
+
+    id: str
+    owner_id: str
+    method_id: str
+    name: str
+    version: str
+    source: str
+    metadata: dict[str, Any]
+    created_at: str
+    updated_at: str
+
+
 class BackendStore(Protocol):
     def create_session(
         self,
@@ -112,6 +132,23 @@ class BackendStore(Protocol):
         owner_id: str | None = None,
     ) -> JobRecord: ...
 
+    def upsert_user_method(
+        self,
+        *,
+        owner_id: str,
+        method_id: str,
+        name: str,
+        version: str,
+        source: str,
+        metadata: dict[str, Any],
+    ) -> UserMethodRecord: ...
+
+    def list_user_methods(self, owner_id: str) -> Iterable[UserMethodRecord]: ...
+
+    def get_user_method(self, owner_id: str, method_id: str) -> UserMethodRecord | None: ...
+
+    def delete_user_method(self, owner_id: str, method_id: str) -> bool: ...
+
 
 def _normalize_owner_id(owner_id: str | None) -> str:
     return owner_id if owner_id is not None else _ANONYMOUS_OWNER_ID
@@ -121,6 +158,49 @@ class InMemoryBackendStore:
     def __init__(self) -> None:
         self._sessions: dict[str, SessionRecord] = {}
         self._jobs: dict[str, JobRecord] = {}
+        self._user_methods: dict[tuple[str, str], UserMethodRecord] = {}
+
+    def upsert_user_method(
+        self,
+        *,
+        owner_id: str,
+        method_id: str,
+        name: str,
+        version: str,
+        source: str,
+        metadata: dict[str, Any],
+    ) -> UserMethodRecord:
+        owner_id = _normalize_owner_id(owner_id)
+        key = (owner_id, method_id)
+        now = utc_now()
+        existing = self._user_methods.get(key)
+        record = UserMethodRecord(
+            id=existing.id if existing else str(uuid4()),
+            owner_id=owner_id,
+            method_id=method_id,
+            name=name,
+            version=version,
+            source=source,
+            metadata=dict(metadata),
+            created_at=existing.created_at if existing else now,
+            updated_at=now,
+        )
+        self._user_methods[key] = record
+        return record
+
+    def list_user_methods(self, owner_id: str) -> Iterable[UserMethodRecord]:
+        owner_id = _normalize_owner_id(owner_id)
+        return [
+            record
+            for (record_owner, _), record in sorted(self._user_methods.items())
+            if record_owner == owner_id
+        ]
+
+    def get_user_method(self, owner_id: str, method_id: str) -> UserMethodRecord | None:
+        return self._user_methods.get((_normalize_owner_id(owner_id), method_id))
+
+    def delete_user_method(self, owner_id: str, method_id: str) -> bool:
+        return self._user_methods.pop((_normalize_owner_id(owner_id), method_id), None) is not None
 
     def create_session(
         self,
@@ -580,6 +660,92 @@ class SQLiteBackendStore:
                 raise RuntimeError("updated job could not be reloaded")
             return updated
 
+    def upsert_user_method(
+        self,
+        *,
+        owner_id: str,
+        method_id: str,
+        name: str,
+        version: str,
+        source: str,
+        metadata: dict[str, Any],
+    ) -> UserMethodRecord:
+        owner_id = _normalize_owner_id(owner_id)
+        now = utc_now()
+        with self._lock:
+            connection = self._connect()
+            with connection:
+                connection.execute(
+                    """
+                    INSERT INTO user_methods (
+                        id, owner_id, method_id, name, version, source,
+                        metadata_json, created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(owner_id, method_id) DO UPDATE SET
+                        name = excluded.name,
+                        version = excluded.version,
+                        source = excluded.source,
+                        metadata_json = excluded.metadata_json,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        str(uuid4()),
+                        owner_id,
+                        method_id,
+                        name,
+                        version,
+                        source,
+                        _dump_json(metadata),
+                        now,
+                        now,
+                    ),
+                )
+            record = self.get_user_method(owner_id, method_id)
+            if record is None:  # pragma: no cover - sqlite transaction invariant
+                raise RuntimeError("upserted user method could not be reloaded")
+            return record
+
+    def list_user_methods(self, owner_id: str) -> Iterable[UserMethodRecord]:
+        owner_id = _normalize_owner_id(owner_id)
+        with self._lock:
+            rows = self._connect().execute(
+                """
+                SELECT id, owner_id, method_id, name, version, source,
+                       metadata_json, created_at, updated_at
+                FROM user_methods
+                WHERE owner_id = ?
+                ORDER BY created_at, method_id
+                """,
+                (owner_id,),
+            )
+            return [_user_method_from_row(row) for row in rows]
+
+    def get_user_method(self, owner_id: str, method_id: str) -> UserMethodRecord | None:
+        owner_id = _normalize_owner_id(owner_id)
+        with self._lock:
+            row = self._connect().execute(
+                """
+                SELECT id, owner_id, method_id, name, version, source,
+                       metadata_json, created_at, updated_at
+                FROM user_methods
+                WHERE owner_id = ? AND method_id = ?
+                """,
+                (owner_id, method_id),
+            ).fetchone()
+            return _user_method_from_row(row) if row is not None else None
+
+    def delete_user_method(self, owner_id: str, method_id: str) -> bool:
+        owner_id = _normalize_owner_id(owner_id)
+        with self._lock:
+            connection = self._connect()
+            with connection:
+                cursor = connection.execute(
+                    "DELETE FROM user_methods WHERE owner_id = ? AND method_id = ?",
+                    (owner_id, method_id),
+                )
+                return cursor.rowcount > 0
+
     def _connect(self) -> sqlite3.Connection:
         if self._connection is None:
             if str(self._path) != ":memory:":
@@ -959,6 +1125,95 @@ class PostgreSQLBackendStore:
             raise RuntimeError("updated job could not be reloaded")
         return updated
 
+    def upsert_user_method(
+        self,
+        *,
+        owner_id: str,
+        method_id: str,
+        name: str,
+        version: str,
+        source: str,
+        metadata: dict[str, Any],
+    ) -> UserMethodRecord:
+        owner_id = _normalize_owner_id(owner_id)
+        now = utc_now()
+        with self._connect() as connection:
+            with connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        INSERT INTO user_methods (
+                            id, owner_id, method_id, name, version, source,
+                            metadata_json, created_at, updated_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (owner_id, method_id) DO UPDATE SET
+                            name = EXCLUDED.name,
+                            version = EXCLUDED.version,
+                            source = EXCLUDED.source,
+                            metadata_json = EXCLUDED.metadata_json,
+                            updated_at = EXCLUDED.updated_at
+                        """,
+                        (
+                            str(uuid4()),
+                            owner_id,
+                            method_id,
+                            name,
+                            version,
+                            source,
+                            _dump_json(metadata),
+                            now,
+                            now,
+                        ),
+                    )
+        record = self.get_user_method(owner_id, method_id)
+        if record is None:  # pragma: no cover - postgres transaction invariant
+            raise RuntimeError("upserted user method could not be reloaded")
+        return record
+
+    def list_user_methods(self, owner_id: str) -> Iterable[UserMethodRecord]:
+        owner_id = _normalize_owner_id(owner_id)
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, owner_id, method_id, name, version, source,
+                           metadata_json, created_at, updated_at
+                    FROM user_methods
+                    WHERE owner_id = %s
+                    ORDER BY created_at, method_id
+                    """,
+                    (owner_id,),
+                )
+                return [_user_method_from_row(row) for row in cursor.fetchall()]
+
+    def get_user_method(self, owner_id: str, method_id: str) -> UserMethodRecord | None:
+        owner_id = _normalize_owner_id(owner_id)
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, owner_id, method_id, name, version, source,
+                           metadata_json, created_at, updated_at
+                    FROM user_methods
+                    WHERE owner_id = %s AND method_id = %s
+                    """,
+                    (owner_id, method_id),
+                )
+                row = cursor.fetchone()
+                return _user_method_from_row(row) if row is not None else None
+
+    def delete_user_method(self, owner_id: str, method_id: str) -> bool:
+        owner_id = _normalize_owner_id(owner_id)
+        with self._connect() as connection:
+            with connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "DELETE FROM user_methods WHERE owner_id = %s AND method_id = %s",
+                        (owner_id, method_id),
+                    )
+                    return cursor.rowcount > 0
+
     def _connect(self):
         connection = self._psycopg.connect(self._database_url, row_factory=self._dict_row)
         _ensure_schema_migrations(connection.execute)
@@ -1040,6 +1295,20 @@ def _session_from_row(row: Mapping[str, Any]) -> SessionRecord:
         dataset_version=row["dataset_version"],
         created_at=row["created_at"],
         owner_id=row["owner_id"],
+    )
+
+
+def _user_method_from_row(row: Mapping[str, Any]) -> UserMethodRecord:
+    return UserMethodRecord(
+        id=row["id"],
+        owner_id=row["owner_id"],
+        method_id=row["method_id"],
+        name=row["name"],
+        version=row["version"],
+        source=row["source"],
+        metadata=_load_json(row["metadata_json"]) or {},
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
     )
 
 
