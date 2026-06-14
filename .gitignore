@@ -14,3 +14,7 @@ __pycache__/
 
 # backend runtime DB
 *.sqlite3
+
+# local design-reference material for the Cloud Design app-restyle (screenshots + spec);
+# read locally by Cloud Design, not part of the deployed product
+design-reference/
