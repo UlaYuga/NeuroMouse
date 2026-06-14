@@ -71,7 +71,7 @@ export function initPolarChronomap(root, data, tooltip, context = {}) {
       ctx.stroke();
     }
 
-    ctx.strokeStyle = "rgba(255,255,255,0.11)";
+    ctx.strokeStyle = "rgba(20,24,26,0.11)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(0, 0, outer, 0, Math.PI * 2);
@@ -84,7 +84,7 @@ export function initPolarChronomap(root, data, tooltip, context = {}) {
     const cursor = (frame / count) * Math.PI * 2 - Math.PI / 2;
     ctx.strokeStyle = ACTIVE_COLOR;
     ctx.lineWidth = 1.2;
-    ctx.shadowColor = "rgba(0,212,160,0.55)";
+    ctx.shadowColor = "rgba(159,192,0,0.55)";
     ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.moveTo(0, 0);

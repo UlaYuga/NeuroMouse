@@ -147,7 +147,7 @@ export function initCentroidView(data, tooltip, context = {}) {
     visibleChannels.forEach((channel) => {
       const index = series.channelIndexByName.get(channel);
       if (index !== selectedIndex) {
-        drawLine(ctx, pointsForChannel(index, g, series), "rgba(255,255,255,0.12)", 1, 1);
+        drawLine(ctx, pointsForChannel(index, g, series), "rgba(20,24,26,0.12)", 1, 1);
       }
     });
     drawLine(ctx, pointsForChannel(selectedIndex, g, series), ACTIVE_COLOR, 2.4, 1);
@@ -355,7 +355,7 @@ export function initCentroidView(data, tooltip, context = {}) {
         drawLine(
           ctx,
           times.map((time, timeIndex) => ({ x: g.xScale(time), y: g.yScale(source.centroid.values[channelIndex][timeIndex]) })),
-          "rgba(255,255,255,0.09)",
+          "rgba(20,24,26,0.09)",
           1,
         );
       });
@@ -382,7 +382,7 @@ export function initCentroidView(data, tooltip, context = {}) {
     }
     if (mode === "delta") {
       const y = g.yScale(0);
-      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.strokeStyle = "rgba(20,24,26,0.18)";
       ctx.beginPath();
       ctx.moveTo(g.plotX, y);
       ctx.lineTo(g.plotX + g.plotW, y);

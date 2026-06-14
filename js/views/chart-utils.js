@@ -8,38 +8,40 @@ function token(name, fallback) {
   return value || fallback;
 }
 
-export const ACTIVE_COLOR = token("--chart-active", "#00D4A0");
-export const SECONDARY_COLOR = token("--chart-secondary", "#00D4A0");
-export const GRID_COLOR = token("--chart-grid", "rgba(255,255,255,0.055)");
+export const ACTIVE_COLOR = token("--chart-active", "#c6f000");
+export const SECONDARY_COLOR = token("--chart-secondary", "#c6f000");
+export const GRID_COLOR = token("--chart-grid", "rgba(20,24,26,0.055)");
 export const AXIS_COLOR = token("--chart-axis", "#91A2AD");
 export const MUTED_COLOR = token("--chart-muted", "#737D88");
 export const CHART_BACKGROUND = token("--chart-bg", "#0D1014");
-export const PLOT_BORDER_COLOR = token("--chart-plot-border", "rgba(255,255,255,0.1)");
-export const PLAYBACK_CURSOR_COLOR = token("--chart-cursor", "rgba(0,212,160,0.6)");
-export const ACTIVE_GLOW_COLOR = token("--chart-active-glow", "rgba(0,212,160,0.4)");
-export const MONO_FONT = "\"IBM Plex Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace";
+export const PLOT_BORDER_COLOR = token("--chart-plot-border", "rgba(20,24,26,0.1)");
+export const PLAYBACK_CURSOR_COLOR = token("--chart-cursor", "rgba(159,192,0,0.6)");
+export const ACTIVE_GLOW_COLOR = token("--chart-active-glow", "rgba(159,192,0,0.4)");
+export const MONO_FONT = "\"Geist Mono\", \"Spline Sans Mono\", \"IBM Plex Mono\", ui-monospace, \"SF Mono\", \"Menlo\", monospace";
 export const FREQUENCY_BANDS = [
-  { label: "delta", min: 1, max: 4, color: "rgba(10,132,255,0.08)" },
-  { label: "theta", min: 4, max: 8, color: "rgba(0,212,160,0.075)" },
-  { label: "alpha", min: 8, max: 13, color: "rgba(242,184,75,0.13)" },
-  { label: "beta", min: 13, max: 30, color: "rgba(0,212,160,0.055)" },
-  { label: "gamma", min: 30, max: 55, color: "rgba(10,132,255,0.07)" },
+  { label: "delta", min: 1, max: 4, color: "rgba(20,24,26,0.035)" },
+  { label: "theta", min: 4, max: 8, color: "rgba(20,24,26,0.02)" },
+  { label: "alpha", min: 8, max: 13, color: "rgba(198,240,0,0.16)" },
+  { label: "beta", min: 13, max: 30, color: "rgba(20,24,26,0.02)" },
+  { label: "gamma", min: 30, max: 55, color: "rgba(20,24,26,0.035)" },
 ];
 
+// milk → ink density ramp (light lab-plate heatmap)
 const VIRIDIS = [
-  [10, 10, 26],
-  [18, 45, 62],
-  [0, 94, 86],
-  [0, 170, 124],
-  [0, 212, 160],
+  [244, 243, 239],
+  [206, 208, 203],
+  [138, 142, 142],
+  [58, 62, 64],
+  [20, 24, 26],
 ];
 
+// diverging: ink (negative) → milk (zero) → acid (positive)
 const DELTA_PALETTE = [
-  [-1.0, [220, 50, 50]],
-  [-0.3, [100, 40, 40]],
-  [0.0, [20, 20, 24]],
-  [0.3, [0, 100, 80]],
-  [1.0, [0, 212, 160]],
+  [-1.0, [20, 24, 26]],
+  [-0.3, [120, 124, 124]],
+  [0.0, [244, 243, 239]],
+  [0.3, [176, 200, 40]],
+  [1.0, [159, 192, 0]],
 ];
 
 export function resizeCanvas(canvas) {

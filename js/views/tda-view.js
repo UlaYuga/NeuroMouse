@@ -76,7 +76,7 @@ export function initTdaView(root, data, tooltip, context = {}) {
     const yScale = scaleLinear(minValue, maxValue, plotY + plotH, plotY);
 
     drawFrame(ctx, plotX, plotY, plotW, plotH);
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.strokeStyle = "rgba(20,24,26,0.18)";
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
     ctx.moveTo(xScale(minValue), yScale(minValue));
@@ -88,8 +88,8 @@ export function initTdaView(root, data, tooltip, context = {}) {
       const x = xScale(point.birth);
       const y = yScale(point.death);
       const active = hover?.index === index;
-      ctx.fillStyle = point.kind === "H1" ? "rgba(255,159,10,0.82)" : "rgba(0,212,160,0.78)";
-      ctx.strokeStyle = active ? "#fff" : CHART_BACKGROUND;
+      ctx.fillStyle = point.kind === "H1" ? "rgba(20,24,26,0.82)" : "rgba(159,192,0,0.78)";
+      ctx.strokeStyle = active ? "#14181a" : CHART_BACKGROUND;
       ctx.lineWidth = active ? 2 : 1;
       ctx.beginPath();
       ctx.arc(x, y, active ? 5.5 : 4, 0, Math.PI * 2);
@@ -119,8 +119,8 @@ export function initTdaView(root, data, tooltip, context = {}) {
       const y = plotY + rowH * index + rowH / 2;
       const t = point.lifetime / maxLifetime;
       ctx.strokeStyle = point.kind === "H1"
-        ? `rgba(255,159,10,${0.28 + t * 0.72})`
-        : `rgba(0,212,160,${0.22 + t * 0.78})`;
+        ? `rgba(20,24,26,${0.28 + t * 0.72})`
+        : `rgba(159,192,0,${0.22 + t * 0.78})`;
       ctx.lineWidth = Math.max(1, Math.min(4, rowH * 0.42));
       ctx.beginPath();
       ctx.moveTo(xScale(point.birth), y);
@@ -189,7 +189,7 @@ function panel(title, canvas) {
 }
 
 function drawFrame(ctx, x, y, width, height) {
-  ctx.strokeStyle = "rgba(255,255,255,0.09)";
+  ctx.strokeStyle = "rgba(20,24,26,0.09)";
   ctx.strokeRect(x, y, width, height);
   ctx.strokeStyle = GRID_COLOR;
   for (let index = 1; index < 4; index += 1) {
@@ -220,7 +220,7 @@ function drawAxisLabels(ctx, x, y, width, height, xLabel, yLabel) {
   ctx.fillStyle = MUTED_COLOR;
   ctx.textAlign = "left";
   ctx.fillText("H0", x + 8, y + 8);
-  ctx.fillStyle = "rgba(255,159,10,0.9)";
+  ctx.fillStyle = "rgba(20,24,26,0.9)";
   ctx.fillText("H1", x + 34, y + 8);
   ctx.fillStyle = ACTIVE_COLOR;
 }

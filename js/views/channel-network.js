@@ -126,8 +126,8 @@ export function initChannelNetwork(root, data, tooltip, context = {}) {
       style: `background:${CHART_BACKGROUND}`,
     });
     svg.append(
-      element("ellipse", { cx: 360, cy: 228, rx: 250, ry: 205, fill: "none", stroke: "rgba(255,255,255,0.12)", "stroke-width": 1 }),
-      element("path", { d: "M342 32 L360 10 L378 32", fill: "none", stroke: "rgba(255,255,255,0.12)", "stroke-width": 1, "stroke-linejoin": "round" }),
+      element("ellipse", { cx: 360, cy: 228, rx: 250, ry: 205, fill: "none", stroke: "rgba(20,24,26,0.12)", "stroke-width": 1 }),
+      element("path", { d: "M342 32 L360 10 L378 32", fill: "none", stroke: "rgba(20,24,26,0.12)", "stroke-width": 1, "stroke-linejoin": "round" }),
     );
 
     const edgeLayer = element("g", { class: "network-edges" });
@@ -170,7 +170,7 @@ export function initChannelNetwork(root, data, tooltip, context = {}) {
           cy: point.y,
           r: active ? 13 : 10,
           fill: nodeColor(degree / maxDegree),
-          stroke: active ? ACTIVE_COLOR : "rgba(255,255,255,0.22)",
+          stroke: active ? ACTIVE_COLOR : "rgba(20,24,26,0.22)",
           "stroke-width": active ? 2 : 0.8,
         }),
         element("text", { x: point.x, y: point.y + 23 }, channel),

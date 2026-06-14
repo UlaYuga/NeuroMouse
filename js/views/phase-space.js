@@ -207,7 +207,7 @@ export function initPhaseSpace(root, data, context = {}) {
     drawTrajectory(ctx, points, xScale, yScale);
     drawStartDot(ctx, points[0], xScale, yScale);
     drawEndDot(ctx, points.at(-1), xScale, yScale);
-    drawPlaybackDot(ctx, points, xScale, yScale, series.mode === "live");
+    drawPlaybackDot(ctx, points, xScale, yScale, series.mode === "live", getFrame);
     drawAxes(ctx, {
       plotX,
       plotY,
@@ -281,7 +281,7 @@ function drawGrid(ctx, plotX, plotY, plotW, plotH) {
 
 function drawDotGrid(ctx, width, height) {
   ctx.save();
-  ctx.fillStyle = "rgba(255,255,255,0.03)";
+  ctx.fillStyle = "rgba(20,24,26,0.03)";
   for (let x = 0; x < width; x += 20) {
     for (let y = 0; y < height; y += 20) {
       ctx.fillRect(x, y, 1, 1);
@@ -312,7 +312,7 @@ function drawStartDot(ctx, point, xScale, yScale) {
   const x = xScale(point.xValue);
   const y = yScale(point.yValue);
   ctx.save();
-  ctx.fillStyle = "rgba(0,160,110,0.8)";
+  ctx.fillStyle = "rgba(120,124,124,0.8)";
   ctx.shadowColor = "transparent";
   ctx.beginPath();
   ctx.arc(x, y, 4, 0, Math.PI * 2);
@@ -324,8 +324,8 @@ function drawEndDot(ctx, point, xScale, yScale) {
   const x = xScale(point.xValue);
   const y = yScale(point.yValue);
   ctx.save();
-  ctx.fillStyle = "#00D4A0";
-  ctx.shadowColor = "rgba(0,212,160,0.8)";
+  ctx.fillStyle = "#c6f000";
+  ctx.shadowColor = "rgba(159,192,0,0.8)";
   ctx.shadowBlur = 10;
   ctx.beginPath();
   ctx.arc(x, y, 5, 0, Math.PI * 2);
@@ -334,7 +334,7 @@ function drawEndDot(ctx, point, xScale, yScale) {
   ctx.restore();
 }
 
-function drawPlaybackDot(ctx, points, xScale, yScale, isLive) {
+function drawPlaybackDot(ctx, points, xScale, yScale, isLive, getFrame = () => 0) {
   const frame = isLive ? points.at(-1).index : getFrame();
   let nearest = points[0];
   let distance = Math.abs(frame - nearest.index);
@@ -351,7 +351,7 @@ function drawPlaybackDot(ctx, points, xScale, yScale, isLive) {
   ctx.save();
   ctx.fillStyle = ACTIVE_COLOR;
   ctx.strokeStyle = CHART_BACKGROUND;
-  ctx.shadowColor = "rgba(0,212,160,0.8)";
+  ctx.shadowColor = "rgba(159,192,0,0.8)";
   ctx.shadowBlur = 12;
   ctx.lineWidth = 2;
   ctx.beginPath();

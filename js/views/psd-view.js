@@ -25,12 +25,13 @@ import {
 } from "./chart-utils.js";
 import { renderSessionLegend } from "./session-legend.js";
 
+// milk (low) → ink (high) — matches the landing PSD heatmap thumbnail
 const HEATMAP_PALETTE = [
-  [5, 13, 18],
-  [10, 42, 61],
-  [13, 107, 94],
-  [13, 168, 130],
-  [0, 212, 160],
+  [244, 243, 239],
+  [206, 208, 203],
+  [150, 154, 153],
+  [70, 74, 76],
+  [20, 24, 26],
 ];
 
 export function initPsdView(data, tooltip, context = {}) {
@@ -134,7 +135,7 @@ export function initPsdView(data, tooltip, context = {}) {
     });
 
     if (heatHover) {
-      ctx.fillStyle = "rgba(255,255,255,0.05)";
+      ctx.fillStyle = "rgba(20,24,26,0.06)";
       ctx.fillRect(plotX, plotY + heatHover.channelIndex * channelH, plotW, channelH);
     }
 
@@ -379,7 +380,7 @@ export function initPsdView(data, tooltip, context = {}) {
     ctx.strokeRect(plotX, plotY, plotW, plotH);
     if (mode === "delta") {
       const zeroY = yScale(0);
-      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.strokeStyle = "rgba(20,24,26,0.18)";
       ctx.beginPath();
       ctx.moveTo(plotX, zeroY);
       ctx.lineTo(plotX + plotW, zeroY);

@@ -1,3 +1,7 @@
+/* Single token source — the marketing landing's design system.
+   (LAB-PLATE RESKIN block at the end of this file maps the app's tokens onto these.) */
+@import url("landing/design-tokens.css");
+
 :root {
   color-scheme: dark;
 
@@ -3169,3 +3173,442 @@ input[type="number"]:focus-visible {
   .nm-hero-type > * { opacity: 1 !important; transform: none !important; }
   .ghost, .slice, .nm-hero-tear, .nm-hero-trace { display: none !important; }
 }
+
+/* ============================================================================
+   LAB-PLATE RESKIN — appended last, wins over SIGNAL.
+   Makes /app one product with the marketing landing ("/"): light Swiss
+   lab-plate (milk surfaces, hairline grid, mono instrument labels, near-black
+   ink), ONE acid-chartreuse accent (#c6f000) used only for live/active/CTA.
+   Mirrors landing/design-tokens.css; no JS hooks touched.
+   ========================================================================== */
+:root {
+  color-scheme: light;
+
+  /* landing tokens come from the @import at the top of this file. */
+  --live-ink: #5f7600;   /* readable acid for small text on milk (not in landing set) */
+
+  /* remap the app's own tokens onto the lab-plate */
+  --bg-0: var(--milk);
+  --bg-1: #ffffff;
+  --bg-2: var(--milk-2);
+  --bg-3: var(--milk-3);
+  --bg-vibrancy: rgba(244,243,239,0.82);
+  --surface-rail: rgba(20,24,26,0.02);
+  --surface-inset: rgba(20,24,26,0.035);
+
+  --text-primary: var(--on-milk);
+  --text-secondary: var(--on-milk-2);
+  --text-tertiary: var(--on-milk-3);
+  --text-mono: rgba(20,24,26,0.52);
+
+  --border: var(--rule-milk-2);
+  --border-strong: var(--rule-milk);
+  --border-accent: rgba(159,192,0,0.55);
+
+  --accent: var(--live);
+  --accent-bright: var(--live);
+  --accent-dim: rgba(198,240,0,0.16);
+  --accent-glow: 0 0 0 1px rgba(159,192,0,0.40), 0 10px 30px -14px var(--live-glow);
+
+  /* retire the second/third accents — fold blue + amber into ink */
+  --accent-blue: var(--on-milk);
+  --accent-blue-dim: rgba(20,24,26,0.05);
+  --accent-amber: var(--on-milk-2);
+  --accent-amber-dim: rgba(20,24,26,0.05);
+  --danger: #b23b32;
+  --hot: var(--live-deep);
+  --hot-dim: rgba(159,192,0,0.14);
+
+  /* chart palette — milk bg, hairline grid, Geist-mono ink ticks, acid active */
+  --chart-active: var(--live);
+  --chart-secondary: rgba(20,24,26,0.46);
+  --chart-grid: rgba(20,24,26,0.08);
+  --chart-axis: #5a6166;
+  --chart-muted: rgba(20,24,26,0.42);
+  --chart-bg: var(--milk);
+  --chart-plot-border: rgba(20,24,26,0.18);
+  --chart-cursor: rgba(159,192,0,0.70);
+  --chart-active-glow: rgba(198,240,0,0.42);
+
+  /* soften shadows for a light surface */
+  --shadow-xs: 0 1px 0 rgba(255,255,255,0.6) inset, 0 1px 2px rgba(20,24,26,0.06);
+  --shadow-sm: 0 1px 0 rgba(255,255,255,0.6) inset, 0 2px 10px -6px rgba(20,24,26,0.30);
+  --shadow-md: 0 1px 0 rgba(255,255,255,0.6) inset, 0 10px 30px -20px rgba(20,24,26,0.45);
+  --shadow-lg: 0 1px 0 rgba(255,255,255,0.7) inset, 0 24px 60px -40px rgba(20,24,26,0.5);
+
+  /* sharp, instrument-flat radii */
+  --r-window: 4px;  --r-card: 3px;  --r-btn: 3px;  --r-tag: 3px;  --r-pill: 999px;
+
+  /* type — Schibsted Grotesk display + Geist Mono instrument */
+  --font: "Schibsted Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-display: "Schibsted Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "Geist Mono", "Spline Sans Mono", "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --display-weight: 600;
+  --display-tracking: -0.035em;
+
+  --ease: cubic-bezier(0.22,0.61,0.30,1);
+  --ease-out: cubic-bezier(0.16,1,0.30,1);
+}
+
+html, body { background-color: var(--milk); }
+
+/* milk plate + signature 56×56 hairline grid (replaces the teal-glow dark grid) */
+body {
+  color: var(--on-milk);
+  background-color: var(--milk);
+  background-image:
+    linear-gradient(90deg, var(--rule-milk-2) 1px, transparent 1px),
+    linear-gradient(var(--rule-milk-2) 1px, transparent 1px);
+  background-size: 56px 56px, 56px 56px;
+  background-attachment: fixed;
+  -webkit-tap-highlight-color: rgba(198,240,0,0.18);
+}
+
+a { color: var(--on-milk-2); }
+a:hover { color: var(--on-milk); text-shadow: none; }
+
+/* ── header ───────────────────────────────────────────────────────────── */
+.app-header {
+  border-bottom: 1px solid var(--rule-milk);
+  background: rgba(244,243,239,0.82);
+  box-shadow: none;
+}
+.app-header h1, #workbench-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  text-transform: none;
+  line-height: 1.05;
+  color: var(--on-milk);
+}
+.brand-kicker, .workbench-kicker {
+  color: var(--on-milk-2);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+}
+.header-status span {
+  border: 1px solid var(--rule-milk);
+  background: rgba(255,255,255,0.5);
+  box-shadow: none;
+  color: var(--on-milk-2);
+}
+h2 { color: var(--on-milk-2); }
+
+/* ── control panel ────────────────────────────────────────────────────── */
+.control-panel {
+  border-bottom: 1px solid var(--rule-milk);
+  background: rgba(244,243,239,0.86);
+}
+.control-label { color: var(--on-milk-2); font-weight: 600; }
+
+/* ── form controls ────────────────────────────────────────────────────── */
+button, select, input {
+  border: 1px solid var(--rule-milk);
+  background-color: #ffffff;
+  color: var(--on-milk);
+}
+button:hover, select:hover, input:hover { border-color: var(--live-deep); }
+button:focus-visible, select:focus-visible, input:focus-visible {
+  outline: 2px solid rgba(159,192,0,0.6);
+  outline-offset: 2px;
+  border-color: var(--live-deep);
+}
+.segmented {
+  background: var(--milk-2);
+  box-shadow: inset 0 0 0 1px var(--rule-milk-2);
+}
+.segmented button { color: var(--on-milk-2); }
+.segmented button:hover { background: rgba(20,24,26,0.05); color: var(--on-milk); }
+.segmented button.is-active {
+  border-color: var(--live-deep);
+  background: var(--accent-dim);
+  color: var(--live-ink);
+  box-shadow: none;
+}
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2314181a'/%3E%3C/svg%3E");
+}
+.advanced-toggle-btn {
+  border: 1px solid var(--rule-milk);
+  background: rgba(255,255,255,0.5);
+  box-shadow: var(--shadow-sm);
+}
+.advanced-toggle-btn:hover {
+  border-color: var(--live-deep);
+  background: #ffffff;
+  color: var(--on-milk);
+}
+.advanced-toggle-btn small { color: var(--on-milk-2); }
+.toggle-chevron { color: var(--live-deep); }
+#live-connect {
+  border-color: var(--rule-milk);
+  background: #ffffff;
+  color: var(--on-milk);
+}
+#live-connect:hover { background: var(--milk-2); }
+.live-status.is-connecting { color: var(--on-milk-2); }
+.live-status.is-live { color: var(--live-ink); }
+
+/* ── workbench (the command surface) → milk vitrine + hairline grid ──────── */
+.workbench {
+  border: 1px solid var(--rule-milk);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.4)),
+    var(--milk);
+  box-shadow: var(--shadow-md);
+}
+.workbench::before {
+  background-image:
+    linear-gradient(90deg, var(--rule-milk-2) 1px, transparent 1px),
+    linear-gradient(var(--rule-milk-2) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: none;
+  opacity: 0.7;
+}
+.workbench-title-block h2 { color: var(--on-milk); letter-spacing: -0.03em; }
+.workbench-title-block p { color: var(--on-milk-2); }
+
+.primary-action {
+  border: 1px solid var(--live-deep);
+  background: var(--live);
+  color: var(--ink, #0c0e0f);
+  font-weight: 600;
+  box-shadow: var(--accent-glow);
+}
+.primary-action:hover {
+  border-color: var(--live-deep);
+  background: var(--live);
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px var(--live-deep), 0 12px 30px -12px var(--live-glow);
+}
+
+.pipeline-strip { border: 1px solid var(--rule-milk); background: rgba(255,255,255,0.4); }
+.pipeline-step { border-right: 1px solid var(--rule-milk); }
+.pipeline-step.is-ready { background: var(--accent-dim); }
+.pipeline-step.is-ready span { color: var(--live-ink); }
+.pipeline-step span { color: var(--on-milk-3); }
+.pipeline-step strong { color: var(--on-milk); }
+.pipeline-step small { color: var(--on-milk-2); }
+.pipeline-step.is-active::after { background: var(--live); }
+
+.workbench-drop-zone, .cohort-console, .toolbox-console, .workbench-metrics {
+  border: 1px solid var(--rule-milk);
+  background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.4));
+  box-shadow: var(--shadow-xs);
+}
+.workbench-drop-zone { border-style: dashed; border-color: var(--live-deep); color: var(--on-milk-2); }
+.workbench-drop-zone:hover, .workbench-drop-zone.drag-over {
+  border-color: var(--live-deep);
+  background: var(--accent-dim);
+  color: var(--on-milk);
+  box-shadow: var(--shadow-sm);
+}
+.workbench-drop-zone strong { color: var(--on-milk); }
+.workbench-drop-zone small { color: var(--on-milk-2); }
+.drop-formats span {
+  border: 1px solid var(--live-deep);
+  background: var(--accent-dim);
+  color: var(--live-ink);
+}
+.import-headline { color: var(--on-milk); }
+.import-row {
+  border: 1px solid var(--rule-milk-2);
+  background: rgba(20,24,26,0.03);
+  color: var(--on-milk-2);
+}
+.import-row strong { color: var(--live-ink); }
+.import-row.is-skipped strong { color: var(--on-milk-2); }
+.import-row.is-rejected strong { color: var(--danger); }
+
+.baseline-summary { border: 1px solid var(--rule-milk-2); background: rgba(20,24,26,0.025); }
+.baseline-label, .workbench-baseline-control span { color: var(--on-milk-2); }
+.baseline-summary strong { color: var(--on-milk); }
+.baseline-facts span { border: 1px solid var(--rule-milk); color: var(--on-milk-2); }
+.toolbox-head strong { color: var(--on-milk); }
+
+.workbench-status {
+  border: 1px solid var(--rule-milk);
+  background: rgba(255,255,255,0.5);
+  color: var(--on-milk-2);
+}
+.workbench-status.is-ready { border-color: var(--live-deep); background: var(--accent-dim); color: var(--on-milk); }
+.workbench-status.is-draft { border-color: var(--rule-milk); background: var(--milk-2); }
+.comparison-row { border: 1px solid var(--rule-milk-2); background: rgba(20,24,26,0.025); color: var(--on-milk-2); }
+.comparison-row strong { color: var(--live-ink); }
+.comparison-name { color: var(--on-milk); }
+.empty-comparison, .comparison-disclaimer { color: var(--on-milk-2); }
+.console-link { border-color: var(--rule-milk); background: #ffffff; color: var(--on-milk); }
+.console-link:hover { border-color: var(--live-deep); background: var(--milk-2); }
+
+.readiness-panel { border: 1px solid var(--rule-milk); background: var(--milk-2); }
+.readiness-panel.is-ready { border-color: var(--live-deep); background: var(--accent-dim); }
+.readiness-panel span { color: var(--on-milk-2); }
+.readiness-panel strong { color: var(--on-milk); }
+.toolbox-list span { border: 1px solid var(--rule-milk); background: rgba(255,255,255,0.5); color: var(--on-milk-2); }
+.quality-item { border-left: 2px solid var(--rule-milk); background: rgba(20,24,26,0.02); }
+.quality-item.is-ready { border-left-color: var(--live-deep); }
+.quality-item.is-warn { border-left-color: var(--on-milk-3); }
+.quality-item span { color: var(--on-milk-2); }
+.quality-item strong { color: var(--on-milk); }
+.metric-tile { border-right: 1px solid var(--rule-milk); border-bottom: 1px solid var(--rule-milk); }
+.metric-tile span { color: var(--on-milk-2); }
+.metric-tile strong { color: var(--on-milk); font-family: var(--font-mono); letter-spacing: -0.01em; }
+.metric-tile small { color: var(--on-milk-2); }
+
+.session-sidebar {
+  border: 1px solid var(--rule-milk);
+  background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.4));
+  box-shadow: var(--shadow-xs);
+}
+.session-sidebar-head span, .session-message, .session-control-label { color: var(--on-milk-2); }
+.drop-zone { border: 1px dashed var(--rule-milk); background: rgba(20,24,26,0.025); color: var(--on-milk-2); }
+.drop-zone strong { color: var(--on-milk); }
+.drop-zone span { color: var(--on-milk-2); }
+.drop-zone.drag-over { border-color: var(--live-deep); background: var(--accent-dim); color: var(--on-milk); box-shadow: none; }
+.session-dot, .legend-dot { background: var(--session-color, var(--live-deep)); }
+.session-legend { border-bottom: 1px solid var(--rule-milk); background: rgba(255,255,255,0.4); color: var(--on-milk-2); }
+
+/* ── panels → landing vitrine + corner ticks ────────────────────────────── */
+.panel {
+  border: 1px solid var(--rule-milk);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.4)),
+    var(--milk);
+  box-shadow: var(--shadow-sm);
+}
+.panel::before, .panel::after {
+  content: ""; position: absolute; z-index: 2; width: 7px; height: 7px;
+  background: none; opacity: 1; pointer-events: none;
+  border: 1px solid var(--rule-milk);
+}
+.panel::before { top: 6px; left: 6px; right: auto; border-right: 0; border-bottom: 0; }
+.panel::after { bottom: 6px; right: 6px; border-left: 0; border-top: 0; }
+.panel-psd, .panel-playback { border-color: var(--rule-milk); box-shadow: var(--shadow-md); }
+.panel-psd::before, .panel-playback::before { background: none; }
+.panel-head {
+  border-bottom: 1px solid var(--rule-milk);
+  background: rgba(255,255,255,0.45);
+}
+.panel-head h2 {
+  color: var(--on-milk-2);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+.panel-head p { color: var(--on-milk-2); }
+.psd-layout { background: var(--rule-milk); }
+
+/* ── canvases → milk bg + hairline grid ─────────────────────────────────── */
+.chart, .channel-grid, .polar-chronomap, .kuramoto-view, .channel-network,
+.tda-view, .phase-space {
+  background-color: var(--milk);
+  background-image:
+    linear-gradient(90deg, var(--rule-milk-2) 1px, transparent 1px),
+    linear-gradient(var(--rule-milk-2) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.tda-view { background: var(--rule-milk); }
+.phase-controls, .grid-mode-bar, .network-controls, .grid-selection,
+.phase-title-line, .tda-subtitle, .channel-grid-map { background: rgba(255,255,255,0.45); }
+.phase-controls { border-bottom: 1px solid var(--rule-milk); }
+.phase-control span, .grid-mode-bar > span, .network-control > span,
+.phase-title-line, .tda-subtitle { color: var(--on-milk-2); }
+.grid-selection { border-top: 1px solid var(--rule-milk); color: var(--on-milk); }
+
+/* ── playback → acid (was amber/teal) ───────────────────────────────────── */
+.panel-playback { background: rgba(244,243,239,0.9); }
+.panel-playback::before { background: none; }
+.playback-bar { border-top: 1px solid var(--rule-milk); background: rgba(255,255,255,0.5); }
+.playback-toggle {
+  border-color: var(--live-deep);
+  background: var(--accent-dim);
+  color: var(--live-ink);
+}
+.playback-toggle:hover, .playback-toggle[aria-label="Pause playback"] {
+  background: var(--live); color: var(--ink, #0c0e0f); box-shadow: var(--accent-glow);
+}
+.playback-speeds { background: var(--milk-2); }
+.playback-speeds button { color: var(--on-milk-2); }
+.playback-speeds button.is-active { background: var(--accent-dim); color: var(--live-ink); }
+.playback-range::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, var(--live) 0%, var(--live) var(--progress,0%), var(--milk-3) var(--progress,0%), var(--milk-3) 100%);
+}
+.playback-range::-webkit-slider-thumb { background: var(--live); box-shadow: 0 0 0 1px var(--live-deep); }
+.playback-range::-moz-range-track { background: var(--milk-3); }
+.playback-range::-moz-range-progress { background: var(--live); }
+.playback-range::-moz-range-thumb { background: var(--live); }
+.playback-time { color: var(--on-milk-2); }
+
+/* ── monitor ────────────────────────────────────────────────────────────── */
+.monitor-actions button, .monitor-toggle { border: 1px solid var(--rule-milk); background: #ffffff; color: var(--on-milk-2); }
+.monitor-led { background: var(--on-milk-3); }
+.monitor-toggle:has(input:checked) { border-color: var(--live-deep); background: var(--accent-dim); color: var(--live-ink); }
+.monitor-toggle:has(input:checked) .monitor-led { background: var(--live); box-shadow: none; }
+.monitor-static { color: var(--on-milk-2); }
+.monitor-status { border: 1px solid var(--rule-milk); background: rgba(20,24,26,0.025); }
+.monitor-state.is-idle { color: var(--on-milk-2); }
+.monitor-state.is-building { color: var(--live-ink); }
+.monitor-state.is-triggered { color: var(--live-ink); text-shadow: none; }
+.progress-track { background: var(--milk-3); }
+.progress-fill { background: var(--live); box-shadow: none; }
+.monitor-progress-text, .monitor-current { color: var(--on-milk-2); }
+.monitor-log { border: 1px solid var(--rule-milk); background: rgba(255,255,255,0.5); }
+.monitor-log-table th { background: var(--milk-2); color: var(--on-milk-2); }
+.monitor-log-table td { color: var(--on-milk-2); }
+.monitor-log-table th, .monitor-log-table td { border-bottom: 1px solid var(--rule-milk-2); }
+.monitor-log-table tr.is-new td { background: var(--accent-dim); color: var(--on-milk); }
+.monitor-log-empty { color: var(--on-milk-2); }
+
+/* ── electrodes / network labels (SVG text was white) ───────────────────── */
+.electrode text { fill: var(--on-milk); }
+.network-node text { fill: var(--on-milk-2); }
+.network-legend text { fill: var(--on-milk-3); }
+
+/* ── collapse toggles ───────────────────────────────────────────────────── */
+.panel-collapsible .panel-head:hover, .panel-collapsible .panel-head:focus-visible { background: var(--milk-2); }
+.panel-collapse-toggle { border: 1px solid var(--rule-milk); background: var(--milk-2); color: var(--on-milk-2); }
+.panel-collapsible .panel-head:hover .panel-collapse-toggle { background: #ffffff; color: var(--on-milk); }
+.panel-collapsible.is-expanded .panel-collapse-toggle { border-color: var(--live-deep); background: var(--accent-dim); color: var(--live-ink); }
+
+/* ── footer ─────────────────────────────────────────────────────────────── */
+.app-footer { border-top: 1px solid var(--rule-milk); color: var(--on-milk-2); }
+
+/* ── report dialog → milk plate ─────────────────────────────────────────── */
+.report-dialog { border: 1px solid var(--rule-milk); background: var(--milk); color: var(--on-milk); box-shadow: var(--shadow-lg); }
+.report-dialog::backdrop { background: rgba(20,24,26,0.35); }
+.report-dialog-head, .report-dialog-actions { border-color: var(--rule-milk); }
+.report-dialog-head span, .report-preview-section span, .report-preview-status span { color: var(--on-milk-2); }
+.report-dialog-head h2 { color: var(--on-milk); }
+.report-preview-status { border: 1px solid var(--rule-milk); background: var(--milk-2); }
+.report-preview-status.is-ready { border-color: var(--live-deep); background: var(--accent-dim); }
+.report-preview-status strong { color: var(--on-milk); }
+.report-preview-section { border: 1px solid var(--rule-milk); background: rgba(255,255,255,0.5); }
+.report-preview-section strong { color: var(--on-milk); }
+.report-preview-section p { color: var(--on-milk-2); }
+.report-markdown { border: 1px solid var(--rule-milk); background: #ffffff; color: var(--on-milk-2); }
+.explain-output { border: 1px solid var(--rule-milk); background: rgba(255,255,255,0.5); color: var(--on-milk-2); }
+.explain-ask { border: 1px solid var(--rule-milk); background: #ffffff; color: var(--on-milk); }
+.explain-ask::placeholder { color: var(--on-milk-3); }
+
+/* ── tooltip (kept dark/ink for legibility over charts) ─────────────────── */
+.tooltip { border: 1px solid var(--on-milk); background: var(--on-milk); color: var(--milk); box-shadow: var(--shadow-md); }
+
+/* ── scrollbars ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar-thumb { background: rgba(20,24,26,0.2); }
+::-webkit-scrollbar-thumb:hover { background: rgba(20,24,26,0.32); }
+
+/* neutralise SIGNAL editorial display treatment */
+.session-comparison h2, .report-preview h2, .panel-card h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  text-transform: none;
+  line-height: 1.1;
+}
+.metric-value, .stat-value, [data-metric-value] {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+:focus-visible { outline-color: var(--live-deep); }

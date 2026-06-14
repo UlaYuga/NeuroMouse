@@ -1,12 +1,12 @@
 export const SESSION_COLORS = [
-  "#00D4A0",
-  "#0A84FF",
-  "#FF9F0A",
-  "#FF453A",
-  "#BF5AF2",
-  "#64D2FF",
-  "#30D158",
-  "#FF375F",
+  "#5f7600",
+  "#1f5f7a",
+  "#a8552a",
+  "#6a4e8f",
+  "#3f7d50",
+  "#8a6d1f",
+  "#9a3550",
+  "#2f6f6a",
 ];
 
 export const MAX_SESSIONS = 6;

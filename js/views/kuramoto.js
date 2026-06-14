@@ -64,9 +64,9 @@ export function initKuramotoView(root, data, context = {}) {
     ctx.lineTo(cx, cy + radius);
     ctx.stroke();
 
-    ctx.strokeStyle = `rgba(0,212,160,${0.32 + rValue * 0.68})`;
+    ctx.strokeStyle = `rgba(159,192,0,${0.32 + rValue * 0.68})`;
     ctx.lineWidth = 2.2;
-    ctx.shadowColor = "rgba(0,212,160,0.5)";
+    ctx.shadowColor = "rgba(159,192,0,0.5)";
     ctx.shadowBlur = 9;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
@@ -79,8 +79,8 @@ export function initKuramotoView(root, data, context = {}) {
       const x = cx + radius * Math.cos(phase);
       const y = cy + radius * Math.sin(phase);
       const selected = channel === selectedIndex;
-      ctx.fillStyle = selected ? ACTIVE_COLOR : "rgba(0,180,130,0.58)";
-      ctx.strokeStyle = selected ? CHART_BACKGROUND : "rgba(255,255,255,0.12)";
+      ctx.fillStyle = selected ? ACTIVE_COLOR : "rgba(120,124,124,0.58)";
+      ctx.strokeStyle = selected ? CHART_BACKGROUND : "rgba(20,24,26,0.12)";
       ctx.lineWidth = selected ? 2 : 1;
       ctx.beginPath();
       ctx.arc(x, y, selected ? 6 : 4, 0, Math.PI * 2);
@@ -106,7 +106,7 @@ export function initKuramotoView(root, data, context = {}) {
 
 function drawDotGrid(ctx, width, height) {
   ctx.save();
-  ctx.fillStyle = "rgba(255,255,255,0.025)";
+  ctx.fillStyle = "rgba(20,24,26,0.025)";
   for (let x = 0; x < width; x += 20) {
     for (let y = 0; y < height; y += 20) {
       ctx.fillRect(x, y, 1, 1);

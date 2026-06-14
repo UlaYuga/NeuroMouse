@@ -180,26 +180,26 @@ export function initChannelGrid(data, tooltip, context = {}) {
           rx: 165,
           ry: 185,
           fill: "none",
-          stroke: "rgba(255,255,255,0.12)",
+          stroke: "rgba(20,24,26,0.12)",
           "stroke-width": 1,
         }),
         element("path", {
           d: "M196 25 L210 6 L224 25",
           fill: "none",
-          stroke: "rgba(255,255,255,0.12)",
+          stroke: "rgba(20,24,26,0.12)",
           "stroke-width": 1,
           "stroke-linejoin": "round",
         }),
         element("path", {
           d: "M46 185 C12 204 12 252 46 272",
           fill: "none",
-          stroke: "rgba(255,255,255,0.12)",
+          stroke: "rgba(20,24,26,0.12)",
           "stroke-width": 1,
         }),
         element("path", {
           d: "M374 185 C408 204 408 252 374 272",
           fill: "none",
-          stroke: "rgba(255,255,255,0.12)",
+          stroke: "rgba(20,24,26,0.12)",
           "stroke-width": 1,
         }),
       );
@@ -235,10 +235,10 @@ export function initChannelGrid(data, tooltip, context = {}) {
           cy: y,
           r: layout.radius,
           fill: isDelta ? deltaColorScale(power, rangeMin, rangeMax) : colorScale(power, rangeMin, rangeMax),
-          stroke: active ? ACTIVE_COLOR : "rgba(255,255,255,0.16)",
+          stroke: active ? ACTIVE_COLOR : "rgba(20,24,26,0.16)",
           "stroke-width": active ? 2 : 0.5,
           opacity: isVisible ? 1 : 0.22,
-          style: colorMode === "alpha_relative_power" && item?.has_clear_alpha_peak && isVisible ? "filter:drop-shadow(0 0 4px rgba(0,212,160,0.6))" : "",
+          style: colorMode === "alpha_relative_power" && item?.has_clear_alpha_peak && isVisible ? "filter:drop-shadow(0 0 4px rgba(159,192,0,0.6))" : "",
         }),
         element("text", layout.fontSize ? { x, y: y + 0.5, "font-size": layout.fontSize } : { x, y: y + 0.5 }, channel),
       );
@@ -291,13 +291,13 @@ export function initChannelGrid(data, tooltip, context = {}) {
     const parts = [
       element("defs", {}, [
         element("linearGradient", { id: "alpha-power-gradient", x1: "0%", x2: "100%", y1: "0%", y2: "0%" }, isDelta ? [
-          element("stop", { offset: "0%", "stop-color": "rgb(220,50,50)" }),
-          element("stop", { offset: "50%", "stop-color": "rgb(20,20,24)" }),
+          element("stop", { offset: "0%", "stop-color": "rgb(20,24,26)" }),
+          element("stop", { offset: "50%", "stop-color": "rgb(244,243,239)" }),
           element("stop", { offset: "100%", "stop-color": ACTIVE_COLOR }),
         ] : [
-          element("stop", { offset: "0%", "stop-color": "#0a0a1a" }),
-          element("stop", { offset: "55%", "stop-color": "#005e56" }),
-          element("stop", { offset: "100%", "stop-color": ACTIVE_COLOR }),
+          element("stop", { offset: "0%", "stop-color": "rgb(244,243,239)" }),
+          element("stop", { offset: "55%", "stop-color": "rgb(120,124,124)" }),
+          element("stop", { offset: "100%", "stop-color": "rgb(20,24,26)" }),
         ]),
       ]),
       element("text", {
@@ -306,7 +306,7 @@ export function initChannelGrid(data, tooltip, context = {}) {
         fill: MUTED_COLOR,
         "font-size": 11,
         "font-weight": 600,
-        "font-family": "\"IBM Plex Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace",
+        "font-family": "\"Geist Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace",
       }, isDelta ? `${label} delta` : label),
       element("rect", {
         x: 154,
@@ -318,15 +318,15 @@ export function initChannelGrid(data, tooltip, context = {}) {
       }),
     ];
     parts.push(
-      element("text", { x: 154, y: 444, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"IBM Plex Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace", "text-anchor": "middle" }, formatNumber(minPower, 2)),
-      element("text", { x: 334, y: 444, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"IBM Plex Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace", "text-anchor": "middle" }, formatNumber(maxPower, 2)),
+      element("text", { x: 154, y: 444, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"Geist Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace", "text-anchor": "middle" }, formatNumber(minPower, 2)),
+      element("text", { x: 334, y: 444, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"Geist Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace", "text-anchor": "middle" }, formatNumber(maxPower, 2)),
       element("circle", { cx: 156, cy: 470, r: 6, fill: "none", stroke: ACTIVE_COLOR, "stroke-width": 2 }),
-      element("text", { x: 170, y: 474, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"IBM Plex Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace" }, "selected"),
+      element("text", { x: 170, y: 474, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"Geist Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace" }, "selected"),
     );
     if (showPeak) {
       parts.push(
-        element("circle", { cx: 264, cy: 470, r: 7, fill: ACTIVE_COLOR, opacity: 0.62, style: "filter:drop-shadow(0 0 4px rgba(0,212,160,0.6))" }),
-        element("text", { x: 280, y: 474, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"IBM Plex Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace" }, "alpha peak"),
+        element("circle", { cx: 264, cy: 470, r: 7, fill: ACTIVE_COLOR, opacity: 0.62, style: "filter:drop-shadow(0 0 4px rgba(159,192,0,0.6))" }),
+        element("text", { x: 280, y: 474, fill: MUTED_COLOR, "font-size": 10, "font-family": "\"Geist Mono\", \"SF Mono\", \"Menlo\", \"Monaco\", \"Cascadia Mono\", \"Roboto Mono\", \"Courier New\", monospace" }, "alpha peak"),
       );
     }
     return parts;

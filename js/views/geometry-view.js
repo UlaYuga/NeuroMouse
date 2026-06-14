@@ -371,7 +371,7 @@ export function initGeometryView(data, tooltip, context = {}) {
 
     if (mode === "delta") {
       const zeroY = yScale(0);
-      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.strokeStyle = "rgba(20,24,26,0.18)";
       ctx.beginPath();
       ctx.moveTo(g.plotX, zeroY);
       ctx.lineTo(g.plotX + g.plotW, zeroY);

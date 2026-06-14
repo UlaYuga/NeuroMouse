@@ -183,7 +183,7 @@ async function mount(nextDataset = dataset) {
     dashboard.setAttribute("aria-busy", "false");
     if (loadStatus) {
       loadStatus.textContent = error.message;
-      loadStatus.style.color = "#ff786d";
+      loadStatus.style.color = "#b23b32";
     }
   }
 }
