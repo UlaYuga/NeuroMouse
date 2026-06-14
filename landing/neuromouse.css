@@ -144,7 +144,7 @@ body {
   position: relative; z-index: 2;
   display: grid; place-items: center;
   width: min(110%, 680px); margin-left: -6%;
-  animation: mouse-float 7s var(--ease-cell) infinite;
+  animation: mouse-float 6s var(--ease-cell) infinite;
   will-change: transform;
 }
 .fig-deco {
@@ -158,7 +158,7 @@ body {
   width: 100%; height: auto;
   filter: drop-shadow(0 28px 32px rgba(20,24,26,0.22));
 }
-@keyframes mouse-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@keyframes mouse-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-24px); } }
 @media (prefers-reduced-motion: reduce) { .fig-float { animation: none; } }
 
 @media (max-width: 880px) {
