@@ -10,6 +10,29 @@ Production: https://neuromouse.up.railway.app
 
 Custom domain target: https://neuromouse.ai
 
+## Screenshots
+
+![NeuroMouse — see your signal](screenshots/01-landing-hero.png)
+
+<table>
+<tr>
+<td width="50%"><img src="screenshots/02-landing-charts.png" alt="Real views on real data"></td>
+<td width="50%"><img src="screenshots/03-workbench-overview.png" alt="Neural Workbench overview"></td>
+</tr>
+<tr>
+<td><sub><b>Landing</b> — the real views on real data; click a channel and every panel follows.</sub></td>
+<td><sub><b>Neural Workbench</b> — file import, cohort comparison, and the Welch PSD heatmap.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="screenshots/04-workbench-analysis.png" alt="Workbench analysis"></td>
+<td width="50%"></td>
+</tr>
+<tr>
+<td><sub><b>Analysis</b> — synchronized playback, sliding spectral geometry, and the 10-20 channel head map.</sub></td>
+<td></td>
+</tr>
+</table>
+
 ## Views
 
 - Neural Workbench: file import, curated toolbox coverage, cohort comparison goal, analysis pipeline, summary metrics, and markdown report export.
