@@ -37,3 +37,16 @@
 .md-typeset h2 {
   letter-spacing: -0.02em;
 }
+
+/* dark mode (slate) — petrol surface, milk text, brighter acid for contrast */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #161c20;
+  --md-default-bg-color--light: #1c2429;
+  --md-primary-fg-color: #0c0e0f;
+  --md-accent-fg-color: var(--nm-acid);
+  --md-typeset-a-color: var(--nm-acid);
+  --md-default-fg-color: #e8ecee;
+  --md-default-fg-color--light: rgba(232, 236, 238, 0.72);
+  --md-default-fg-color--lighter: rgba(232, 236, 238, 0.42);
+}
+[data-md-color-scheme="slate"] .md-typeset a:hover { color: #d9ff3a; }

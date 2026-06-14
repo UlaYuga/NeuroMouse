@@ -1,0 +1,14 @@
+{
+  "name": "NeuroMouse",
+  "short_name": "NeuroMouse",
+  "description": "A zero-build browser workbench for EEG & neural-signal analysis.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f3ef",
+  "theme_color": "#0c0e0f",
+  "icons": [
+    { "src": "/landing/favicon/favicon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/landing/favicon/favicon-48.png", "sizes": "48x48", "type": "image/png" },
+    { "src": "/landing/favicon/apple-touch-icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

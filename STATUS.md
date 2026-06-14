@@ -32,7 +32,7 @@
   - **`spike_detect` 57/57**; **`dsp.py` 1e-13 цел** на всём протяжении
 - **Режим работы: hands-on** — ассистент делает build/git/test сам внутри Claude Code.
 - **🚀 ЗАДЕПЛОЕНО на Railway — настоящая МУЛЬТИ-ЮЗЕР платформа (scope 🅰), LIVE:**
-  - static (login UI + демо + viewer, **same-origin API-proxy → cookie логина first-party**): **https://neuromouse.up.railway.app**
+  - static **https://neuromouse.up.railway.app** — **маркетинговый лендинг на `/`** (мышь-маскот + чарты на реальных данных, из дизайн-хендоффа), **воркбенч за `/app`** (вход по «try the demo»; старый портрет-герой вырезан → сразу в инструменты), **докдока на `/docs/`** (mkdocs, брендовая тема). same-origin API-proxy → cookie логина first-party; favicon/OG/manifest, брендовый 404 (без SPA-fallback), статик-денилист (исходники/конфиги не отдаются), security-заголовки, корректные MIME. Файлы: `index.html`=лендинг, `app.html`=воркбенч, `landing/`=ассеты лендинга, `site/`=собранная докдока (закоммичена; `Dockerfile` копирует `app.html`+`landing/`+`site/`).
   - backend (FastAPI, per-user auth): **https://backend-production-c7a1.up.railway.app**
   - **Pentest-verified вживую:** `/sessions` без auth → 401; cross-user IDOR → 404 (изолировано, нет утечки в списке); невалидный токен → 401; `/demo/seed-mea` (public) → 201; `/auth/register` → 201.
   - **Login-flow проверен вживую через прод-домен:** register 201 → login 200 → cookie установлен first-party → `/sessions` с cookie 200, без cookie 401.

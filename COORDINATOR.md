@@ -136,7 +136,7 @@ science; the platform makes plugging a method/sorter in trivial (~50 lines → a
   This is the *real* fix (first-party cookie), not the e2e bridge.
 
 ### ▶ DEPLOYED — scope 🅰 hosted MULTI-USER platform LIVE on Railway (project `SpeedMouse`, env `production`):
-- **static** (login UI + demo + viewer, **same-origin API proxy → first-party auth cookie**): **https://neuromouse.up.railway.app**
+- **static** **https://neuromouse.up.railway.app** — marketing **landing at `/`** (mascot + real-data charts), **workbench gated behind `/app`** (CTA "try the demo"; old portrait hero removed → opens straight into tools), **docs at `/docs/`** (mkdocs, brand-themed). same-origin API proxy → first-party auth cookie; favicon/OG/manifest, branded 404 (no SPA fallback), static denylist (no source/config leak), security headers, correct MIME types. Files: `index.html`=landing, `app.html`=workbench, `landing/`=landing assets, `site/`=built docs (committed, un-gitignored; `Dockerfile` copies `app.html`+`landing/`+`site/`).
 - **backend** (FastAPI, per-user auth, **on managed Postgres**): **https://backend-production-c7a1.up.railway.app**
   — built from `Dockerfile.backend` via env **`RAILWAY_DOCKERFILE_PATH`** (NOT `environment edit --service-config`, which
   doesn't persist in the non-TTY shell); listens on `$PORT`. **Prod DB = a Railway Postgres service** (private net

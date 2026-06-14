@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>404 — NeuroMouse</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/landing/favicon/favicon-32.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@300;400;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --milk: #f4f3ef; --ink: #14181a; --on-milk-2: rgba(20, 24, 26, 0.6);
+      --live: #c6f000; --live-deep: #9fc000;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--milk);
+      background-image:
+        linear-gradient(rgba(20, 24, 26, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(20, 24, 26, 0.05) 1px, transparent 1px);
+      background-size: 56px 56px;
+      color: var(--ink);
+      font-family: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+      display: grid; place-items: center; text-align: center; padding: 24px;
+    }
+    .code {
+      font-family: "Geist Mono", ui-monospace, monospace;
+      font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--on-milk-2);
+    }
+    h1 {
+      font-size: clamp(3.4rem, 13vw, 6.5rem); letter-spacing: -0.04em;
+      line-height: 0.95; margin: 0.18em 0 0; font-weight: 600;
+    }
+    p {
+      color: var(--on-milk-2); font-family: "Geist Mono", ui-monospace, monospace;
+      font-size: 0.95rem; margin: 0.6em 0 0;
+    }
+    .rule { width: 56px; height: 3px; background: var(--live); border-radius: 2px; margin: 26px auto; }
+    .cta { display: inline-flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+    a.btn {
+      font-family: "Geist Mono", ui-monospace, monospace; text-transform: uppercase;
+      letter-spacing: 0.14em; font-size: 0.8rem; text-decoration: none; color: var(--ink);
+      padding: 14px 24px; box-shadow: inset 0 0 0 1.5px var(--live-deep);
+      border-radius: 3px 2px; transition: background 0.14s, transform 0.14s;
+    }
+    a.btn:hover { background: var(--live); transform: translateY(-1px); }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="code">error · signal lost</span>
+    <h1>404</h1>
+    <p>this page isn't on the array.</p>
+    <div class="rule"></div>
+    <div class="cta">
+      <a class="btn" href="/">back to home</a>
+      <a class="btn" href="/app">try the demo</a>
+    </div>
+  </main>
+</body>
+</html>

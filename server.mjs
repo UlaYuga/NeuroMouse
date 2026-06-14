@@ -58,6 +58,21 @@ function isDeniedStaticPath(pathname) {
   return false;
 }
 
+// Serve the branded 404 page (falls back to plain text if it's missing).
+async function send404(response) {
+  const page = resolve(root, "landing/404.html");
+  if ((await fileStat(page))?.isFile()) {
+    response.writeHead(404, {
+      "content-type": "text/html; charset=utf-8",
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "strict-origin-when-cross-origin",
+    });
+    createReadStream(page).pipe(response);
+    return;
+  }
+  sendText(response, 404, "Not found\n");
+}
+
 const mimeTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".csv", "text/csv; charset=utf-8"],
@@ -70,9 +85,20 @@ const mimeTypes = new Map([
   [".txt", "text/plain; charset=utf-8"],
   [".wasm", "application/wasm"],
   [".zip", "application/zip"],
+  [".png", "image/png"],
+  [".jpg", "image/jpeg"],
+  [".jpeg", "image/jpeg"],
+  [".gif", "image/gif"],
+  [".webp", "image/webp"],
+  [".ico", "image/x-icon"],
+  [".woff2", "font/woff2"],
+  [".woff", "font/woff"],
+  [".ttf", "font/ttf"],
+  [".xml", "application/xml"],
+  [".webmanifest", "application/manifest+json"],
 ]);
 
-const immutableAssetPattern = /\.(?:css|js|json|csv|svg|wasm)$/i;
+const immutableAssetPattern = /\.(?:css|js|json|csv|svg|wasm|png|jpe?g|gif|webp|ico|woff2?|ttf)$/i;
 
 const server = createServer(async (request, response) => {
   try {
@@ -111,14 +137,17 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/docs/" || url.pathname.startsWith("/docs/")) {
       target = await resolveDocsPath(url.pathname);
     } else if (isDeniedStaticPath(url.pathname)) {
-      sendText(response, 404, "Not found\n");
+      await send404(response);
       return;
     } else {
-      const staticPathname = url.pathname === "/app" ? "/app.html" : url.pathname;
+      const staticPathname =
+        url.pathname === "/app" ? "/app.html"
+        : url.pathname === "/favicon.ico" ? "/landing/favicon/favicon-32.png"
+        : url.pathname;
       target = await resolveRequestPath(staticPathname);
     }
     if (!target) {
-      sendText(response, 404, "Not found\n");
+      await send404(response);
       return;
     }
 
@@ -128,6 +157,8 @@ const server = createServer(async (request, response) => {
         ? "public, max-age=300"
         : "no-cache",
       "x-content-type-options": "nosniff",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-frame-options": "SAMEORIGIN",
     });
     createReadStream(target).pipe(response);
   } catch (error) {
@@ -199,12 +230,8 @@ async function resolveRequestPath(pathname) {
   const file = await fileStat(absolutePath);
   if (file?.isFile()) return absolutePath;
 
-  if (!extname(requestedPath)) {
-    const fallback = join(root, "index.html");
-    const fallbackStat = await fileStat(fallback);
-    if (fallbackStat?.isFile()) return fallback;
-  }
-
+  // No SPA fallback: unknown paths return null so the handler serves a real 404.
+  // (The landing, /app and /docs are explicit routes — nothing needs catch-all routing.)
   return null;
 }
 
