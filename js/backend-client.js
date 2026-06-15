@@ -134,11 +134,13 @@ export class BackendClient {
       method: "POST",
       body,
     });
-    const user = extractAuthUser(response);
-    this.authState.user = user;
-    this.authState.authenticated = true;
-    this.authState.session = response?.session ?? null;
-    return user;
+    const registeredUser = extractAuthUser(response);
+    const loggedInUser = await this.login({ email: body.email, password: body.password });
+    if (registeredUser && !loggedInUser?.email) {
+      this.authState.user = registeredUser;
+      return registeredUser;
+    }
+    return loggedInUser ?? registeredUser;
   }
 
   async logout() {

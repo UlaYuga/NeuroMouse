@@ -756,6 +756,15 @@ input[type="number"]:focus-visible {
   padding: 0 var(--s4) var(--s4);
 }
 
+.panel-private-methods .backend-method-controls {
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.panel-private-methods .backend-method-controls > .workbench-actions {
+  justify-content: flex-start;
+}
+
 .backend-private-methods-panel {
   display: grid;
   gap: var(--s2);
@@ -826,6 +835,11 @@ input[type="number"]:focus-visible {
 
 .backend-private-method-row .is-danger:hover {
   background: rgba(255, 69, 58, 0.2);
+}
+
+.panel-private-methods #method-panel-output {
+  min-height: 44px;
+  border-top: 0.5px solid var(--border);
 }
 
 .primary-action {
@@ -2370,6 +2384,10 @@ input[type="number"]:focus-visible {
     grid-template-columns: 1fr 1fr;
   }
 
+  .panel-private-methods .backend-method-controls {
+    grid-template-columns: 1fr;
+  }
+
   .report-preview-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2987,6 +3005,46 @@ select {
 .drop-zone.drag-over { border-color: var(--live-deep); background: var(--accent-dim); color: var(--on-milk); box-shadow: none; }
 .session-dot, .legend-dot { background: var(--session-color, var(--live-deep)); }
 .session-legend { border-bottom: 1px solid var(--rule-milk); background: rgba(255,255,255,0.4); color: var(--on-milk-2); }
+
+.panel-private-methods {
+  border-color: var(--rule-milk);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.76), rgba(255,255,255,0.42)),
+    linear-gradient(90deg, var(--rule-milk-2) 1px, transparent 1px),
+    linear-gradient(var(--rule-milk-2) 1px, transparent 1px),
+    var(--milk);
+  background-size: auto, 56px 56px, 56px 56px, auto;
+}
+.panel-private-methods .backend-auth-panel {
+  border-bottom: 1px solid var(--rule-milk);
+  background: rgba(255,255,255,0.28);
+}
+.panel-private-methods .backend-auth-mode,
+.panel-private-methods .backend-private-methods-panel h3 {
+  color: var(--live-ink);
+}
+.panel-private-methods .backend-private-methods-panel {
+  border: 1px solid var(--rule-milk);
+  background: rgba(255,255,255,0.48);
+  box-shadow: var(--shadow-xs);
+}
+.panel-private-methods .backend-private-method-row {
+  border: 1px solid var(--rule-milk-2);
+  background: rgba(20,24,26,0.025);
+}
+.panel-private-methods .backend-private-method-name {
+  color: var(--on-milk);
+}
+.panel-private-methods .backend-private-method-row .is-danger,
+.panel-private-methods .backend-auth-actions .is-danger {
+  border-color: rgba(178,59,50,0.4);
+  background: rgba(178,59,50,0.08);
+  color: #8f2f28;
+}
+.panel-private-methods .backend-private-method-row .is-danger:hover,
+.panel-private-methods .backend-auth-actions .is-danger:hover {
+  background: rgba(178,59,50,0.13);
+}
 
 /* ── panels → landing vitrine + corner ticks ────────────────────────────── */
 .panel {

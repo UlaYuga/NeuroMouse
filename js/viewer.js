@@ -39,6 +39,7 @@ export function createViewerApp({
   state = createViewerState(),
   sessions = createSessionStore(),
   backendMode = false,
+  privateMethodsMode = false,
   backendBaseUrl = "",
   backendClient = null,
 } = {}) {
@@ -130,6 +131,7 @@ export function createViewerApp({
   let backend = backendClient;
   let backendUi = null;
   let backendMethods = [];
+  let backendPrivateOnly = false;
   const localPrivateSessions = [];
   const appDisposables = createDisposables();
 
@@ -149,7 +151,11 @@ async function mount(nextDataset = dataset) {
     bindSessionControls();
     renderSessionSidebar();
     renderWorkbench();
-    if (backendMode) setupBackendMode();
+    if (backendMode) {
+      setupBackendMode();
+    } else if (privateMethodsMode) {
+      void setupPrivateMethodsMode();
+    }
     appDisposables.add(initPsdView(data, tooltip, context));
     appDisposables.add(initCentroidView(data, tooltip, context));
     appDisposables.add(initPlaybackBar(query("#playback-bar"), data, context));
@@ -380,10 +386,24 @@ function bindSessionControls() {
   });
 }
 
-function setupBackendMode() {
+async function setupPrivateMethodsMode() {
   if (backendUi || !dashboard) return;
   backend = backend ?? createBackendClient({ baseUrl: resolveBackendBaseUrl(backendBaseUrl) });
-  backendUi = createBackendUi();
+  let user = null;
+  try {
+    user = await backend.refreshSession();
+  } catch {
+    return;
+  }
+  if (!user || !backend.isAuthenticated()) return;
+  setupBackendMode({ privateOnly: true, initialUser: user });
+}
+
+function setupBackendMode({ privateOnly = false, initialUser = null } = {}) {
+  if (backendUi || !dashboard) return;
+  backend = backend ?? createBackendClient({ baseUrl: resolveBackendBaseUrl(backendBaseUrl) });
+  backendPrivateOnly = privateOnly;
+  backendUi = createBackendUi({ privateOnly });
   if (workbench && typeof workbench.after === "function") {
     workbench.after(backendUi.section);
   } else {
@@ -413,20 +433,103 @@ function setupBackendMode() {
   appDisposables.listen(backendUi.createPrivateSessionButton, "click", () => {
     void createPrivateSession();
   });
-  void loadBackendMethods();
-  void refreshAuthState();
+  if (privateOnly) {
+    setBackendAuthMode("Private methods", formatAuthUserLabel(initialUser), "Signed in.");
+    void loadBackendMethods();
+  } else {
+    void loadBackendMethods();
+    void refreshAuthState();
+  }
 }
 
-function createBackendUi() {
+function createBackendUi({ privateOnly = false } = {}) {
+  const authForms = privateOnly ? null : element("div", { className: "backend-auth-forms" },
+    element("form", { id: "backend-login-form", name: "backend-login-form", autocomplete: "off" },
+      element("h3", {}, "Login"),
+      element("div", { className: "backend-auth-field" },
+        element("label", { htmlFor: "backend-login-email" }, "Email"),
+        element("input", {
+          id: "backend-login-email",
+          name: "email",
+          type: "email",
+          placeholder: "user@example.com",
+          autocomplete: "email",
+          required: true,
+        }),
+      ),
+      element("div", { className: "backend-auth-field" },
+        element("label", { htmlFor: "backend-login-password" }, "Password"),
+        element("input", {
+          id: "backend-login-password",
+          name: "password",
+          type: "password",
+          placeholder: "••••••••",
+          autocomplete: "current-password",
+          required: true,
+        }),
+      ),
+      element("button", { type: "submit" }, "Log in"),
+    ),
+    element("form", { id: "backend-register-form", name: "backend-register-form", autocomplete: "off" },
+      element("h3", {}, "Register"),
+      element("div", { className: "backend-auth-field" },
+        element("label", { htmlFor: "backend-register-email" }, "Email"),
+        element("input", {
+          id: "backend-register-email",
+          name: "email",
+          type: "email",
+          placeholder: "user@example.com",
+          autocomplete: "email",
+          required: true,
+        }),
+      ),
+      element("div", { className: "backend-auth-field" },
+        element("label", { htmlFor: "backend-register-username" }, "Name"),
+        element("input", {
+          id: "backend-register-username",
+          name: "username",
+          type: "text",
+          placeholder: "Your name",
+          autocomplete: "name",
+        }),
+      ),
+      element("div", { className: "backend-auth-field" },
+        element("label", { htmlFor: "backend-register-password" }, "Password"),
+        element("input", {
+          id: "backend-register-password",
+          name: "password",
+          type: "password",
+          placeholder: "••••••••",
+          autocomplete: "new-password",
+          required: true,
+        }),
+      ),
+      element("button", { type: "submit" }, "Create account"),
+    ),
+  );
+  const privateSessionButton = privateOnly ? null : element("button", {
+    id: "backend-create-private-session",
+    type: "button",
+    hidden: true,
+  }, "Create private session");
+  const privateSessionList = privateOnly
+    ? null
+    : element("div", { id: "backend-private-session-list", className: "backend-private-session-list" });
   const section = element("section", {
-    id: "backend-method-runner",
-    className: "panel panel-backend panel-collapsible is-expanded",
+    id: privateOnly ? "private-method-workbench" : "backend-method-runner",
+    className: privateOnly
+      ? "panel panel-backend panel-private-methods panel-collapsible is-expanded"
+      : "panel panel-backend panel-collapsible is-expanded",
     "aria-labelledby": "backend-method-title",
   },
   element("div", { className: "panel-head" },
     element("div", {},
-      element("h2", { id: "backend-method-title" }, "Backend Method Runner"),
-      element("p", {}, "Seed the active dataset, run a registered backend method, and render its declared panel."),
+      element("h2", { id: "backend-method-title" },
+        privateOnly ? "Private Method Lab" : "Backend Method Runner"),
+      element("p", {},
+        privateOnly
+          ? "Sandboxed user methods against the active dataset."
+          : "Seed the active dataset, run a registered backend method, and render its declared panel."),
     ),
     element("span", { className: "panel-toggle-icon", "aria-hidden": "true" }, "−"),
   ),
@@ -437,76 +540,9 @@ function createBackendUi() {
           element("span", { id: "backend-auth-user", className: "backend-auth-user" }, "Not signed in"),
         ),
         element("p", { id: "backend-auth-status", className: "live-status" }, "Checking authentication…"),
-        element("div", { className: "backend-auth-forms" },
-          element("form", { id: "backend-login-form", name: "backend-login-form", autocomplete: "off" },
-            element("h3", {}, "Login"),
-            element("div", { className: "backend-auth-field" },
-              element("label", { htmlFor: "backend-login-email" }, "Email"),
-              element("input", {
-                id: "backend-login-email",
-                name: "email",
-                type: "email",
-                placeholder: "user@example.com",
-                autocomplete: "email",
-                required: true,
-              }),
-            ),
-            element("div", { className: "backend-auth-field" },
-              element("label", { htmlFor: "backend-login-password" }, "Password"),
-              element("input", {
-                id: "backend-login-password",
-                name: "password",
-                type: "password",
-                placeholder: "••••••••",
-                autocomplete: "current-password",
-                required: true,
-              }),
-            ),
-            element("button", { type: "submit" }, "Log in"),
-          ),
-          element("form", { id: "backend-register-form", name: "backend-register-form", autocomplete: "off" },
-            element("h3", {}, "Register"),
-            element("div", { className: "backend-auth-field" },
-              element("label", { htmlFor: "backend-register-email" }, "Email"),
-              element("input", {
-                id: "backend-register-email",
-                name: "email",
-                type: "email",
-                placeholder: "user@example.com",
-                autocomplete: "email",
-                required: true,
-              }),
-            ),
-            element("div", { className: "backend-auth-field" },
-              element("label", { htmlFor: "backend-register-username" }, "Name"),
-              element("input", {
-                id: "backend-register-username",
-                name: "username",
-                type: "text",
-                placeholder: "Your name",
-                autocomplete: "name",
-              }),
-            ),
-            element("div", { className: "backend-auth-field" },
-              element("label", { htmlFor: "backend-register-password" }, "Password"),
-              element("input", {
-                id: "backend-register-password",
-                name: "password",
-                type: "password",
-                placeholder: "••••••••",
-                autocomplete: "new-password",
-                required: true,
-              }),
-            ),
-            element("button", { type: "submit" }, "Create account"),
-          ),
-        ),
+        authForms,
         element("div", { className: "backend-auth-actions" },
-          element("button", {
-            id: "backend-create-private-session",
-            type: "button",
-            hidden: true,
-          }, "Create private session"),
+          privateSessionButton,
           element("button", {
             id: "backend-logout",
             type: "button",
@@ -514,7 +550,7 @@ function createBackendUi() {
             hidden: true,
           }, "Log out"),
         ),
-        element("div", { id: "backend-private-session-list", className: "backend-private-session-list" }),
+        privateSessionList,
       ),
       element("div", { className: "backend-method-controls" },
         element("div", { className: "workbench-actions", "aria-label": "Backend method controls" },
@@ -543,12 +579,14 @@ function createBackendUi() {
           }, "Sign in to load private methods."),
         ),
       ),
-    element("div", { className: "live-readouts", "aria-live": "polite" },
-      element("span", { id: "backend-status", className: "live-status" }, "Backend mode ready"),
-      element("span", {}, "progress ", element("strong", { id: "backend-progress" }, "idle")),
+      element("div", { className: "live-readouts", "aria-live": "polite" },
+        element("span", { id: "backend-status", className: "live-status" },
+          privateOnly ? "Private methods ready" : "Backend mode ready"),
+        element("span", {}, "progress ", element("strong", { id: "backend-progress" }, "idle")),
+      ),
+      element("div", { id: "method-panel-output", "aria-live": "polite" }),
     ),
-    element("div", { id: "method-panel-output", "aria-live": "polite" }),
-  ));
+  );
   return {
     section,
     methodSelect: section.querySelector("#backend-method-select"),
@@ -649,6 +687,10 @@ async function logoutBackendUser() {
   try {
     await backend.logout();
     localPrivateSessions.length = 0;
+    if (backendPrivateOnly) {
+      removeBackendUi();
+      return;
+    }
     await refreshAuthState();
     await loadBackendMethods();
     setBackendAuthStatus("Logged out.");
@@ -809,6 +851,10 @@ async function loadBackendMethods({ selectedMethodId = null } = {}) {
       renderPrivateMethods();
       setBackendStatus("Public demo methods loaded", "is-live");
       setBackendProgress("ready");
+      return;
+    }
+    if (backendPrivateOnly && (error?.status === 401 || error?.status === 403)) {
+      removeBackendUi();
       return;
     }
     backendMethods = [];
@@ -977,6 +1023,13 @@ function setBackendStatus(message, className = "") {
 
 function setBackendProgress(message) {
   if (backendUi?.progress) backendUi.progress.textContent = message;
+}
+
+function removeBackendUi() {
+  backendUi?.section?.remove();
+  backendUi = null;
+  backendMethods = [];
+  backendPrivateOnly = false;
 }
 
 async function handleSessionFiles(files) {
