@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sqlite3
 import time
 from pathlib import Path
@@ -13,6 +14,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from neuromouse_backend.app import MethodCatalog, create_app
+from neuromouse_backend.observability import REQUEST_LOGGER
 from neuromouse_backend.storage import SQLiteBackendStore
 from neuromouse_sdk import Method
 from neuromouse_sdk.examples.band_power_summary import BandPowerParams, band_power_summary
@@ -139,6 +141,10 @@ def _wait_job_done_sync(
         time.sleep(poll_interval)
 
 
+def _captured_json_logs(messages: list[str]) -> list[dict[str, Any]]:
+    return [json.loads(message) for message in messages if message.strip().startswith("{")]
+
+
 @pytest.fixture
 def app(tmp_path, monkeypatch):
     monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
@@ -147,6 +153,22 @@ def app(tmp_path, monkeypatch):
     monkeypatch.setenv("NEUROMOUSE_CORS_ALLOWLIST", "https://example.org")
     store = SQLiteBackendStore(tmp_path / "backend.sqlite3")
     return create_app(store=store)
+
+
+@pytest.fixture
+def request_log_messages():
+    messages: list[str] = []
+
+    class _ListHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            messages.append(record.getMessage())
+
+    handler = _ListHandler()
+    REQUEST_LOGGER.addHandler(handler)
+    try:
+        yield messages
+    finally:
+        REQUEST_LOGGER.removeHandler(handler)
 
 
 @pytest.mark.asyncio
@@ -199,6 +221,64 @@ async def test_api_disabled_without_token_by_default(tmp_path, monkeypatch) -> N
     ) as client:
         public_response = await client.get("/ready")
         assert public_response.status_code == 200
+
+
+def test_oversized_request_body_returns_413(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
+    monkeypatch.setenv("NEUROMOUSE_MAX_BODY_BYTES", "64")
+    app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/sessions",
+            headers=AUTH_HEADERS,
+            json={"name": "too-big", "dataset": minimal_dataset()},
+        )
+
+    assert response.status_code == 413
+    assert response.json() == {"detail": "request body exceeds 64 bytes"}
+
+
+def test_request_logs_are_structured_json(
+    tmp_path, monkeypatch, request_log_messages
+) -> None:
+    monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
+    app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
+
+    with TestClient(app) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    logs = _captured_json_logs(request_log_messages)
+    request_log = next(log for log in logs if log["event"] == "http_request")
+    assert request_log["method"] == "GET"
+    assert request_log["path"] == "/health"
+    assert request_log["status_code"] == 200
+    assert isinstance(request_log["duration_ms"], int | float)
+
+
+def test_5xx_errors_are_logged_with_context(
+    tmp_path, monkeypatch, request_log_messages
+) -> None:
+    monkeypatch.setenv("NEUROMOUSE_SESSION_TOKENS", SESSION_TOKENS)
+    app = create_app(store=SQLiteBackendStore(tmp_path / "backend.sqlite3"))
+
+    @app.get("/boom")
+    async def _boom() -> None:
+        raise RuntimeError("synthetic failure")
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/boom", headers=AUTH_HEADERS)
+
+    assert response.status_code == 500
+    logs = _captured_json_logs(request_log_messages)
+    error_log = next(
+        log for log in logs if log["event"] == "http_error" and log["path"] == "/boom"
+    )
+    assert error_log["method"] == "GET"
+    assert error_log["status_code"] == 500
+    assert error_log["error_type"] == "RuntimeError"
+    assert error_log["error"] == "synthetic failure"
 
 
 @pytest.mark.asyncio

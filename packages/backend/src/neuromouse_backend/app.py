@@ -30,6 +30,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from neuromouse_backend.auth import AuthError, AuthService, make_session_resolver
+from neuromouse_backend.observability import install_observability_middleware
 from neuromouse_backend.security import (
     AuthenticatedUser,
     EnvSessionTokenResolver,
@@ -352,6 +353,7 @@ def create_app(
 
         session_token_resolver = _combined_resolver
     install_security_middlewares(app, session_token_resolver=session_token_resolver)
+    install_observability_middleware(app)
 
     auth_service = AuthService(backend_store)
 
