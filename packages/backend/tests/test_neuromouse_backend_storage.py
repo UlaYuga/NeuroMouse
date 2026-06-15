@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
+from neuromouse_backend import storage as storage_module
 from neuromouse_backend.storage import PostgreSQLBackendStore, SQLiteBackendStore
 
 
@@ -58,6 +60,83 @@ def _reopen_store(backend_name: str, source: str | Path) -> SQLiteBackendStore |
     if backend_name == "sqlite":
         return SQLiteBackendStore(source)
     return PostgreSQLBackendStore(database_url=str(source))
+
+
+def test_postgres_store_uses_pool_and_migrates_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeResult:
+        def __init__(self, rows: list[dict[str, Any]] | None = None) -> None:
+            self._rows = rows or []
+
+        def fetchall(self) -> list[dict[str, Any]]:
+            return list(self._rows)
+
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.migration_selects = 0
+            self.commits = 0
+            self.inserted_migrations: list[str] = []
+
+        def __enter__(self) -> FakeConnection:
+            return self
+
+        def __exit__(self, *_exc: object) -> None:
+            return None
+
+        def execute(self, sql: str, params: tuple[Any, ...] | None = None) -> FakeResult:
+            if "SELECT name FROM schema_migrations" in sql:
+                self.migration_selects += 1
+            if "INSERT INTO schema_migrations" in sql and params is not None:
+                self.inserted_migrations.append(str(params[0]))
+            return FakeResult()
+
+        def commit(self) -> None:
+            self.commits += 1
+
+    class FakePsycopg:
+        def __init__(self) -> None:
+            self.direct_connects = 0
+
+        def connect(self, *_args: object, **_kwargs: object) -> FakeConnection:
+            self.direct_connects += 1
+            return FakeConnection()
+
+    class FakePool:
+        instances: list[FakePool] = []
+
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            self.connection_calls = 0
+            self._connection = FakeConnection()
+            self.closed = False
+            FakePool.instances.append(self)
+
+        @contextmanager
+        def connection(self):
+            self.connection_calls += 1
+            yield self._connection
+
+        def close(self, *_args: object, **_kwargs: object) -> None:
+            self.closed = True
+
+    fake_psycopg = FakePsycopg()
+    monkeypatch.setattr(storage_module, "_require_psycopg", lambda: (fake_psycopg, object()))
+    monkeypatch.setattr(storage_module, "_require_psycopg_pool", lambda: FakePool, raising=False)
+
+    store = PostgreSQLBackendStore(database_url="postgresql://example.test/neuromouse")
+    try:
+        for _ in range(3):
+            with store._connect() as connection:  # type: ignore[attr-defined]
+                assert connection is FakePool.instances[0]._connection
+
+        assert fake_psycopg.direct_connects == 0
+        assert len(FakePool.instances) == 1
+        assert FakePool.instances[0].connection_calls == 4
+        assert FakePool.instances[0]._connection.migration_selects == 1
+        assert FakePool.instances[0]._connection.commits == 1
+        assert FakePool.instances[0]._connection.inserted_migrations == [
+            path.name for path in storage_module._migration_paths("postgres")
+        ]
+    finally:
+        _close_backend(store)
 
 
 @pytest.mark.parametrize("backend_name", ["sqlite", "postgres"])

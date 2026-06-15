@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol
 from uuid import uuid4
 
 if TYPE_CHECKING:
@@ -21,6 +21,12 @@ def _require_psycopg():
     psycopg = importlib.import_module("psycopg")
     dict_row = importlib.import_module("psycopg.rows").dict_row
     return psycopg, dict_row
+
+
+def _require_psycopg_pool():
+    import importlib
+
+    return importlib.import_module("psycopg_pool").ConnectionPool
 
 
 _MIGRATIONS_ROOT = Path(__file__).resolve().parents[2] / "migrations"
@@ -789,7 +795,17 @@ class SQLiteBackendStore:
         )
 
 
+@dataclass
+class _PostgreSQLPoolState:
+    pool: Any
+    ref_count: int = 0
+    migrated: bool = False
+
+
 class PostgreSQLBackendStore:
+    _pool_lock: ClassVar[RLock] = RLock()
+    _pool_states: ClassVar[dict[str, _PostgreSQLPoolState]] = {}
+
     def __init__(self, database_url: str | None = None) -> None:
         if not self._is_postgres_url(database_url or os.environ.get("DATABASE_URL", "")):
             raise ValueError(
@@ -801,18 +817,37 @@ class PostgreSQLBackendStore:
         except ModuleNotFoundError as exc:  # pragma: no cover - runtime dependency guard
             raise RuntimeError("psycopg is required for PostgreSQLBackendStore") from exc
 
+        try:
+            self._ConnectionPool = _require_psycopg_pool()
+        except ModuleNotFoundError as exc:  # pragma: no cover - runtime dependency guard
+            raise RuntimeError("psycopg_pool is required for PostgreSQLBackendStore") from exc
+
         self._database_url = (
             database_url
             or os.environ.get("DATABASE_URL")
             or ""
         ).strip()
+        self._closed = False
+        self._pool_state = self._acquire_pool()
+        try:
+            self._migrate_once()
+        except Exception:
+            self.close()
+            raise
 
     @staticmethod
     def _is_postgres_url(value: str) -> bool:
         return value.startswith(_KNOWN_POSTGRES_PREFIXES)
 
     def close(self) -> None:
-        return None
+        if self._closed:
+            return
+        with self._pool_lock:
+            self._closed = True
+            self._pool_state.ref_count = max(0, self._pool_state.ref_count - 1)
+            if self._pool_state.ref_count == 0:
+                self._pool_state.pool.close()
+                self._pool_states.pop(self._database_url, None)
 
     def create_session(
         self,
@@ -839,29 +874,28 @@ class PostgreSQLBackendStore:
         created_at = utc_now()
         dataset_id = str(uuid4())
         with self._connect() as connection:
-            with connection:
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        """
-                        INSERT INTO sessions (id, name, owner_id, created_at)
-                        VALUES (%s, %s, %s, %s)
-                        """,
-                        (session_id, name, owner_id, created_at),
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO sessions (id, name, owner_id, created_at)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (session_id, name, owner_id, created_at),
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO datasets (
+                        id,
+                        session_id,
+                        owner_id,
+                        version,
+                        payload_json,
+                        created_at
                     )
-                    cursor.execute(
-                        """
-                        INSERT INTO datasets (
-                            id,
-                            session_id,
-                            owner_id,
-                            version,
-                            payload_json,
-                            created_at
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        """,
-                        (dataset_id, session_id, owner_id, 1, _dump_json(dataset), created_at),
-                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (dataset_id, session_id, owner_id, 1, _dump_json(dataset), created_at),
+                )
         session = self.get_session(session_id, owner_id=owner_id)
         if session is None:  # pragma: no cover - postgres transaction invariant
             raise RuntimeError("created session could not be reloaded")
@@ -958,58 +992,57 @@ class PostgreSQLBackendStore:
         job_id = str(uuid4())
         params_json = _dump_json(params or {})
         with self._connect() as connection:
-            with connection:
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        """
-                        INSERT INTO jobs (
-                            id,
-                            session_id,
-                            owner_id,
-                            dataset_version,
-                            method_id,
-                            params_json,
-                            status,
-                            error,
-                            created_at,
-                            updated_at
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """,
-                        (
-                            job_id,
-                            session_id,
-                            owner_id,
-                            dataset_version,
-                            method_id,
-                            params_json,
-                            "queued",
-                            None,
-                            timestamp,
-                            timestamp,
-                        ),
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO jobs (
+                        id,
+                        session_id,
+                        owner_id,
+                        dataset_version,
+                        method_id,
+                        params_json,
+                        status,
+                        error,
+                        created_at,
+                        updated_at
                     )
-                    cursor.execute(
-                        """
-                        INSERT INTO job_events (job_id, sequence, payload_json, created_at)
-                        VALUES (%s, %s, %s, %s)
-                        """,
-                        (
-                            job_id,
-                            self._next_event_sequence(cursor, job_id),
-                            _dump_json(
-                                {
-                                    "job_id": job_id,
-                                    "session_id": session_id,
-                                    "dataset_version": dataset_version,
-                                    "method_id": method_id,
-                                    "status": "queued",
-                                    "timestamp": timestamp,
-                                }
-                            ),
-                            timestamp,
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        job_id,
+                        session_id,
+                        owner_id,
+                        dataset_version,
+                        method_id,
+                        params_json,
+                        "queued",
+                        None,
+                        timestamp,
+                        timestamp,
+                    ),
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO job_events (job_id, sequence, payload_json, created_at)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (
+                        job_id,
+                        self._next_event_sequence(cursor, job_id),
+                        _dump_json(
+                            {
+                                "job_id": job_id,
+                                "session_id": session_id,
+                                "dataset_version": dataset_version,
+                                "method_id": method_id,
+                                "status": "queued",
+                                "timestamp": timestamp,
+                            }
                         ),
-                    )
+                        timestamp,
+                    ),
+                )
         job = self.get_job(job_id, owner_id=owner_id)
         if job is None:  # pragma: no cover - postgres transaction invariant
             raise RuntimeError("created job could not be reloaded")
@@ -1071,55 +1104,54 @@ class PostgreSQLBackendStore:
 
         timestamp = utc_now()
         with self._connect() as connection:
-            with connection:
-                with connection.cursor() as cursor:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE jobs
+                    SET status = %s, error = %s, updated_at = %s
+                    WHERE id = %s AND owner_id = %s
+                    """,
+                    (status, error, timestamp, job_id, owner_id),
+                )
+                if result is not None:
                     cursor.execute(
                         """
-                        UPDATE jobs
-                        SET status = %s, error = %s, updated_at = %s
-                        WHERE id = %s AND owner_id = %s
+                        INSERT INTO job_results (job_id, payload_json, created_at)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (job_id) DO UPDATE SET
+                            payload_json = EXCLUDED.payload_json,
+                            created_at = EXCLUDED.created_at
                         """,
-                        (status, error, timestamp, job_id, owner_id),
+                        (job_id, _dump_json(result), timestamp),
                     )
-                    if result is not None:
-                        cursor.execute(
-                            """
-                            INSERT INTO job_results (job_id, payload_json, created_at)
-                            VALUES (%s, %s, %s)
-                            ON CONFLICT (job_id) DO UPDATE SET
-                                payload_json = EXCLUDED.payload_json,
-                                created_at = EXCLUDED.created_at
-                            """,
-                            (job_id, _dump_json(result), timestamp),
-                        )
-                    elif status == "failed":
-                        cursor.execute("DELETE FROM job_results WHERE job_id = %s", (job_id,))
+                elif status == "failed":
+                    cursor.execute("DELETE FROM job_results WHERE job_id = %s", (job_id,))
 
-                    event: dict[str, Any] = {
-                        "job_id": existing.id,
-                        "session_id": existing.session_id,
-                        "dataset_version": existing.dataset_version,
-                        "method_id": existing.method_id,
-                        "status": status,
-                        "timestamp": timestamp,
-                    }
-                    if result is not None:
-                        event["result"] = result
-                    if error is not None:
-                        event["error"] = error
+                event: dict[str, Any] = {
+                    "job_id": existing.id,
+                    "session_id": existing.session_id,
+                    "dataset_version": existing.dataset_version,
+                    "method_id": existing.method_id,
+                    "status": status,
+                    "timestamp": timestamp,
+                }
+                if result is not None:
+                    event["result"] = result
+                if error is not None:
+                    event["error"] = error
 
-                    cursor.execute(
-                        """
-                        INSERT INTO job_events (job_id, sequence, payload_json, created_at)
-                        VALUES (%s, %s, %s, %s)
-                        """,
-                        (
-                            existing.id,
-                            self._next_event_sequence(cursor, existing.id),
-                            _dump_json(event),
-                            timestamp,
-                        ),
-                    )
+                cursor.execute(
+                    """
+                    INSERT INTO job_events (job_id, sequence, payload_json, created_at)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (
+                        existing.id,
+                        self._next_event_sequence(cursor, existing.id),
+                        _dump_json(event),
+                        timestamp,
+                    ),
+                )
         updated = self.get_job(job_id, owner_id=owner_id)
         if updated is None:  # pragma: no cover - postgres transaction invariant
             raise RuntimeError("updated job could not be reloaded")
@@ -1138,34 +1170,33 @@ class PostgreSQLBackendStore:
         owner_id = _normalize_owner_id(owner_id)
         now = utc_now()
         with self._connect() as connection:
-            with connection:
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        """
-                        INSERT INTO user_methods (
-                            id, owner_id, method_id, name, version, source,
-                            metadata_json, created_at, updated_at
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (owner_id, method_id) DO UPDATE SET
-                            name = EXCLUDED.name,
-                            version = EXCLUDED.version,
-                            source = EXCLUDED.source,
-                            metadata_json = EXCLUDED.metadata_json,
-                            updated_at = EXCLUDED.updated_at
-                        """,
-                        (
-                            str(uuid4()),
-                            owner_id,
-                            method_id,
-                            name,
-                            version,
-                            source,
-                            _dump_json(metadata),
-                            now,
-                            now,
-                        ),
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO user_methods (
+                        id, owner_id, method_id, name, version, source,
+                        metadata_json, created_at, updated_at
                     )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (owner_id, method_id) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        version = EXCLUDED.version,
+                        source = EXCLUDED.source,
+                        metadata_json = EXCLUDED.metadata_json,
+                        updated_at = EXCLUDED.updated_at
+                    """,
+                    (
+                        str(uuid4()),
+                        owner_id,
+                        method_id,
+                        name,
+                        version,
+                        source,
+                        _dump_json(metadata),
+                        now,
+                        now,
+                    ),
+                )
         record = self.get_user_method(owner_id, method_id)
         if record is None:  # pragma: no cover - postgres transaction invariant
             raise RuntimeError("upserted user method could not be reloaded")
@@ -1206,16 +1237,44 @@ class PostgreSQLBackendStore:
     def delete_user_method(self, owner_id: str, method_id: str) -> bool:
         owner_id = _normalize_owner_id(owner_id)
         with self._connect() as connection:
-            with connection:
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        "DELETE FROM user_methods WHERE owner_id = %s AND method_id = %s",
-                        (owner_id, method_id),
-                    )
-                    return cursor.rowcount > 0
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM user_methods WHERE owner_id = %s AND method_id = %s",
+                    (owner_id, method_id),
+                )
+                return cursor.rowcount > 0
 
     def _connect(self):
-        connection = self._psycopg.connect(self._database_url, row_factory=self._dict_row)
+        if self._closed:
+            raise RuntimeError("PostgreSQLBackendStore is closed")
+        return self._pool_state.pool.connection()
+
+    def _acquire_pool(self) -> _PostgreSQLPoolState:
+        with self._pool_lock:
+            state = self._pool_states.get(self._database_url)
+            if state is None or state.pool.closed:
+                pool = self._ConnectionPool(
+                    self._database_url,
+                    kwargs={"row_factory": self._dict_row},
+                    min_size=1,
+                    max_size=5,
+                    open=True,
+                    name="neuromouse-backend",
+                )
+                state = _PostgreSQLPoolState(pool=pool)
+                self._pool_states[self._database_url] = state
+            state.ref_count += 1
+            return state
+
+    def _migrate_once(self) -> None:
+        with self._pool_lock:
+            if self._pool_state.migrated:
+                return
+            with self._pool_state.pool.connection() as connection:
+                self._migrate(connection)
+            self._pool_state.migrated = True
+
+    def _migrate(self, connection: Any) -> None:
         _ensure_schema_migrations(connection.execute)
         existing = {
             row["name"]
@@ -1233,7 +1292,6 @@ class PostgreSQLBackendStore:
                 (migration.name, utc_now()),
             )
         connection.commit()
-        return connection
 
     def _next_event_sequence(self, cursor: Any, job_id: str) -> int:
         cursor.execute(
