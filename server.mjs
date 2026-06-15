@@ -339,19 +339,36 @@ async function handleExplain(request, response) {
 async function callClaude({ apiUrl, apiKey, model, system, userText }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
+  const isOfficialAnthropic = new URL(apiUrl).hostname === "api.anthropic.com";
+  const headers = isOfficialAnthropic
+    ? {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    }
+    : {
+      "content-type": "application/json",
+      "authorization": `Bearer ${apiKey}`,
+    };
+  const body = isOfficialAnthropic
+    ? {
+      model,
+      max_tokens: 700,
+      stream: false,
+      system,
+      messages: [{ role: "user", content: userText }],
+    }
+    : {
+      model,
+      max_tokens: 700,
+      stream: false,
+      messages: [{ role: "user", content: `${system}\n\n${userText}` }],
+    };
   try {
     const upstream = await fetch(apiUrl, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 700,
-        stream: false,
-        messages: [{ role: "user", content: `${system}\n\n${userText}` }],
-      }),
+      headers,
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
     if (!upstream.ok) {
@@ -359,14 +376,30 @@ async function callClaude({ apiUrl, apiKey, model, system, userText }) {
       throw new Error(`upstream ${upstream.status}: ${detail.slice(0, 300)}`);
     }
     const data = await upstream.json();
-    const text = Array.isArray(data?.content)
-      ? data.content.filter((block) => block?.type === "text").map((block) => block.text).join("\n").trim()
-      : "";
+    const text = extractClaudeText(data);
     if (!text) throw new Error("empty completion");
     return text;
   } finally {
     clearTimeout(timer);
   }
+}
+
+function extractClaudeText(data) {
+  if (Array.isArray(data?.content)) {
+    return data.content
+      .filter((block) => block?.type === "text")
+      .map((block) => block.text)
+      .join("\n")
+      .trim();
+  }
+  if (Array.isArray(data?.choices)) {
+    return data.choices
+      .map((choice) => choice?.message?.content ?? choice?.text ?? "")
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+  }
+  return "";
 }
 
 function getCheckedExplainApiUrl(rawApiUrl) {

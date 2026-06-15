@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const SERVER_PATH = fileURLToPath(new URL("../server.mjs", import.meta.url));
+const MOCK_ANTHROPIC_FETCH_PATH = fileURLToPath(new URL("./fixtures/mock-anthropic-fetch.mjs", import.meta.url));
 const GOOD_COOKIE = "neuromouse_session=good";
 
 async function getFreePort() {
@@ -18,17 +19,29 @@ async function getFreePort() {
   });
 }
 
-async function createMockApi(responseText = "mock explanation") {
+async function createMockApi({
+  responseBody = { content: [{ type: "text", text: "mock explanation" }] },
+} = {}) {
   let requestCount = 0;
+  const requests = [];
   const server = createServer((request, response) => {
     requestCount += 1;
     const chunks = [];
     request.on("data", (chunk) => chunks.push(chunk));
     request.on("end", () => {
+      const body = Buffer.concat(chunks).toString("utf8");
+      const headers = {};
+      for (const [key, value] of Object.entries(request.headers)) {
+        headers[key] = Array.isArray(value) ? value.join(", ") : value;
+      }
+      requests.push({
+        method: request.method,
+        url: request.url,
+        headers,
+        body,
+      });
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(
-        JSON.stringify({ content: [{ type: "text", text: responseText }] }),
-      );
+      response.end(JSON.stringify(responseBody));
     });
   });
 
@@ -47,6 +60,36 @@ async function createMockApi(responseText = "mock explanation") {
       });
     },
     getRequestCount: () => requestCount,
+    getRequests: () => [...requests],
+  };
+}
+
+async function createRequestCaptureServer() {
+  const requests = [];
+  const server = createServer((request, response) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => {
+      requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
+      response.writeHead(204);
+      response.end();
+    });
+  });
+
+  await new Promise((resolve, reject) => {
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+
+  const port = server.address().port;
+  return {
+    url: `http://127.0.0.1:${port}/capture`,
+    getRequests: () => [...requests],
+    close: async () => {
+      await new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    },
   };
 }
 
@@ -98,12 +141,15 @@ async function startExplainServer({
   allowThirdParty = false,
   rateLimit,
   corsOrigins,
+  mockAnthropicCaptureUrl,
 }) {
   const env = {
     ...process.env,
     PORT: String(port),
-    EXPLAIN_API_URL: apiUrl,
   };
+
+  if (apiUrl === undefined) delete env.EXPLAIN_API_URL;
+  else env.EXPLAIN_API_URL = apiUrl;
 
   if (apiKey) env.ANTHROPIC_API_KEY = apiKey;
   else delete env.ANTHROPIC_API_KEY;
@@ -122,6 +168,16 @@ async function startExplainServer({
 
   if (corsOrigins) env.EXPLAIN_CORS_ALLOW_ORIGINS = corsOrigins;
   else delete env.EXPLAIN_CORS_ALLOW_ORIGINS;
+
+  if (mockAnthropicCaptureUrl) {
+    env.MOCK_ANTHROPIC_CAPTURE_URL = mockAnthropicCaptureUrl;
+    env.NODE_OPTIONS = [
+      process.env.NODE_OPTIONS,
+      `--import=${MOCK_ANTHROPIC_FETCH_PATH}`,
+    ].filter(Boolean).join(" ");
+  } else {
+    delete env.MOCK_ANTHROPIC_CAPTURE_URL;
+  }
 
   const child = spawn(process.execPath, [SERVER_PATH], {
     env,
@@ -166,9 +222,10 @@ async function postExplain(port, token, body, options = {}) {
 
 async function withExplainServer(options, run) {
   const port = await getFreePort();
-  const mockApi = await createMockApi();
+  const mockApi = await createMockApi(options.mockApi);
+  const mockAnthropic = options.mockAnthropic ? await createRequestCaptureServer() : null;
   const mockBackend = await createMockBackend();
-  const envApiUrl = options.apiUrl ?? mockApi.url;
+  const envApiUrl = options.mockAnthropic ? undefined : (options.apiUrl ?? mockApi.url);
 
   const child = await startExplainServer({
     port,
@@ -179,16 +236,78 @@ async function withExplainServer(options, run) {
     allowThirdParty: options.allowThirdParty,
     rateLimit: options.rateLimit,
     corsOrigins: options.corsOrigins,
+    mockAnthropicCaptureUrl: mockAnthropic?.url,
   });
 
   try {
-    return await run({ port, mockApi, mockBackend, child });
+    return await run({ port, mockApi, mockAnthropic, mockBackend, child });
   } finally {
     await stopExplainServer(child);
     await mockApi.close();
+    await mockAnthropic?.close();
     await mockBackend.close();
   }
 }
+
+test("POST /api/explain uses the native Anthropic Messages API shape by default", async () => {
+  await withExplainServer({
+    explainToken: "expected-secret",
+    mockAnthropic: true,
+  }, async ({ port, mockAnthropic }) => {
+    const response = await postExplain(port, "expected-secret", {
+      context: { score: 12 },
+      question: "What does this mean?",
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.text, "mock explanation");
+
+    const [request] = mockAnthropic.getRequests();
+    assert.equal(request.url, "https://api.anthropic.com/v1/messages");
+    assert.equal(request.method, "POST");
+    assert.equal(request.headers["x-api-key"], "test-anthropic-key");
+    assert.equal(request.headers["anthropic-version"], "2023-06-01");
+    assert.equal(request.headers.authorization, undefined);
+
+    const body = JSON.parse(request.body);
+    assert.equal(body.model, "claude-sonnet-4-6");
+    assert.equal(body.max_tokens, 700);
+    assert.equal(body.stream, false);
+    assert.match(body.system, /You explain EEG/);
+    assert.equal(body.messages.length, 1);
+    assert.equal(body.messages[0].role, "user");
+    assert.match(body.messages[0].content, /Researcher question: What does this mean\?/);
+    assert.doesNotMatch(body.messages[0].content, /You explain EEG/);
+  });
+});
+
+test("POST /api/explain keeps the kie.ai fallback shape behind explicit opt-in", async () => {
+  await withExplainServer({
+    explainToken: "expected-secret",
+    allowThirdParty: true,
+    mockApi: {
+      responseBody: { choices: [{ message: { content: "kie explanation" } }] },
+    },
+  }, async ({ port, mockApi }) => {
+    const response = await postExplain(port, "expected-secret", {
+      context: { score: 12 },
+      question: "What does this mean?",
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.text, "kie explanation");
+
+    const [request] = mockApi.getRequests();
+    assert.equal(request.headers.authorization, "Bearer test-anthropic-key");
+    assert.equal(request.headers["x-api-key"], undefined);
+    assert.equal(request.headers["anthropic-version"], undefined);
+
+    const body = JSON.parse(request.body);
+    assert.equal(body.system, undefined);
+    assert.match(body.messages[0].content, /You explain EEG/);
+    assert.match(body.messages[0].content, /Researcher question: What does this mean\?/);
+  });
+});
 
 test("POST /api/explain rejects a request with neither a session cookie nor a token", async () => {
   await withExplainServer({ explainToken: "expected-secret", allowThirdParty: true }, async ({ port }) => {
