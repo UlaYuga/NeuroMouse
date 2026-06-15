@@ -1,12 +1,14 @@
 import { loadData } from "./loader.js";
 import { createViewerApp } from "./viewer.js";
+import { resolveAppModes } from "./app-modes.js";
 
 const params = new URLSearchParams(window.location.search);
-const backendMode = params.has("backend") && params.get("backend") !== "0";
+const { backendMode, privateMethodsMode } = resolveAppModes(params);
 const app = createViewerApp({
   document,
   window,
   backendMode,
+  privateMethodsMode,
   backendBaseUrl: params.get("backendUrl") ?? "",
 });
 

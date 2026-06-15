@@ -149,6 +149,42 @@ test("BackendClient posts jobs, streams progress, and retrieves completed result
   assert.equal(WebSocket.urls[0], "ws://backend.local/ws/jobs/job-1");
 });
 
+test("BackendClient polls progress on same-origin static proxy paths", async () => {
+  const events = [];
+  const statuses = ["running", "completed"];
+  const requests = [];
+  const fetch = async (url) => {
+    const pathname = new URL(String(url), "http://app.local").pathname;
+    requests.push(pathname);
+    if (pathname === "/jobs/job-1") {
+      const status = statuses.shift() ?? "completed";
+      return jsonResponse({
+        id: "job-1",
+        session_id: "session-1",
+        dataset_version: 1,
+        method_id: "band_power_summary",
+        params: {},
+        status,
+      });
+    }
+    throw new Error(`Unexpected request ${url}`);
+  };
+  const WebSocket = class {
+    constructor() {
+      throw new Error("same-origin static proxy should poll instead of opening a websocket");
+    }
+  };
+  const client = new BackendClient({ baseUrl: "", fetch, WebSocket, pollIntervalMs: 1 });
+
+  const streamed = await client.streamJobProgress("job-1", {
+    onEvent: (event) => events.push(event.status),
+  });
+
+  assert.deepEqual(streamed.map((event) => event.status), ["running", "completed"]);
+  assert.deepEqual(events, ["running", "completed"]);
+  assert.deepEqual(requests, ["/jobs/job-1", "/jobs/job-1"]);
+});
+
 test("BackendClient uploads and deletes private methods", async () => {
   const requests = [];
   const fetch = async (url, options = {}) => {

@@ -7,6 +7,7 @@ const DEFAULT_AUTH_ENDPOINTS = Object.freeze({
   register: "/auth/register",
   logout: "/auth/logout",
   me: "/auth/me",
+  session: "/auth/session",
   sessions: "/sessions",
 });
 // Same-origin by default: the static server proxies /auth, /sessions, /jobs, /demo,
@@ -134,11 +135,13 @@ export class BackendClient {
       method: "POST",
       body,
     });
-    const user = extractAuthUser(response);
-    this.authState.user = user;
-    this.authState.authenticated = true;
-    this.authState.session = response?.session ?? null;
-    return user;
+    const registeredUser = extractAuthUser(response);
+    const loggedInUser = await this.login({ email: body.email, password: body.password });
+    if (registeredUser && !loggedInUser?.email) {
+      this.authState.user = registeredUser;
+      return registeredUser;
+    }
+    return loggedInUser ?? registeredUser;
   }
 
   async logout() {
@@ -151,9 +154,11 @@ export class BackendClient {
     }
   }
 
-  async refreshSession() {
+  async refreshSession({ optional = false } = {}) {
     try {
-      const response = await this.requestJson(this.authState.endpoints.me);
+      const response = await this.requestJson(
+        optional ? this.authState.endpoints.session : this.authState.endpoints.me,
+      );
       const user = extractAuthUser(response);
       this.authState.user = user;
       this.authState.authenticated = user !== null;
@@ -244,6 +249,9 @@ export class BackendClient {
   async streamJobProgress(jobId, { onEvent, timeoutMs = this.timeoutMs, demo = false } = {}) {
     if (!jobId) throw new Error("streamJobProgress requires jobId");
     if (demo) {
+      return this.pollJobProgress(jobId, { onEvent, timeoutMs, demo });
+    }
+    if (!this.baseUrl) {
       return this.pollJobProgress(jobId, { onEvent, timeoutMs, demo });
     }
     if (typeof this.WebSocket !== "function") {
@@ -481,6 +489,7 @@ async function readResponseBody(response) {
 }
 
 function extractAuthUser(response) {
+  if (response?.user === null) return null;
   const user = response?.user ?? response?.profile ?? response;
   if (!user || typeof user !== "object") return null;
   return {

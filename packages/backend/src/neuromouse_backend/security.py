@@ -24,6 +24,7 @@ PUBLIC_PATHS: Final = (
     "/auth/register",
     "/auth/login",
     "/auth/logout",
+    "/auth/session",
 )
 
 

@@ -62,6 +62,24 @@ def test_register_login_me_flow(app) -> None:
         ).status_code == 401
 
 
+def test_auth_session_is_optional_without_weakening_me(app) -> None:
+    with TestClient(app) as client:
+        anonymous_session = client.get("/auth/session")
+        assert anonymous_session.status_code == 200
+        assert anonymous_session.json() == {"user": None}
+        assert client.get("/auth/me").status_code == 401
+
+        client.post("/auth/register", json={"email": "session@x.io", "password": "pw123456"})
+        token = client.post(
+            "/auth/login", json={"email": "session@x.io", "password": "pw123456"}
+        ).json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        session = client.get("/auth/session", headers=headers)
+        assert session.status_code == 200
+        assert session.json()["user"]["email"] == "session@x.io"
+
+
 def test_logout_invalidates_token(app) -> None:
     with TestClient(app) as client:
         client.post("/auth/register", json={"email": "b@x.io", "password": "pw123456"})

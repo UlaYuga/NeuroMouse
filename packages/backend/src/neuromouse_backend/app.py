@@ -402,6 +402,18 @@ def create_app(
             raise HTTPException(status_code=404, detail="user not found")
         return {"id": account.id, "email": account.email}
 
+    @app.get("/auth/session")
+    async def auth_session(request: Request) -> dict[str, Any]:
+        token = _parse_session_token_from_request(request, cookie_name="neuromouse_session")
+        resolver = getattr(app.state, "session_token_resolver", None)
+        user = resolver(token) if token and resolver is not None else None
+        if user is None:
+            return {"user": None}
+        account = auth_service.current(user.id)
+        if account is None:
+            return {"user": None}
+        return {"user": {"id": account.id, "email": account.email}}
+
     @app.get("/health")
     async def health_check() -> dict[str, str]:
         return {"status": "ok"}
