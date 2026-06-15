@@ -32,6 +32,18 @@ Set these variables on the Railway service named `speedmouse` (the Node static s
 - `PORT` / `BACKEND_PORT` — backend listen port for Uvicorn.
 - `BACKEND_SCOPE` — profile signal for internal behavior/debugging.
 
+Set these variables on the Railway service named `backend` (the FastAPI service):
+
+- `DATABASE_URL` — Railway Postgres reference variable, usually `${{ Postgres.DATABASE_URL }}`.
+- `NEUROMOUSE_MAX_BODY_BYTES` — maximum raw HTTP request body size before parsing
+  (optional, default `10485760`; `0` disables). Oversized dataset/method upload requests return
+  `413`.
+- `NEUROMOUSE_MAX_DATASET_BYTES` — maximum decoded dataset payload size for `/sessions`
+  (optional, default `33554432`).
+- `NEUROMOUSE_LOG_LEVEL` — Python log threshold for backend JSON request logs (optional, default
+  `INFO`). Logs are emitted as one JSON object per line on stderr; attach any Railway/team log sink
+  to container logs rather than adding an in-process APM dependency.
+
 For local smoke verification, keep tokens blank unless you intentionally call explain endpoints.
 
 ### How to enable `/api/explain`
@@ -45,6 +57,26 @@ X-Explain-Token: <EXPLAIN_TOKEN>
 ```
 
 Current repository UI (`js/viewer.js`) calls `/api/explain` directly without this header, so this is an outward deployment integration step.
+
+## Railway Postgres backups
+
+Railway's PostgreSQL template stores data on a Railway volume. Railway's native volume Backups
+feature covers database volumes and can create manual backups or scheduled Daily / Weekly /
+Monthly backups from the service settings panel.
+
+For production:
+
+1. Open the Railway project canvas.
+2. Select the PostgreSQL service.
+3. Open the service settings panel, then the **Backups** tab.
+4. Enable at least a Daily schedule before exposing user uploads. Railway currently retains Daily
+   backups for 6 days, Weekly backups for 1 month, and Monthly backups for 3 months.
+5. Trigger a manual backup after any risky migration or before a restore drill.
+6. To restore, choose a backup in the same **Backups** tab. Railway stages the restored volume;
+   review the staged change in project canvas **Details**, then deploy it.
+
+Sources: Railway PostgreSQL docs (`https://docs.railway.com/databases/postgresql`) and Railway
+Backups docs (`https://docs.railway.com/volumes/backups`).
 
 ## Static image shape
 
