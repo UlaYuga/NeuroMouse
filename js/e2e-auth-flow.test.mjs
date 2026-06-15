@@ -8,8 +8,19 @@ const appUrl = process.env.NEUROMOUSE_APP_URL ?? "http://127.0.0.1:8080";
 const backendUrl = process.env.NEUROMOUSE_BACKEND_URL ?? "http://127.0.0.1:8000";
 const screenshotDir = process.env.NEUROMOUSE_SCREENSHOT_DIR ?? join(process.cwd(), "tests", "artifacts");
 const PUBLIC_METHOD = "spike_detect";
+const browserChannel = process.env.NEUROMOUSE_E2E_BROWSER_CHANNEL ?? "chrome";
 
 const DEFAULT_VIEWPORT = { width: 1440, height: 980 };
+
+function backendModeUrl() {
+  const url = new URL(appUrl);
+  if (url.pathname === "/" || url.pathname === "") {
+    url.pathname = "/app";
+  }
+  url.searchParams.set("backend", "1");
+  url.searchParams.set("backendUrl", backendUrl);
+  return url.toString();
+}
 
 function uniqueEmail() {
   return `nm-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.test`;
@@ -98,7 +109,7 @@ async function assertBackendReachable() {
 }
 
 test.use({
-  channel: "chrome",
+  ...(browserChannel ? { channel: browserChannel } : {}),
   viewport: DEFAULT_VIEWPORT,
   launchOptions: {
     args: ["--disable-web-security"],
@@ -121,7 +132,7 @@ test("backend UI auth flow: public demo run, register/login, private session lif
     });
   }
 
-  await page.goto(`${appUrl}/?backend=1&backendUrl=${encodeURIComponent(backendUrl)}`, {
+  await page.goto(backendModeUrl(), {
     waitUntil: "domcontentloaded",
   });
   await routeAuthRequestsThroughNode(page, backendUrl);

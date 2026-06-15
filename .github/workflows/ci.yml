@@ -96,6 +96,38 @@ jobs:
       - name: Run Node tests
         run: node --test tests/*.test.mjs
 
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-package-lock @playwright/test
+          npx playwright install --with-deps chromium
+
+      - name: Run login Playwright e2e
+        env:
+          NEUROMOUSE_BACKEND_DB: ${{ runner.temp }}/neuromouse-login-e2e.sqlite3
+          NEUROMOUSE_E2E_BROWSER_CHANNEL: ""
+          PYTHONPATH: contracts/src:packages/adapters/src:packages/backend/src:packages/core/src:packages/sandbox/src:packages/sdk/src:packages/sorting/src
+        run: |
+          uv run uvicorn neuromouse_backend.app:app --host 127.0.0.1 --port 8000 > "${RUNNER_TEMP}/neuromouse-backend.log" 2>&1 &
+          BACKEND_PID=$!
+          PORT=8080 HOST=127.0.0.1 NEUROMOUSE_BACKEND_URL=http://127.0.0.1:8000 node server.mjs > "${RUNNER_TEMP}/neuromouse-static.log" 2>&1 &
+          STATIC_PID=$!
+
+          cleanup() {
+            kill "$STATIC_PID" "$BACKEND_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for _ in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:8000/healthz >/dev/null && curl -fsS http://127.0.0.1:8080/healthz >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          curl -fsS http://127.0.0.1:8000/healthz >/dev/null
+          curl -fsS http://127.0.0.1:8080/healthz >/dev/null
+          NEUROMOUSE_APP_URL=http://127.0.0.1:8080 NEUROMOUSE_BACKEND_URL=http://127.0.0.1:8000 npx playwright test js/e2e-auth-flow.test.mjs
+
       - name: "Run property fuzz: validate-data (bounded)"
         env:
           PROPERTY_BASE_CASES: "128"
