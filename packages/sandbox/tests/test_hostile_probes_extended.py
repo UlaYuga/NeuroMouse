@@ -28,9 +28,24 @@ from dataclasses import replace
 import pytest
 
 from neuromouse_sandbox import MethodRef, SandboxLimits, run_in_sandbox
-from neuromouse_sandbox.runner import SandboxError, SandboxMethodError
+from neuromouse_sandbox.runner import SandboxError, SandboxMethodError, SandboxPolicyViolation
 
 ProbeRef = Callable[[str], MethodRef]
+
+
+def _assert_not_kernel_fail_closed(exc: SandboxError) -> None:
+    """A fail-closed missing kernel layer is not proof the hostile probe ran."""
+
+    if isinstance(exc, SandboxPolicyViolation) and (
+        exc.blocked_event or ""
+    ).startswith("kernel.isolation."):
+        raise AssertionError(
+            "kernel isolation failed before the hostile probe executed"
+        ) from exc
+    if "kernel isolation unavailable" in str(exc).lower():
+        raise AssertionError(
+            "kernel isolation was unavailable before the hostile probe executed"
+        ) from exc
 
 _BASE = SandboxLimits(
     wall_clock_sec=8.0, cpu_sec=4, memory_bytes=512 * 1024 * 1024, max_processes=64
@@ -69,7 +84,8 @@ def test_probe_is_contained(
     limits = replace(_BASE, **overrides)
     try:
         result = run_in_sandbox(probe_ref(name), dataset=None, params={}, limits=limits)
-    except SandboxError:
+    except SandboxError as exc:
+        _assert_not_kernel_fail_closed(exc)
         return  # contained by exception
     assert evidence, f"{name} returned normally but was expected to be killed/blocked"
     for key in evidence:

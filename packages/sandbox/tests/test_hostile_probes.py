@@ -13,7 +13,6 @@ of success (a written file, fetched bytes, a leaked secret) is absent.
 
 from __future__ import annotations
 
-import contextlib
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -29,6 +28,21 @@ from neuromouse_sandbox.runner import (
 )
 
 ProbeRef = Callable[[str], MethodRef]
+
+
+def _assert_not_kernel_fail_closed(exc: SandboxError) -> None:
+    """A fail-closed missing kernel layer is not proof the hostile probe ran."""
+
+    if isinstance(exc, SandboxPolicyViolation) and (
+        exc.blocked_event or ""
+    ).startswith("kernel.isolation."):
+        raise AssertionError(
+            "kernel isolation failed before the hostile probe executed"
+        ) from exc
+    if "kernel isolation unavailable" in str(exc).lower():
+        raise AssertionError(
+            "kernel isolation was unavailable before the hostile probe executed"
+        ) from exc
 
 
 # --------------------------------------------------------------------------- #
@@ -52,7 +66,8 @@ def test_network_egress_blocked_even_when_method_swallows(
         result = run_in_sandbox(
             probe_ref("net_urllib"), dataset=None, params={}, limits=fast_limits
         )
-    except SandboxError:
+    except SandboxError as exc:
+        _assert_not_kernel_fail_closed(exc)
         return
     assert result["fetched"] is None
 
@@ -64,8 +79,9 @@ def test_network_egress_blocked_even_when_method_swallows(
 def test_filesystem_reads_outside_allowlist_blocked(
     probe: str, probe_ref: ProbeRef, fast_limits: SandboxLimits
 ) -> None:
-    with pytest.raises(SandboxPolicyViolation):
+    with pytest.raises(SandboxPolicyViolation) as excinfo:
         run_in_sandbox(probe_ref(probe), dataset=None, params={}, limits=fast_limits)
+    _assert_not_kernel_fail_closed(excinfo.value)
 
 
 def test_filesystem_write_into_home_blocked(
@@ -79,8 +95,10 @@ def test_filesystem_write_into_home_blocked(
         # scrub-redirect is acceptable — what matters is the real home is untouched
         # (this differs cross-platform: macOS /var symlink made it raise, Linux
         # redirects the write into the workdir).
-        with contextlib.suppress(SandboxPolicyViolation):
+        try:
             run_in_sandbox(probe_ref("fs_write_home"), dataset=None, params={}, limits=fast_limits)
+        except SandboxPolicyViolation as exc:
+            _assert_not_kernel_fail_closed(exc)
         assert not sentinel.exists()
     finally:
         sentinel.unlink(missing_ok=True)
@@ -97,7 +115,8 @@ def test_filesystem_write_to_abs_path_blocked_even_when_swallowed(
                 probe_ref("fs_write_abs"), dataset=None, params={}, limits=fast_limits
             )
             assert result["wrote"] is False
-        except SandboxError:
+        except SandboxError as exc:
+            _assert_not_kernel_fail_closed(exc)
             pass
         assert not sentinel.exists()
     finally:
@@ -108,8 +127,9 @@ def test_filesystem_write_to_abs_path_blocked_even_when_swallowed(
 # Process spawning / native code
 # --------------------------------------------------------------------------- #
 def test_subprocess_spawn_blocked(probe_ref: ProbeRef, fast_limits: SandboxLimits) -> None:
-    with pytest.raises(SandboxPolicyViolation):
+    with pytest.raises(SandboxPolicyViolation) as excinfo:
         run_in_sandbox(probe_ref("subprocess_spawn"), dataset=None, params={}, limits=fast_limits)
+    _assert_not_kernel_fail_closed(excinfo.value)
 
 
 def test_shell_command_blocked_even_when_swallowed(
@@ -124,7 +144,8 @@ def test_shell_command_blocked_even_when_swallowed(
             )
             # A blocked shell call returns non-zero/None: the command never ran.
             assert not result["rc"]
-        except SandboxError:
+        except SandboxError as exc:
+            _assert_not_kernel_fail_closed(exc)
             pass
         assert not sentinel.exists()
     finally:
@@ -173,7 +194,8 @@ def test_fork_bomb_contained(probe_ref: ProbeRef, fast_limits: SandboxLimits) ->
         result = run_in_sandbox(
             probe_ref("fork_bomb"), dataset=None, params={}, limits=fast_limits
         )
-    except SandboxError:
+    except SandboxError as exc:
+        _assert_not_kernel_fail_closed(exc)
         return
     assert result["forks_succeeded"] <= fast_limits.max_processes
 

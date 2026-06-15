@@ -12,6 +12,73 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  kernel-sandbox-proof:
+    name: Linux Kernel Sandbox Proof
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install kernel sandbox dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libseccomp2
+
+      - name: "Preflight: require seccomp and Landlock"
+        run: |
+          python - <<'PY'
+          import ctypes
+          import os
+          import sys
+
+          LANDLOCK_CREATE_RULESET = 444
+          LANDLOCK_CREATE_RULESET_VERSION = 1
+
+          if sys.platform != "linux":
+              print(f"::error::kernel sandbox proof requires Linux, got {sys.platform}")
+              raise SystemExit(1)
+
+          try:
+              ctypes.CDLL("libseccomp.so.2", use_errno=True)
+          except OSError as exc:
+              print(f"::error::libseccomp.so.2 unavailable: {exc}")
+              raise SystemExit(1) from exc
+
+          libc = ctypes.CDLL(None, use_errno=True)
+          libc.syscall.restype = ctypes.c_long
+          ctypes.set_errno(0)
+          abi = int(
+              libc.syscall(
+                  ctypes.c_long(LANDLOCK_CREATE_RULESET),
+                  ctypes.c_void_p(0),
+                  ctypes.c_size_t(0),
+                  ctypes.c_uint(LANDLOCK_CREATE_RULESET_VERSION),
+              )
+          )
+          if abi <= 0:
+              err = ctypes.get_errno()
+              print(f"::error::Landlock unavailable: {os.strerror(err)}")
+              raise SystemExit(1)
+
+          print(f"Kernel sandbox preflight OK: libseccomp loadable, Landlock ABI={abi}")
+          PY
+
+      - name: Sync Python dependencies
+        run: uv sync
+
+      - name: Run kernel-required hostile sandbox proof
+        env:
+          NEUROMOUSE_SANDBOX_KERNEL: required
+        run: uv run pytest packages/sandbox -vv -rs
+
   quality-gate:
     name: Linux Quality Gate (py${{ matrix.python-version }} / node${{ matrix.node-version }})
     runs-on: ubuntu-latest
