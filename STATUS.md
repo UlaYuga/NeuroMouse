@@ -1,7 +1,8 @@
 # NeuroMouse — статус проекта и хэндофф
 
 > Подробный обзор: что это за проект, что уже сделано, что осталось, к какому результату идём.
-> Дата среза: **2026-06-13**. Текущий `main` = **`82f5ecc`**, зелёный на Linux CI и **задеплоен** (scope 🅰, мульти-юзер, LIVE).
+> Дата среза: **2026-06-16**. Текущий `main` = **`def6cda`**, зелёный на Linux CI и **задеплоен** (scope 🅰, мульти-юзер, LIVE).
+> **Волна 9 (закалка + интеграция) выкачена в прод; kernel-песочница для чужого кода ДОКАЗАНА на Linux (CI) и подтверждена вживую на проде. Технических блокеров нет — остались два ручных человеко-шага (см. §5).**
 > Связанные документы: операционный мануал — [`COORDINATOR.md`](COORDINATOR.md); архитектурная критика — [`docs/ARCH-REVIEW.md`](docs/ARCH-REVIEW.md); аудиты — [`audit/`](audit/); позиционирование — [`docs/POSITIONING.md`](docs/POSITIONING.md).
 
 ---
@@ -25,8 +26,8 @@
 
 - **`main` на GitHub** (`github.com/UlaYuga/NeuroMouse`), **полностью зелёный** — локально и на **Linux CI** (Python 3.11/3.12, Node 22; экшены опт-ин на Node 24).
 - Метрики зелёного гейта:
-  - `pytest` — **188 собрано** (postgres-тесты skip на маке без DSN; на CI их прогоняет сервис `postgres:16` — Волна 8)
-  - `node --test` — **42/42** (+3 explain) + js-юниты **7**; sandbox — **46** (playwright login-e2e гоняется отдельно)
+  - `pytest` — **~200 passed** (postgres-тесты на CI через сервис `postgres:16`); **отдельный CI-джоб `kernel-sandbox-proof`**: `NEUROMOUSE_SANDBOX_KERNEL=required pytest packages/sandbox` = **47 passed / 0 skipped** под реальным Landlock (ABI 7) + seccomp
+  - `node --test` — **46/46** (вкл. explain + smoke-тесты маршрутов) + js-юниты **7**; **playwright login-e2e гоняется в CI**
   - `sdk-ts` тесты — **22/22**; `mkdocs build --strict` — чисто
   - 2M-кейсовый deep-fuzz на CI зелёный
   - **`spike_detect` 57/57**; **`dsp.py` 1e-13 цел** на всём протяжении
@@ -38,7 +39,12 @@
   - **Login-flow проверен вживую через прод-домен:** register 201 → login 200 → cookie установлен first-party → `/sessions` с cookie 200, без cookie 401.
   - **прод на managed Postgres** (отдельный Railway PG-сервис, приватная сеть `postgres.railway.internal`, reference `DATABASE_URL` на backend); backend **сам применяет миграции при старте** (`schema_migrations` 001/002/003 — проверено вживую). SQLite остаётся dev-default/fallback; собирается из `Dockerfile.backend` через `RAILWAY_DOCKERFILE_PATH` (`environment edit --service-config` в non-TTY shell **не сохраняется** — env-переменная); uvicorn слушает `$PORT`; старый volume `/data` сохранён, но больше не используется.
   - **Что сделано к этому (Волны 6-8):** API auth + rate-limit + CORS, async-очередь джобов + live WS, **sandbox для чужого кода (P1-4) + kernel-слой Linux (seccomp+Landlock)**, Postgres-backend (sqlite default, **CI-проверен на pg**), **per-user auth + ownership** (register/login, `owner_id` на ресурсах, изоляция), **public demo lane** (демо без логина), login frontend, **same-origin proxy** (cross-domain cookie закрыт). pentest-High (публичные сессии) закрыт.
-  - **`/api/explain` ВКЛЮЧЁН** — за логином (авторизация по auth-cookie через backend `/auth/me`; `x-explain-token` опционален для API-доступа); идёт через сторонний шлюз `api.kie.ai` (`EXPLAIN_ALLOW_THIRD_PARTY_API=1`, модель `claude-sonnet-4-6`). Проверено вживую: без cookie → 401, с cookie → 200 + объяснение.
+  - **`/api/explain` ВКЛЮЧЁН** — за логином (авторизация по auth-cookie через backend `/auth/me`; `x-explain-token` опционален для API-доступа). Проверено вживую: без cookie → 401, с cookie → 200 + объяснение. **Волна 9: код по умолчанию бьёт в официальный Anthropic (`x-api-key`/`anthropic-version`), kie.ai стал opt-in фоллбэком; прод-env пока оставлен на kie.ai до ручной замены ключа — explain работает как раньше.**
+
+- **🆕 Волна 9 (закалка + интеграция) — ВЫКАЧЕНА в прод** (деплои `abb843ba` backend / `4a3d9be1` static, из `def6cda`):
+  - **kernel-песочница ДОКАЗАНА на Linux** — отдельный CI-джоб `kernel-sandbox-proof` (ubuntu-latest): preflight проверяет реальный Landlock (`ABI=7`) + seccomp, затем `NEUROMOUSE_SANDBOX_KERNEL=required pytest packages/sandbox` = **47 passed, 0 skipped**; враждебные пробы (сеть / ФС read-write / subprocess+shell / fork-bomb / symlink+path-traversal escape / OOM / secret-harvest) сдержаны под живой изоляцией; тесты усилены так, что fail-closed **больше не засчитывается за успех**. **Это закрывает гейт безопасности перед открытием загрузки чужого кода.**
+  - **подтверждено вживую на проде** — демо-джоб `spike_detect` исполнился на Railway под `required`-режимом с реальным результатом (1024 электрода). Встроенные и пользовательские методы идут через один и тот же `run_in_sandbox`, поэтому успешный прогон = ядро реально держит изоляцию (иначе был бы fail-closed).
+  - **PG connection pool** (`psycopg_pool`, миграции один раз на старте — вместо нового соединения на каждый запрос); **observability** (структурные JSON-логи + захват 5xx + лимит тела `NEUROMOUSE_MAX_BODY_BYTES` → 413); **CI: smoke-тесты маршрутов + playwright login-e2e**; **Private Method Lab открыт залогиненным юзерам прямо в `/app`** (анонимная демо-дорожка не тронута).
 
 ---
 
@@ -57,6 +63,7 @@
 | **6 — Production hardening** | API auth-token + rate-limit + CORS + health; **async-очередь джобов + live WS** вне event-loop (P1-1); **Postgres-backend** + миграции (sqlite по умолчанию, P1-2); **sandbox для чужого кода методов/сортеров (P1-4)**; фронт→prod-backend; arch P1-3 (`mea.n_samples`); CloseEvent node22 CI-фикс |
 | **7 — Per-user auth** (rebuilt hands-on) | auth-core (register/login/logout/me, pbkdf2, storage-backed session-токены, httpOnly-cookie); `owner_id` на каждой сессии/датасете/джобе (миграция 003, owner-scoped запросы); per-user authz middleware; **public anonymous demo lane**; login frontend. pentest-High (анонимные сессии) закрыт |
 | **8 — Polish (этот чат)** | postgres-suite **runtime-проверена на CI** (`postgres:16` + `DATABASE_URL`); browser-verified login e2e + UI-фиксы/скриншоты; **kernel-sandbox Linux** (seccomp-bpf + Landlock + `no_new_privs`); `/api/explain` enabled-path тесты + infra-доки; **cross-domain cookie закрыт** (same-origin proxy → cookie first-party) |
+| **9 — Hardening + интеграция (этот чат), DEPLOYED** | 6 веток слиты в `main` и **выкачены в прод**: **kernel-песочница ДОКАЗАНА на Linux** (CI-джоб, Landlock ABI 7, 47 passed, враждебные пробы сдержаны) + **подтверждена вживую на проде** (демо-джоб под `required`); **PG connection pool**; **observability + лимит тела (413)**; **explain → официальный Anthropic по умолчанию** (kie.ai opt-in); **route-smoke + playwright e2e в CI**; **Private Method Lab открыт в `/app`** за логином |
 
 **Дополнительно в этом чате (важное):**
 - 🔴 **Закрыта живая дыра безопасности V2-01** (`/api/explain`): была открытая неаутентифицированная LLM-ручка, утекавшая API-ключ на сторонний хост. Добавлены auth-токен, rate-limit, официальный хост по умолчанию, CORS-allowlist.
@@ -101,22 +108,23 @@
 
 Платформа **развёрнута (scope 🅰)**, зелёная на CI и проверена вживую — **блокирующего ничего нет**. Остаётся опциональное и **наружу (нужно явное «го»)**.
 
-### Наружу — блокирующего нет (всё ключевое подключено: managed Postgres + `/api/explain`).
+### Наружу — блокирующего нет. Остались только **ручные человеко-шаги** (ключи/настройки, ассистент их не делает):
+- 🔑 **Ротировать kie.ai-ключ**, засветившийся в чате — гигиена, не функциональность.
+- 💾 **Включить daily-бэкапы Postgres** в дашборде Railway.
+- *(опционально)* **Дотянуть `/api/explain` до официального Anthropic** — код уже умеет; осталось поставить настоящий `sk-ant-` ключ в `ANTHROPIC_API_KEY` и удалить `EXPLAIN_API_URL` / `EXPLAIN_ALLOW_THIRD_PARTY_API` на static-сервисе, затем редеплой. До этого explain работает через kie.ai.
 
 ### Опциональное развитие:
-- **Перевести `/api/explain` на официальный Anthropic** вместо kie.ai-шлюза — приватнее (отчёты юзеров не идут через посредника), но требует доработки `callClaude` (родные `x-api-key` + `anthropic-version` вместо `Bearer`) и настоящего `sk-ant-` ключа.
 - **OAuth-идентичность** (GitHub/Google) как альтернатива email+password — auth-core спроектирован под подключение.
-- **Observability** на backend (структурные логи, трейсинг, метрики) — для реальной мульти-юзер нагрузки.
-- **Connection pooling для PG** — сейчас `PostgreSQLBackendStore._connect()` открывает новое соединение на каждый запрос и проверяет миграции; при росте нагрузки добавить пул (psycopg_pool).
-- **Лимит памяти / размерности** на тело запроса (memory-DoS) — последняя часть P1-3.
+- Реальные пользователи (друзья-учёные), их методы/сортеры; развитие wetware-трека.
 
 ### Закрытые watch-items:
-- ✅ **`/api/explain` включён** — за логином (auth-cookie через backend `/auth/me`, токен опционален), same-origin CORS-bypass, fail-closed на неофициальные хосты; через kie.ai-шлюз (явный opt-in). Тесты переписаны (9/9), проверено вживую.
-- ✅ **Managed Postgres в проде** — Railway PG-сервис поднят, backend на нём (приватная сеть, reference `DATABASE_URL`), миграции применены автоматически; проверено вживую (свежий юзер + сессия легли в PG).
-- ✅ **Node 20 → 24:** CI-экшены опт-ин через `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` (дедлайн ~16 июня пройден заранее).
-- ✅ **Docker build верифицирован** — backend и static реально собираются и стартуют в проде.
-- ✅ **sandbox (P1-4) + kernel-слой / persistence (P1-2) / async (P1-1) / auth + CORS + rate-limit** — сделано в Волнах 6-8.
-- ✅ **cross-domain cookie** — закрыт same-origin proxy (Волна 8 / этот чат).
+- ✅ **kernel-песочница ДОКАЗАНА на Linux + подтверждена вживую на проде** (Волна 9) — гейт безопасности перед открытием чужого кода закрыт; загрузка методов открыта залогиненным юзерам.
+- ✅ **PG connection pooling** (`psycopg_pool`) + **observability** (JSON-логи + 5xx + лимит тела 413) — сделано в Волне 9.
+- ✅ **`/api/explain`** — за логином; код переведён на официальный Anthropic по умолчанию (kie.ai opt-in). Проверено вживую.
+- ✅ **Managed Postgres в проде** — Railway PG-сервис, backend на нём, миграции применяются автоматически; проверено вживую.
+- ✅ **Node 20 → 24** (CI-экшены опт-ин) + **Docker build верифицирован** в проде.
+- ✅ **sandbox (P1-4) + kernel-слой / persistence (P1-2) / async (P1-1) / auth + CORS + rate-limit** — Волны 6-8.
+- ✅ **cross-domain cookie** — закрыт same-origin proxy (Волна 8).
 
 ---
 
@@ -156,10 +164,10 @@
 
 ## 9. Как продолжить, когда вернёшься
 
-Платформа уже в проде и зелёная. Возможные следующие шаги:
+Платформа в проде, зелёная, **Волна 9 выкачена, песочница доказана**. Возможные следующие шаги:
 1. Открыть свежий Claude Code в этой папке (`/Users/axel/Documents/SpeedMouse`). Память и `COORDINATOR.md` подтянутся.
-2. **Наружу-блокеров нет** — managed Postgres и `/api/explain` (за логином) уже подключены. Остаётся только опциональное развитие — см. §5.
-3. **Развитие:** OAuth-логин, observability, лимит памяти на тело запроса — см. §5.
+2. **Блокеров нет.** Остались два ручных человеко-шага: ротация kie.ai-ключа + daily-бэкапы Postgres (см. §5). После этого — обоснованная **пауза на реальных пилотов**.
+3. **Развитие:** официальный Anthropic для explain, OAuth-логин, observability-метрики, wetware-трек — см. §5.
 4. Любой код-чейндж: hands-on (build/git/test сам), **push только на зелёном CI**, **деплой наружу — только с явного «го»**.
 
 ---
